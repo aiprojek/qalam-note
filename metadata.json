@@ -1,0 +1,6 @@
+{
+  "name": "Qalam Notes",
+  "description": "Local-first, encrypted note-taking application inspired by Joplin with Dexie.js, PWA support, WebDAV & Dropbox sync, WYSIWYG editor, and Google Sheets GAS publishing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

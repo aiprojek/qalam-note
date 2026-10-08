@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="qalamGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e3a8a" />
+    </linearGradient>
+    <linearGradient id="nibMetal" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="65%" stop-color="#f1f5f9" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+    <linearGradient id="goldBand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#0f172a" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- App icon squircle -->
+  <rect width="512" height="512" rx="120" fill="url(#qalamGrad512)" />
+
+  <!-- Notebook spine margin ribbon -->
+  <path d="M72 100 C72 84 85 72 100 72 L120 72 L120 440 L100 440 C85 440 72 428 72 412 Z" fill="#ffffff" opacity="0.18" />
+
+  <!-- Qalam Calligraphic Nib in center -->
+  <g filter="url(#shadow)" transform="translate(16, 0)">
+    <!-- Nib Body -->
+    <path
+      d="M240 88 C240 88 160 208 148 296 C138 356 164 396 240 436 C316 396 342 356 332 296 C320 208 240 88 240 88 Z"
+      fill="url(#nibMetal)"
+    />
+
+    <!-- Gold Accent Collar -->
+    <path
+      d="M165 316 C182 322 210 328 240 328 C270 328 298 322 315 316 C310 342 294 366 268 382 C255 390 248 392 240 392 C232 392 225 390 212 382 C186 366 170 342 165 316 Z"
+      fill="url(#goldBand)"
+    />
+
+    <!-- Breather Hole -->
+    <circle cx="240" cy="248" r="22" fill="#1e3a8a" />
+
+    <!-- Slit line from nib point to breather hole -->
+    <line
+      x1="240"
+      y1="94"
+      x2="240"
+      y2="226"
+      stroke="#1e3a8a"
+      stroke-width="14"
+      stroke-linecap="round"
+    />
+  </g>
+</svg>

@@ -1,0 +1,860 @@
+@import "tailwindcss";
+
+/* Qalam Custom Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Light theme scrollbars */
+.qalam-light .custom-scrollbar::-webkit-scrollbar-thumb,
+.qalam-light .custom-scrollbar::-webkit-scrollbar-thumb,
+html.light .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35) !important;
+}
+.qalam-light .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.qalam-light .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6) !important;
+}
+
+/* Qalam Note Pure White / Crisp Light Theme System (WCAG 2.1 AA Compliant) */
+.qalam-light,
+.qalam-light,
+html.light,
+html.qalam-light,
+html.qalam-light {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Base Surfaces: Pure White */
+.qalam-light .bg-\[\#141b27\],
+.qalam-light .bg-\[\#161d2b\],
+.qalam-light .bg-\[\#1a2333\],
+.qalam-light .bg-\[\#1b2434\],
+.qalam-light .bg-\[\#1d273b\],
+.qalam-light .bg-\[\#1e2738\],
+.qalam-light .bg-\[\#1e293b\],
+.qalam-light .bg-\[\#202b3e\],
+.qalam-light .bg-\[\#232f45\],
+.qalam-light .bg-\[\#162032\],
+.qalam-light .bg-\[\#11192a\],
+.qalam-light .bg-\[\#0a0f1d\],
+.qalam-light .bg-\[\#141b27\],
+.qalam-light .bg-\[\#161d2b\],
+.qalam-light .bg-\[\#1a2333\],
+.qalam-light .bg-\[\#1b2434\],
+.qalam-light .bg-\[\#1d273b\],
+.qalam-light .bg-\[\#1e2738\],
+.qalam-light .bg-\[\#1e293b\],
+.qalam-light .bg-\[\#202b3e\],
+.qalam-light .bg-\[\#232f45\],
+.qalam-light .bg-\[\#162032\],
+.qalam-light .bg-\[\#11192a\],
+.qalam-light .bg-\[\#0a0f1d\] {
+  background-color: #ffffff !important;
+}
+
+/* Secondary Surfaces: Soft Crisp Slate (#f8fafc) */
+.qalam-light .bg-\[\#121722\],
+.qalam-light .bg-\[\#121824\],
+.qalam-light .bg-\[\#151c28\],
+.qalam-light .bg-\[\#151f32\],
+.qalam-light .bg-\[\#171f2c\],
+.qalam-light .bg-\[\#171f2d\],
+.qalam-light .bg-\[\#17202e\],
+.qalam-light .bg-\[\#18202e\],
+.qalam-light .bg-\[\#182130\],
+.qalam-light .bg-\[\#1e2739\],
+.qalam-light .bg-\[\#202b3f\],
+.qalam-light .bg-\[\#121722\],
+.qalam-light .bg-\[\#121824\],
+.qalam-light .bg-\[\#151c28\],
+.qalam-light .bg-\[\#151f32\],
+.qalam-light .bg-\[\#171f2c\],
+.qalam-light .bg-\[\#171f2d\],
+.qalam-light .bg-\[\#17202e\],
+.qalam-light .bg-\[\#18202e\],
+.qalam-light .bg-\[\#182130\],
+.qalam-light .bg-\[\#1e2739\],
+.qalam-light .bg-\[\#202b3f\] {
+  background-color: #f8fafc !important;
+}
+
+/* Dark cards & secondary containers in light theme */
+.qalam-light .bg-slate-950,
+.qalam-light .bg-slate-900,
+.qalam-light .bg-slate-900\/80,
+.qalam-light .bg-slate-900\/70,
+.qalam-light .bg-slate-900\/60,
+.qalam-light .bg-slate-900\/50,
+.qalam-light .bg-slate-950,
+.qalam-light .bg-slate-900,
+.qalam-light .bg-slate-900\/80,
+.qalam-light .bg-slate-900\/70,
+.qalam-light .bg-slate-900\/60,
+.qalam-light .bg-slate-900\/50 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Secondary Action Buttons (e.g. Batal / Cancel, Sort, Filter, Tag) */
+.qalam-light button.bg-slate-800,
+.qalam-light button.bg-slate-800\/80,
+.qalam-light button.bg-slate-800\/60,
+.qalam-light button.bg-slate-700,
+.qalam-light button.bg-slate-700\/80,
+.qalam-light button.bg-slate-800,
+.qalam-light button.bg-slate-800\/80,
+.qalam-light button.bg-slate-800\/60,
+.qalam-light button.bg-slate-700,
+.qalam-light button.bg-slate-700\/80 {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+}
+.qalam-light button.bg-slate-800:hover,
+.qalam-light button.bg-slate-700:hover,
+.qalam-light button.bg-slate-800:hover,
+.qalam-light button.bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Non-button sub-elements with bg-slate-800 */
+.qalam-light .bg-slate-800:not(button):not(input):not(select),
+.qalam-light .bg-slate-800\/80:not(button):not(input):not(select),
+.qalam-light .bg-slate-800\/60:not(button):not(input):not(select),
+.qalam-light .bg-slate-800:not(button):not(input):not(select),
+.qalam-light .bg-slate-800\/80:not(button):not(input):not(select),
+.qalam-light .bg-slate-800\/60:not(button):not(input):not(select) {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Borders in light theme */
+.qalam-light .border-slate-800,
+.qalam-light .border-slate-800\/90,
+.qalam-light .border-slate-800\/80,
+.qalam-light .border-slate-800\/60,
+.qalam-light .border-slate-700,
+.qalam-light .border-slate-700\/90,
+.qalam-light .border-slate-700\/80,
+.qalam-light .border-slate-700\/70,
+.qalam-light .border-slate-700\/60,
+.qalam-light .border-slate-700\/40,
+.qalam-light .border-slate-800,
+.qalam-light .border-slate-800\/90,
+.qalam-light .border-slate-800\/80,
+.qalam-light .border-slate-800\/60,
+.qalam-light .border-slate-700,
+.qalam-light .border-slate-700\/90,
+.qalam-light .border-slate-700\/80,
+.qalam-light .border-slate-700\/70,
+.qalam-light .border-slate-700\/60,
+.qalam-light .border-slate-700\/40 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Typography Hierarchy in Light Theme */
+.qalam-light .text-white,
+.qalam-light .text-slate-100,
+.qalam-light .text-slate-200,
+.qalam-light .text-white,
+.qalam-light .text-slate-100,
+.qalam-light .text-slate-200 {
+  color: #0f172a !important;
+}
+
+.qalam-light .text-slate-300,
+.qalam-light .text-slate-400,
+.qalam-light .text-slate-300,
+.qalam-light .text-slate-400 {
+  color: #334155 !important;
+}
+
+.qalam-light .text-slate-500,
+.qalam-light .text-slate-500 {
+  color: #475569 !important;
+}
+
+.qalam-light .text-slate-600,
+.qalam-light .text-slate-600 {
+  color: #64748b !important;
+}
+
+/* Hover and selection styles across lists and trees */
+.qalam-light .hover\:bg-slate-700\/70:hover,
+.qalam-light .hover\:bg-slate-700\/60:hover,
+.qalam-light .hover\:bg-slate-700\/50:hover,
+.qalam-light .hover\:bg-slate-700:hover,
+.qalam-light .hover\:bg-slate-800\/60:hover,
+.qalam-light .hover\:bg-slate-800:hover,
+.qalam-light .hover\:bg-\[\#202b3d\]:hover,
+.qalam-light .hover\:bg-slate-700\/70:hover,
+.qalam-light .hover\:bg-slate-700\/60:hover,
+.qalam-light .hover\:bg-slate-700\/50:hover,
+.qalam-light .hover\:bg-slate-700:hover,
+.qalam-light .hover\:bg-slate-800\/60:hover,
+.qalam-light .hover\:bg-slate-800:hover,
+.qalam-light .hover\:bg-\[\#202b3d\]:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Active Note Selection in NoteList */
+.qalam-light .bg-\[\#283852\],
+.qalam-light .bg-\[\#283852\] {
+  background-color: #eff6ff !important;
+  border-left-color: #2563eb !important;
+  color: #1e40af !important;
+  box-shadow: inset 0 0 0 1px #dbeafe !important;
+}
+.qalam-light .bg-\[\#283852\] h4,
+.qalam-light .bg-\[\#283852\] h4 {
+  color: #1e40af !important;
+  font-weight: 700 !important;
+}
+
+/* Active Folder / Tag Selection in Sidebar */
+.qalam-light .bg-blue-600\/30,
+.qalam-light .bg-blue-600\/30 {
+  background-color: #eff6ff !important;
+  border-left-color: #2563eb !important;
+  color: #1d4ed8 !important;
+}
+
+/* Trash Selection & Danger Accents in Light Theme */
+.qalam-light .bg-red-950,
+.qalam-light .bg-red-950\/70,
+.qalam-light .bg-red-950\/60,
+.qalam-light .bg-red-950\/40,
+.qalam-light .bg-red-950,
+.qalam-light .bg-red-950\/70,
+.qalam-light .bg-red-950\/60,
+.qalam-light .bg-red-950\/40 {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+.qalam-light .text-red-300,
+.qalam-light .text-red-400,
+.qalam-light .text-red-300,
+.qalam-light .text-red-400 {
+  color: #dc2626 !important;
+}
+
+/* Blue Badge & Tag Tints in Light Theme */
+.qalam-light .bg-blue-950,
+.qalam-light .bg-blue-950\/60,
+.qalam-light .bg-blue-950\/40,
+.qalam-light .bg-blue-950\/30,
+.qalam-light .bg-blue-950\/20,
+.qalam-light .bg-blue-950,
+.qalam-light .bg-blue-950\/60,
+.qalam-light .bg-blue-950\/40,
+.qalam-light .bg-blue-950\/30,
+.qalam-light .bg-blue-950\/20 {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+.qalam-light .text-blue-300,
+.qalam-light .text-blue-400,
+.qalam-light .text-blue-300,
+.qalam-light .text-blue-400 {
+  color: #2563eb !important;
+}
+
+/* Emerald Accents in Light Theme */
+.qalam-light .bg-emerald-950,
+.qalam-light .bg-emerald-950\/40,
+.qalam-light .bg-emerald-950\/30,
+.qalam-light .bg-emerald-950,
+.qalam-light .bg-emerald-950\/40,
+.qalam-light .bg-emerald-950\/30 {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #15803d !important;
+}
+.qalam-light .text-emerald-300,
+.qalam-light .text-emerald-400,
+.qalam-light .text-emerald-300,
+.qalam-light .text-emerald-400 {
+  color: #16a34a !important;
+}
+
+/* Amber Accents in Light Theme */
+.qalam-light .bg-amber-950,
+.qalam-light .bg-amber-950\/40,
+.qalam-light .bg-amber-950\/30,
+.qalam-light .bg-amber-500\/10,
+.qalam-light .bg-amber-500\/20,
+.qalam-light .bg-amber-950,
+.qalam-light .bg-amber-950\/40,
+.qalam-light .bg-amber-950\/30,
+.qalam-light .bg-amber-500\/10,
+.qalam-light .bg-amber-500\/20 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
+}
+.qalam-light .text-amber-200,
+.qalam-light .text-amber-300,
+.qalam-light .text-amber-400,
+.qalam-light .text-amber-200,
+.qalam-light .text-amber-300,
+.qalam-light .text-amber-400 {
+  color: #b45309 !important;
+}
+
+/* Inputs, Textareas, and Selects in Light Theme */
+.qalam-light input:not(.bg-transparent),
+.qalam-light textarea:not(.bg-transparent),
+.qalam-light select {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.qalam-light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+.qalam-light input::placeholder,
+.qalam-light textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Markdown Source Editor Line Numbers in Light Theme */
+.qalam-light .bg-\[\#121824\],
+.qalam-light .bg-\[\#121824\] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+/* TopMenuBar Dropdown Menus in Light Theme */
+.qalam-light .bg-\[\#1e2739\],
+.qalam-light .bg-\[\#1e2739\] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Modals in Light Theme */
+.qalam-light .bg-\[\#202b3e\],
+.qalam-light .bg-\[\#1e293b\],
+.qalam-light .bg-\[\#1b2434\],
+.qalam-light .bg-\[\#202b3e\],
+.qalam-light .bg-\[\#1e293b\],
+.qalam-light .bg-\[\#1b2434\] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+  color: #0f172a !important;
+}
+
+/* Modal Headers and Footers */
+.qalam-light .bg-\[\#1a2333\],
+.qalam-light .bg-\[\#162032\],
+.qalam-light .bg-\[\#202b3f\],
+.qalam-light .bg-\[\#1a2333\],
+.qalam-light .bg-\[\#162032\],
+.qalam-light .bg-\[\#202b3f\] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Modal Backdrop */
+.qalam-light .bg-black\/60,
+.qalam-light .bg-black\/70,
+.qalam-light .bg-black\/75,
+.qalam-light .bg-black\/80,
+html.light .bg-black\/60,
+html.light .bg-black\/70,
+html.light .bg-black\/75,
+html.light .bg-black\/80 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Prose Invert reset for light theme */
+.qalam-light .prose-invert,
+.qalam-light .prose-invert {
+  --tw-prose-body: #0f172a !important;
+  --tw-prose-headings: #0f172a !important;
+  --tw-prose-lead: #334155 !important;
+  --tw-prose-links: #2563eb !important;
+  --tw-prose-bold: #0f172a !important;
+  --tw-prose-counters: #475569 !important;
+  --tw-prose-bullets: #334155 !important;
+  --tw-prose-hr: #e2e8f0 !important;
+  --tw-prose-quotes: #1e293b !important;
+  --tw-prose-quote-borders: #2563eb !important;
+  --tw-prose-captions: #64748b !important;
+  --tw-prose-code: #0f172a !important;
+  --tw-prose-pre-code: #0f172a !important;
+  --tw-prose-pre-bg: #f8fafc !important;
+  --tw-prose-th-borders: #cbd5e1 !important;
+  --tw-prose-td-borders: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* ContentEditable in light theme */
+.qalam-light [contenteditable],
+.qalam-light [contenteditable="true"] {
+  background-color: transparent !important;
+  color: #0f172a !important;
+}
+
+.qalam-light [contenteditable="true"] h1,
+.qalam-light [contenteditable="true"] h1 {
+  color: #0f172a !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.qalam-light [contenteditable="true"] h2,
+.qalam-light [contenteditable="true"] h2 {
+  color: #1e293b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.qalam-light [contenteditable="true"] h3,
+.qalam-light [contenteditable="true"] h3 {
+  color: #334155 !important;
+}
+
+.qalam-light [contenteditable="true"] blockquote,
+.qalam-light [contenteditable="true"] blockquote {
+  border-left-color: #2563eb !important;
+  background-color: #eff6ff !important;
+  color: #1e293b !important;
+}
+
+.qalam-light [contenteditable="true"] pre,
+.qalam-light [contenteditable="true"] pre {
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #047857 !important;
+}
+
+.qalam-light [contenteditable="true"] code,
+.qalam-light [contenteditable="true"] code {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #b45309 !important;
+}
+
+.qalam-light .qalam-math-block,
+.qalam-light .qalam-math-block {
+  background-color: #eff6ff !important;
+  color: #1e40af !important;
+  border-color: #bfdbfe !important;
+}
+
+.qalam-light .qalam-callout,
+.qalam-light .qalam-callout {
+  background-color: #f0f9ff !important;
+  color: #0369a1 !important;
+}
+
+.qalam-nord,
+.qalam-nord {
+  filter: hue-rotate(15deg) saturate(1.1);
+}
+
+/* ContentEditable focus */
+[contenteditable]:focus {
+  outline: none;
+}
+
+/* Word-style text direction overrides for selected text and paragraphs */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
+[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+/* WYSIWYG Editor & Markdown Live Preview Typography & List Reset Fixes */
+[contenteditable] ul,
+[contenteditable="true"] ul,
+.qalam-markdown-preview ul,
+.prose ul {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-left: 2rem !important;
+}
+
+[contenteditable] ol,
+[contenteditable="true"] ol,
+.qalam-markdown-preview ol,
+.prose ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-left: 2rem !important;
+}
+
+[contenteditable] li,
+[contenteditable="true"] li,
+.qalam-markdown-preview li,
+.prose li {
+  display: list-item !important;
+  list-style: inherit !important;
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  line-height: 1.6 !important;
+}
+
+/* RTL list indentation overrides */
+[dir="rtl"] [contenteditable] ul,
+[dir="rtl"] [contenteditable="true"] ul,
+[contenteditable][dir="rtl"] ul,
+[contenteditable="true"][dir="rtl"] ul,
+.qalam-markdown-preview[dir="rtl"] ul,
+[dir="rtl"] .qalam-markdown-preview ul {
+  padding-left: 0 !important;
+  padding-right: 2rem !important;
+}
+
+[dir="rtl"] [contenteditable] ol,
+[dir="rtl"] [contenteditable="true"] ol,
+[contenteditable][dir="rtl"] ol,
+[contenteditable="true"][dir="rtl"] ol,
+.qalam-markdown-preview[dir="rtl"] ol,
+[dir="rtl"] .qalam-markdown-preview ol {
+  padding-left: 0 !important;
+  padding-right: 2rem !important;
+}
+
+/* Headings in ContentEditable & Preview */
+[contenteditable="true"] h1,
+.qalam-markdown-preview h1 {
+  font-size: 1.85rem !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  padding-bottom: 0.35rem !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25) !important;
+  color: #ffffff !important;
+}
+
+[contenteditable="true"] h2,
+.qalam-markdown-preview h2 {
+  font-size: 1.45rem !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-bottom: 0.25rem !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15) !important;
+  color: #f8fafc !important;
+}
+
+[contenteditable="true"] h3,
+.qalam-markdown-preview h3 {
+  font-size: 1.2rem !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.4rem !important;
+  color: #f1f5f9 !important;
+}
+
+/* Blockquotes */
+[contenteditable="true"] blockquote,
+.qalam-markdown-preview blockquote {
+  border-left: 4px solid #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  padding: 0.5rem 1rem !important;
+  margin: 0.75rem 0 !important;
+  border-radius: 0 0.375rem 0.375rem 0 !important;
+  font-style: italic !important;
+  color: #cbd5e1 !important;
+}
+
+[dir="rtl"] [contenteditable="true"] blockquote,
+[contenteditable="true"] blockquote[dir="rtl"],
+.qalam-markdown-preview blockquote[dir="rtl"] {
+  border-left: none !important;
+  border-right: 4px solid #3b82f6 !important;
+  border-radius: 0.375rem 0 0 0.375rem !important;
+  padding-left: 0.5rem !important;
+  padding-right: 1rem !important;
+  text-align: right !important;
+}
+
+/* Code Blocks & Inline Code */
+[contenteditable="true"] pre,
+.qalam-markdown-preview pre {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.75rem 1rem !important;
+  margin: 0.75rem 0 !important;
+  overflow-x: auto !important;
+  font-family: monospace !important;
+  font-size: 0.875rem !important;
+  color: #34d399 !important;
+}
+
+[contenteditable="true"] code,
+.qalam-markdown-preview code {
+  background: rgba(51, 65, 85, 0.6) !important;
+  color: #fcd34d !important;
+  font-family: monospace !important;
+  font-size: 0.85em !important;
+  padding: 0.15rem 0.35rem !important;
+  border-radius: 0.25rem !important;
+  border: 1px solid rgba(100, 116, 139, 0.3) !important;
+}
+
+[contenteditable="true"] pre code,
+.qalam-markdown-preview pre code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+}
+
+/* Highlight / Sorotan */
+[contenteditable="true"] mark,
+.qalam-markdown-preview mark {
+  background-color: rgba(245, 158, 11, 0.35) !important;
+  color: #fef08a !important;
+  padding: 0.1rem 0.3rem !important;
+  border-radius: 0.25rem !important;
+  font-weight: 500 !important;
+}
+
+/* Underline */
+[contenteditable="true"] u,
+.qalam-markdown-preview u {
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Tables */
+[contenteditable="true"] table,
+.qalam-markdown-preview table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1rem 0 !important;
+  border: 1px solid #334155 !important;
+}
+
+[contenteditable="true"] th,
+.qalam-markdown-preview th {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  padding: 0.5rem 0.75rem !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: #e2e8f0 !important;
+}
+
+[contenteditable="true"] td,
+.qalam-markdown-preview td {
+  border: 1px solid #334155 !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.85rem !important;
+  color: #cbd5e1 !important;
+}
+
+/* Horizontal Rule */
+[contenteditable="true"] hr,
+.qalam-markdown-preview hr {
+  margin: 1.5rem 0 !important;
+  border: none !important;
+  border-top: 1px solid #334155 !important;
+}
+
+/* Checklist / Todo styling */
+.qalam-todo-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  margin: 0.35rem 0 !important;
+}
+
+.qalam-todo-checkbox {
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+  accent-color: #3b82f6 !important;
+  cursor: pointer !important;
+  border-radius: 0.25rem !important;
+}
+
+/* ==========================================================================
+   SPECIFIC LIGHT THEME TYPOGRAPHY & PREVIEW OVERRIDES (TOP SPECIFICITY)
+   ========================================================================== */
+.qalam-light [contenteditable="true"] h1,
+.qalam-light [contenteditable="true"] h1,
+html.light [contenteditable="true"] h1,
+.qalam-light .qalam-markdown-preview h1,
+.qalam-light .qalam-markdown-preview h1,
+html.light .qalam-markdown-preview h1 {
+  color: #0f172a !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.qalam-light [contenteditable="true"] h2,
+.qalam-light [contenteditable="true"] h2,
+html.light [contenteditable="true"] h2,
+.qalam-light .qalam-markdown-preview h2,
+.qalam-light .qalam-markdown-preview h2,
+html.light .qalam-markdown-preview h2 {
+  color: #1e293b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.qalam-light [contenteditable="true"] h3,
+.qalam-light [contenteditable="true"] h3,
+html.light [contenteditable="true"] h3,
+.qalam-light .qalam-markdown-preview h3,
+.qalam-light .qalam-markdown-preview h3,
+html.light .qalam-markdown-preview h3 {
+  color: #334155 !important;
+}
+
+.qalam-light [contenteditable="true"] blockquote,
+.qalam-light [contenteditable="true"] blockquote,
+html.light [contenteditable="true"] blockquote,
+.qalam-light .qalam-markdown-preview blockquote,
+.qalam-light .qalam-markdown-preview blockquote,
+html.light .qalam-markdown-preview blockquote {
+  border-left-color: #2563eb !important;
+  background-color: #eff6ff !important;
+  color: #1e293b !important;
+}
+
+.qalam-light [dir="rtl"] [contenteditable="true"] blockquote,
+.qalam-light [dir="rtl"] [contenteditable="true"] blockquote,
+html.light [dir="rtl"] [contenteditable="true"] blockquote,
+.qalam-light .qalam-markdown-preview blockquote[dir="rtl"],
+.qalam-light .qalam-markdown-preview blockquote[dir="rtl"] {
+  border-right-color: #2563eb !important;
+}
+
+.qalam-light [contenteditable="true"] pre,
+.qalam-light [contenteditable="true"] pre,
+html.light [contenteditable="true"] pre,
+.qalam-light .qalam-markdown-preview pre,
+.qalam-light .qalam-markdown-preview pre,
+html.light .qalam-markdown-preview pre {
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.qalam-light [contenteditable="true"] code,
+.qalam-light [contenteditable="true"] code,
+html.light [contenteditable="true"] code,
+.qalam-light .qalam-markdown-preview code,
+.qalam-light .qalam-markdown-preview code,
+html.light .qalam-markdown-preview code {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #b45309 !important;
+}
+
+.qalam-light [contenteditable="true"] pre code,
+.qalam-light [contenteditable="true"] pre code,
+html.light [contenteditable="true"] pre code,
+.qalam-light .qalam-markdown-preview pre code,
+.qalam-light .qalam-markdown-preview pre code,
+html.light .qalam-markdown-preview pre code {
+  background-color: transparent !important;
+  border: none !important;
+  color: #0f172a !important;
+}
+
+.qalam-light [contenteditable="true"] mark,
+.qalam-light [contenteditable="true"] mark,
+html.light [contenteditable="true"] mark,
+.qalam-light .qalam-markdown-preview mark,
+.qalam-light .qalam-markdown-preview mark,
+html.light .qalam-markdown-preview mark {
+  background-color: #fef08a !important;
+  color: #854d0e !important;
+}
+
+.qalam-light [contenteditable="true"] table,
+.qalam-light [contenteditable="true"] table,
+html.light [contenteditable="true"] table,
+.qalam-light .qalam-markdown-preview table,
+.qalam-light .qalam-markdown-preview table,
+html.light .qalam-markdown-preview table {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.qalam-light [contenteditable="true"] th,
+.qalam-light [contenteditable="true"] th,
+html.light [contenteditable="true"] th,
+.qalam-light .qalam-markdown-preview th,
+.qalam-light .qalam-markdown-preview th,
+html.light .qalam-markdown-preview th {
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.qalam-light [contenteditable="true"] td,
+.qalam-light [contenteditable="true"] td,
+html.light [contenteditable="true"] td,
+.qalam-light .qalam-markdown-preview td,
+.qalam-light .qalam-markdown-preview td,
+html.light .qalam-markdown-preview td {
+  border: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.qalam-light [contenteditable="true"] hr,
+.qalam-light [contenteditable="true"] hr,
+html.light [contenteditable="true"] hr,
+.qalam-light .qalam-markdown-preview hr,
+.qalam-light .qalam-markdown-preview hr,
+html.light .qalam-markdown-preview hr {
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+.qalam-light .qalam-todo-item span,
+.qalam-light .qalam-todo-item span,
+html.light .qalam-todo-item span {
+  color: #0f172a !important;
+}
+
+.qalam-light .qalam-todo-item span.line-through,
+.qalam-light .qalam-todo-item span.line-through,
+html.light .qalam-todo-item span.line-through {
+  color: #64748b !important;
+}
+
+/* System Arabic Typography Stack (100% Offline Compatible) */
+.font-arabic {
+  font-family: 'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', 'Geeza Pro', 'Al Bayan', 'DejaVu Sans', serif, system-ui;
+}
+

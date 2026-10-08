@@ -6,5 +6,7 @@ coverage/
 .DS_Store
 *.log
 *.tsbuildinfo
+bun.lock
+bun.lockb
 .env*
 !.env.example

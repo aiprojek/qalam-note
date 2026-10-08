@@ -72,6 +72,19 @@ Buka peramban di `http://localhost:3000`.
 npm run build
 ```
 
+Hasil build statis akan berada di direktori `dist/`.
+
+### 🌐 Konfigurasi Deployment (Cloudflare Pages / Vercel / Netlify)
+
+Untuk melakukan deploy pada **Cloudflare Pages**:
+- **Framework preset**: `Vite`
+- **Build command**: `npm run build`
+- **Build output directory**: `dist`
+- **Root directory**: `/` (default)
+- **Environment variable** (opsional): `NODE_VERSION=22`
+
+> **Catatan**: Repositori menggunakan `package-lock.json` standar npm agar kompatibel dengan lingkungan build CI/CD Cloudflare Pages, Vercel, dan Netlify tanpa kendala versi lockfile.
+
 ---
 
 ## 🤝 Komunitas & Dukungan

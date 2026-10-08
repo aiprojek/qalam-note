@@ -29,6 +29,9 @@ import {
   ChevronUp,
   Scale,
   BookOpen,
+  Coffee,
+  Send,
+  Github,
 } from 'lucide-react';
 import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage } from '../../types';
 import {
@@ -54,6 +57,9 @@ import {
   APP_LICENSE_URL,
   FSF_URL,
   APP_CHANGELOG,
+  DONATION_URL,
+  TELEGRAM_URL,
+  GITHUB_REPO_URL,
 } from '../../constants/version';
 
 interface SettingsModalProps {
@@ -1646,6 +1652,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <PWAInstallButton language={formSettings.language} />
                     </div>
                   </div>
+                </div>
+
+                {/* Community, Coffee & GitHub */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <a
+                    href={DONATION_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`p-3 rounded-xl border flex items-center gap-2.5 transition group ${
+                      isLight
+                        ? 'bg-amber-50/60 hover:bg-amber-100/70 border-amber-200/80 text-amber-950'
+                        : 'bg-amber-950/20 hover:bg-amber-950/40 border-amber-900/40 text-amber-200'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-amber-500/15 text-amber-500 group-hover:scale-105 transition-transform">
+                      <Coffee className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 font-semibold text-xs leading-tight">
+                        <span>{t.about_coffee_label}</span>
+                        <ExternalLink className="w-3 h-3 opacity-60 shrink-0" />
+                      </div>
+                      <p className={`text-[10.5px] truncate mt-0.5 ${isLight ? 'text-amber-700/80' : 'text-amber-300/70'}`}>
+                        {t.about_coffee_sub}
+                      </p>
+                    </div>
+                  </a>
+
+                  <a
+                    href={TELEGRAM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`p-3 rounded-xl border flex items-center gap-2.5 transition group ${
+                      isLight
+                        ? 'bg-sky-50/60 hover:bg-sky-100/70 border-sky-200/80 text-sky-950'
+                        : 'bg-sky-950/20 hover:bg-sky-950/40 border-sky-900/40 text-sky-200'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-sky-500/15 text-sky-500 group-hover:scale-105 transition-transform">
+                      <Send className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 font-semibold text-xs leading-tight">
+                        <span>{t.about_telegram_label}</span>
+                        <ExternalLink className="w-3 h-3 opacity-60 shrink-0" />
+                      </div>
+                      <p className={`text-[10.5px] truncate mt-0.5 ${isLight ? 'text-sky-700/80' : 'text-sky-300/70'}`}>
+                        {t.about_telegram_sub}
+                      </p>
+                    </div>
+                  </a>
+
+                  <a
+                    href={GITHUB_REPO_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`p-3 rounded-xl border flex items-center gap-2.5 transition group ${
+                      isLight
+                        ? 'bg-slate-100/80 hover:bg-slate-200/70 border-slate-200/90 text-slate-900'
+                        : 'bg-slate-800/40 hover:bg-slate-800/70 border-slate-700/60 text-slate-200'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-slate-500/15 text-slate-600 dark:text-slate-300 group-hover:scale-105 transition-transform">
+                      <Github className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 font-semibold text-xs leading-tight">
+                        <span>{t.about_github_label}</span>
+                        <ExternalLink className="w-3 h-3 opacity-60 shrink-0" />
+                      </div>
+                      <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {t.about_github_sub}
+                      </p>
+                    </div>
+                  </a>
                 </div>
 
                 {/* Minimalist Metadata & Status Grid */}

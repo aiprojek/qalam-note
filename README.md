@@ -2,6 +2,20 @@
 
 > **Aplikasi Catatan Local-First, Penulisan Dua Arah (Bidi LTR & RTL), dan Brankas Terenkripsi Pribadi.**
 
+[![GitHub](https://img.shields.io/badge/GitHub-qalam--note-181717?logo=github)](https://github.com/aiprojek/qalam-note)
+[![Telegram](https://img.shields.io/badge/Telegram-Komunitas-229ED9?logo=telegram)](https://t.me/aiprojek_community/32#)
+[![Traktir Kopi](https://img.shields.io/badge/Traktir%20Kopi-Lynk.id-FF813F?logo=buymeacoffee)](https://lynk.id/aiprojek/s/bvBJvdA)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+
+---
+
+### 🔗 Tautan Komunitas & Donasi
+- ☕ **Donasi / Traktir Kopi**: [https://lynk.id/aiprojek/s/bvBJvdA](https://lynk.id/aiprojek/s/bvBJvdA)
+- 💬 **Komunitas Telegram**: [https://t.me/aiprojek_community/32#](https://t.me/aiprojek_community/32#)
+- 🐙 **Repositori GitHub**: [https://github.com/aiprojek/qalam-note](https://github.com/aiprojek/qalam-note)
+
+---
+
 Qalam Note adalah aplikasi pencatat catatan yang mengutamakan privasi dan kedaulatan data pengguna. Dibuat dengan arsitektur **Local-First**, seluruh catatan tersimpan langsung di perangkat Anda tanpa ketergantungan pada server pihak ketiga.
 
 ---
@@ -57,6 +71,16 @@ Buka peramban di `http://localhost:3000`.
 ```bash
 npm run build
 ```
+
+---
+
+## 🤝 Komunitas & Dukungan
+
+Dukung keberlanjutan pengembangan aplikasi dan bergabung bersama komunitas Qalam Note:
+
+- ☕ **Traktir Kopi**: [https://lynk.id/aiprojek/s/bvBJvdA](https://lynk.id/aiprojek/s/bvBJvdA)
+- 💬 **Komunitas Telegram**: [https://t.me/aiprojek_community/32#](https://t.me/aiprojek_community/32#)
+- 🐙 **Repositori GitHub**: [https://github.com/aiprojek/qalam-note](https://github.com/aiprojek/qalam-note)
 
 ---
 

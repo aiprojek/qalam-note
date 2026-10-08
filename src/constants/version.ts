@@ -18,6 +18,10 @@ export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
 export const FSF_URL = 'https://www.fsf.org';
 
+export const DONATION_URL = 'https://lynk.id/aiprojek/s/bvBJvdA';
+export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
+export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
+
 export const APP_CHANGELOG: ChangelogItem[] = [
   {
     version: '1.0.0',

@@ -356,7 +356,7 @@ export const TRANSLATIONS = {
     import_archive_button: 'Pilih Berkas Cadangan (.json)',
 
     // About Tab
-    about_app_subtitle: 'Aplikasi Catatan Local-First & Second Brain Multibahasa',
+    about_app_subtitle: 'Aplikasi Catatan Local-First dan Second Brain',
     about_intro: 'Aplikasi pencatat modern berorientasi privasi dan kebebasan menulis aksara dunia (Latin & RTL), dengan keunggulan:',
     about_f1: 'Dexie.js IndexedDB: Penyimpanan lokal super cepat tanpa ketergantungan pada backend eksternal.',
     about_f2: 'Progressive Web App (PWA): Mendukung penggunaan offline penuh, caching service worker, dan dapat dipasang ke layar utama.',
@@ -390,6 +390,13 @@ export const TRANSLATIONS = {
     about_privacy_desc: 'Catatan Anda 100% tersimpan secara lokal di peramban (IndexedDB). Tanpa pelacak, tanpa telemetri pihak ketiga, dan tanpa server perantara tanpa izin eksplisit Anda.',
     about_shortcuts_title: 'Pintasan Keyboard Utama',
     about_tech_title: 'Fondasi Teknologi Inti',
+    about_community_title: 'Komunitas & Dukungan',
+    about_coffee_label: 'Traktir Kopi',
+    about_coffee_sub: 'Dukung pengembang via Lynk.id',
+    about_telegram_label: 'Telegram',
+    about_telegram_sub: 'Komunitas @aiprojek_community',
+    about_github_label: 'GitHub',
+    about_github_sub: 'Repositori qalam-note',
 
     // Status Bar
     words: 'Kata',
@@ -666,7 +673,7 @@ export const TRANSLATIONS = {
     import_archive_button: 'Select Backup File (.json)',
 
     // About Tab
-    about_app_subtitle: 'Secure Local-First Second Brain & Multilingual PKM',
+    about_app_subtitle: 'Local-First Note-Taking and Second Brain Application',
     about_intro: 'A modern note-taking application designed for bidirectional writing (LTR & RTL), privacy, and flexible publishing, featuring:',
     about_f1: 'Dexie.js IndexedDB: Blazing-fast client-side persistence with zero backend dependency.',
     about_f2: 'Progressive Web App (PWA): Full offline support, service worker caching, and home-screen installability.',
@@ -700,6 +707,13 @@ export const TRANSLATIONS = {
     about_privacy_desc: 'Your notes are 100% stored locally in your browser (IndexedDB). No analytics, no telemetry, and zero third-party transmission without your explicit consent.',
     about_shortcuts_title: 'Key Keyboard Shortcuts',
     about_tech_title: 'Core Technology Foundations',
+    about_community_title: 'Community & Support',
+    about_coffee_label: 'Buy Coffee',
+    about_coffee_sub: 'Support developer via Lynk.id',
+    about_telegram_label: 'Telegram',
+    about_telegram_sub: 'Join @aiprojek_community',
+    about_github_label: 'GitHub',
+    about_github_sub: 'Repository qalam-note',
 
     // Status Bar
     words: 'Words',

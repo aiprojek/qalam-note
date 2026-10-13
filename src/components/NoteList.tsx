@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   ArrowUpDown,
@@ -95,6 +96,53 @@ export const NoteList: React.FC<NoteListProps> = ({
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [isListDragOver, setIsListDragOver] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // High performance virtual list rendering for 1,000+ notes
+  const rowVirtualizer = useVirtualizer({
+    count: notes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 78,
+    getItemKey: (index) => notes[index]?.id ?? index,
+    overscan: 8,
+  });
+
+  // Ensure selected note remains visible in the virtual viewport
+  useEffect(() => {
+    if (selectedNoteId && notes.length > 0) {
+      const index = notes.findIndex((n) => n.id === selectedNoteId);
+      if (index !== -1) {
+        const virtualItems = rowVirtualizer.getVirtualItems();
+        if (virtualItems.length > 0) {
+          const first = virtualItems[0].index;
+          const last = virtualItems[virtualItems.length - 1].index;
+          if (index < first || index > last) {
+            rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+          }
+        }
+      }
+    }
+  }, [selectedNoteId, notes, rowVirtualizer]);
+
+  // Close note context menu when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!activeMenuNoteId) return;
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-note-action-menu="true"]')) return;
+      setActiveMenuNoteId(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveMenuNoteId(null);
+    };
+    window.addEventListener('click', handleDocumentClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleDocumentClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeMenuNoteId]);
+
   const t = getT(language);
 
   // Format date helper according to user settings
@@ -288,7 +336,8 @@ export const NoteList: React.FC<NoteListProps> = ({
             }
           }
         }}
-        className={`flex-1 overflow-y-auto divide-y divide-slate-800/80 custom-scrollbar transition ${
+        ref={parentRef}
+        className={`flex-1 min-h-0 overflow-y-auto custom-scrollbar transition ${
           isListDragOver ? 'ring-2 ring-blue-500 bg-blue-950/20' : ''
         }`}
       >
@@ -301,13 +350,31 @@ export const NoteList: React.FC<NoteListProps> = ({
             )}
           </div>
         ) : (
-          notes.map((note) => {
-            const isSelected = selectedNoteId === note.id;
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const note = notes[virtualRow.index];
+              const isSelected = selectedNoteId === note.id;
 
-            return (
-              <div
-                key={note.id}
-                onClick={() => onSelectNote(note.id)}
+              return (
+                <div
+                  key={note.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    zIndex: activeMenuNoteId === note.id ? 50 : 1,
+                  }}
+                  onClick={() => onSelectNote(note.id)}
                 draggable={!isTrashView}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(
@@ -392,14 +459,23 @@ export const NoteList: React.FC<NoteListProps> = ({
 
                     {/* Context Action Menu */}
                     {activeMenuNoteId === note.id && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className={`absolute right-0 top-6 z-40 w-44 rounded shadow-2xl py-1 text-xs border ${
-                          isLight
-                            ? 'bg-white border-slate-300 text-slate-800'
-                            : 'bg-[#1e2739] border-slate-700 text-slate-200'
-                        }`}
-                      >
+                      <>
+                        <div
+                          className="fixed inset-0 z-40 cursor-default"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuNoteId(null);
+                          }}
+                        />
+                        <div
+                          data-note-action-menu="true"
+                          onClick={(e) => e.stopPropagation()}
+                          className={`absolute right-0 top-6 z-50 w-44 rounded-lg shadow-2xl py-1 text-xs border ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-800'
+                              : 'bg-[#1e2739] border-slate-700 text-slate-200'
+                          }`}
+                        >
                         {!isTrashView ? (
                           <>
                             <button
@@ -487,7 +563,8 @@ export const NoteList: React.FC<NoteListProps> = ({
                           </>
                         )}
                       </div>
-                    )}
+                    </>
+                  )}
                   </div>
                 </div>
 
@@ -533,9 +610,10 @@ export const NoteList: React.FC<NoteListProps> = ({
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
+    </div>
 
       {/* Mobile Floating Action Button (FAB) for fast one-thumb note/todo creation */}
       {isMobile && onNewNote && !isTrashView && (

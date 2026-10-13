@@ -9,6 +9,8 @@ import {
   Info,
   X,
   Check,
+  Database,
+  Loader2,
   AlertTriangle,
   Server,
   Cloud,
@@ -33,7 +35,7 @@ import {
   Send,
   Github,
 } from 'lucide-react';
-import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage } from '../../types';
+import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage, SyncConfig } from '../../types';
 import {
   testWebDAVConnection,
   testDropboxConnection,
@@ -45,9 +47,10 @@ import {
   parseSyncPairingCode,
 } from '../../services/sync';
 import { setupMasterPassword, unlockVault, lockVault } from '../../services/crypto';
-import { getT, formatDate, formatTime } from '../../utils/i18n';
+import { getT, formatDate, formatTime, formatDateTime } from '../../utils/i18n';
 import { QalamIcon } from '../icons/QalamIcon';
-import { updatePresetNotesLanguage } from '../../db';
+import { updatePresetNotesLanguage, db } from '../../db';
+import { migrateNoteInlineAttachments } from '../../utils/attachments';
 import { PWAInstallButton } from '../PWAInstallButton';
 import {
   APP_VERSION,
@@ -71,6 +74,9 @@ interface SettingsModalProps {
   onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenGASHelp: () => void;
   onClose: () => void;
+  onSync?: (customSyncConfig?: SyncConfig) => Promise<void>;
+  isSyncing?: boolean;
+  syncMessage?: string;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -82,11 +88,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onOpenGASHelp,
   onClose,
+  onSync,
+  isSyncing = false,
+  syncMessage = '',
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formSettings, setFormSettings] = useState<AppSettings>(JSON.parse(JSON.stringify(settings)));
   const t = getT(formSettings.language);
   const isLight = formSettings.theme === 'qalam-light';
+  const language = formSettings.language;
 
   // Sync test states
   const [testingWebdav, setTestingWebdav] = useState(false);
@@ -368,18 +378,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setPairingMessage({
         text:
           formSettings.language === 'id'
-            ? `Berhasil dipasangkan! Terhubung ke server WebDAV (${parsedConfig.webdav.url}).`
-            : `Successfully paired! Connected to WebDAV server (${parsedConfig.webdav.url}).`,
+            ? `Berhasil dipasangkan! Terhubung ke server WebDAV (${parsedConfig.webdav.url}). Memulai sinkronisasi data...`
+            : `Successfully paired! Connected to WebDAV server (${parsedConfig.webdav.url}). Syncing data...`,
       });
+      if (onSync) {
+        setTimeout(() => {
+          onSync(parsedConfig);
+        }, 300);
+      }
     } else if (parsedConfig.target === 'dropbox') {
       setTestingDropbox(true);
       const res = await testDropboxConnection(parsedConfig.dropbox.access_token);
       setDropboxTestResult(res);
+      let finalDropboxConfig = parsedConfig;
       if (res.success && (res.user || res.email)) {
         const enrichedDropbox = {
           ...parsedConfig.dropbox,
           account_name: res.user || parsedConfig.dropbox.account_name,
           account_email: res.email || parsedConfig.dropbox.account_email,
+        };
+        finalDropboxConfig = {
+          ...parsedConfig,
+          dropbox: enrichedDropbox,
         };
         setFormSettings((prev) => ({
           ...prev,
@@ -389,19 +409,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           },
         }));
         onSaveSettings({
-          sync: {
-            ...parsedConfig,
-            dropbox: enrichedDropbox,
-          },
+          sync: finalDropboxConfig,
         });
       }
       setTestingDropbox(false);
       setPairingMessage({
         text:
           formSettings.language === 'id'
-            ? `Berhasil dipasangkan! Terhubung ke Dropbox (${res.user || res.email || 'Aktif'}).`
-            : `Successfully paired! Connected to Dropbox (${res.user || res.email || 'Active'}).`,
+            ? `Berhasil dipasangkan! Terhubung ke Dropbox (${res.user || res.email || 'Aktif'}). Mengambil data catatan...`
+            : `Successfully paired! Connected to Dropbox (${res.user || res.email || 'Active'}). Syncing notes data...`,
       });
+      if (onSync) {
+        setTimeout(() => {
+          onSync(finalDropboxConfig);
+        }, 300);
+      }
     }
   };
 
@@ -460,6 +482,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     lockVault();
     onSaveSettings({ e2ee: { ...formSettings.e2ee, is_unlocked: false } });
     setE2eeMessage({ text: t.vault_locked_msg });
+  };
+
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeResult, setOptimizeResult] = useState<string | null>(null);
+
+  const handleOptimizeStorage = async () => {
+    try {
+      setIsOptimizing(true);
+      setOptimizeResult(null);
+      const allNotes = await db.notes.toArray();
+      let totalMigratedNotes = 0;
+      let totalSavedBytes = 0;
+
+      for (const note of allNotes) {
+        const res = await migrateNoteInlineAttachments(note);
+        if (res.updated) {
+          totalMigratedNotes++;
+          totalSavedBytes += res.savedBytes;
+        }
+      }
+
+      if (totalMigratedNotes > 0) {
+        const savedKb = Math.round(totalSavedBytes / 1024);
+        setOptimizeResult(
+          language === 'id'
+            ? `Berhasil mengoptimalkan ${totalMigratedNotes} catatan! Menghemat ~${savedKb} KB memori teks.`
+            : `Successfully optimized ${totalMigratedNotes} notes! Saved ~${savedKb} KB of text storage.`
+        );
+      } else {
+        setOptimizeResult(
+          language === 'id'
+            ? 'Semua lampiran sudah teroptimasi sebagai Blob terpisah di IndexedDB.'
+            : 'All attachments are already stored efficiently as native Blobs.'
+        );
+      }
+    } catch (err: any) {
+      setOptimizeResult('Error: ' + (err?.message || 'Failed'));
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   return (
@@ -703,6 +765,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <option value="dropbox">{t.sync_dropbox}</option>
                   </select>
                 </div>
+
+                {/* Instant Sync Action Bar */}
+                {formSettings.sync.target !== 'disabled' && (
+                  <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 flex-wrap ${
+                    isLight ? 'bg-blue-50/70 border-blue-200 text-slate-800' : 'bg-blue-950/30 border-blue-900/50 text-slate-200'
+                  }`}>
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="text-xs font-semibold flex items-center gap-1.5">
+                        <RefreshCw className={`w-3.5 h-3.5 text-blue-500 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span>{formSettings.language === 'id' ? 'Sinkronisasi Cloud' : 'Cloud Synchronization'}</span>
+                      </div>
+                      <div className={`text-[11px] truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        {syncMessage || (
+                          settings.sync.last_sync_time
+                            ? `${formSettings.language === 'id' ? 'Terakhir sinkron:' : 'Last sync:'} ${formatDateTime(settings.sync.last_sync_time, formSettings.date_format, formSettings.time_format, formSettings.language)}`
+                            : formSettings.language === 'id' ? 'Belum pernah disinkronkan.' : 'Never synced.'
+                        )}
+                      </div>
+                    </div>
+                    {onSync && (
+                      <button
+                        type="button"
+                        onClick={() => onSync(formSettings.sync)}
+                        disabled={isSyncing}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                          isLight
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                        }`}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span>
+                          {isSyncing
+                            ? formSettings.language === 'id' ? 'Menyinkronkan...' : 'Syncing...'
+                            : formSettings.language === 'id' ? 'Sinkronkan Sekarang' : 'Sync Now'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* WebDAV Settings */}
                 {formSettings.sync.target === 'webdav' && (
@@ -1271,16 +1373,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
 
                       {pairingCodeOutput ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5">
+                        <div className="space-y-2.5">
+                          <div>
                             <input
                               type="text"
                               readOnly
                               value={pairingCodeOutput}
-                              className={`flex-1 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none select-all truncate ${
+                              className={`w-full text-[11px] font-mono px-3 py-2 rounded-lg border outline-none select-all truncate ${
                                 isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
                               }`}
                             />
+                          </div>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
@@ -1288,7 +1392,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 setPairingCodeCopied(true);
                                 setTimeout(() => setPairingCodeCopied(false), 2000);
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1 shrink-0 transition"
+                              className="flex-1 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95"
                             >
                               {pairingCodeCopied ? (
                                 <>
@@ -1301,6 +1405,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   <span>{t.pairing_copy_btn}</span>
                                 </>
                               )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPairingCodeOutput('')}
+                              title={formSettings.language === 'id' ? 'Tutup / Reset' : 'Close / Reset'}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium border shrink-0 transition ${
+                                isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-600' : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {formSettings.language === 'id' ? 'Tutup' : 'Close'}
                             </button>
                           </div>
                           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
@@ -1427,13 +1541,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {isVaultUnlocked ? (
-                      <div>
-                        <p className="text-slate-400 mb-3">
+                      <div className="space-y-3">
+                        <p className="text-slate-400 text-xs">
                           {t.vault_unlocked_desc}
                         </p>
                         <button
+                          type="button"
                           onClick={handleLockVault}
-                          className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium flex items-center gap-1.5 transition"
+                          className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-medium text-xs flex items-center gap-1.5 transition shadow-sm"
                         >
                           <Lock className="w-3.5 h-3.5" />
                           <span>{t.lock_vault}</span>
@@ -1441,18 +1556,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <label className="block text-slate-400">{t.enter_master_password_to_unlock}</label>
+                        <label className="block text-slate-400 text-xs">{t.enter_master_password_to_unlock}</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="password"
                             value={masterPasswordInput}
                             onChange={(e) => setMasterPasswordInput(e.target.value)}
                             placeholder={t.master_password_placeholder}
-                            className="flex-1 bg-slate-900 text-xs text-slate-200 px-3 py-1.5 rounded border border-slate-700 outline-none"
+                            className="flex-1 bg-slate-900 text-xs text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 outline-none focus:border-blue-500"
                           />
                           <button
+                            type="button"
                             onClick={handleUnlockVault}
-                            className="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1.5 transition"
+                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-medium text-xs flex items-center gap-1.5 transition shadow-sm"
                           >
                             <Key className="w-3.5 h-3.5" />
                             <span>{t.unlock}</span>
@@ -1460,6 +1576,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* Inactivity Auto-Lock Timer (Always visible and configurable) */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-200">
+                          {language === 'id' ? 'Kunci Otomatis saat Tidak Aktif (Inactivity Auto-Lock)' : 'Inactivity Auto-Lock Timer'}
+                        </label>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'id'
+                            ? 'Otomatis mengunci brankas jika tidak ada interaksi mouse/keyboard atau tab browser tidak aktif untuk mengamankan data Anda.'
+                            : 'Automatically lock encrypted vault after user inactivity or tab switching to secure your sensitive data.'}
+                        </p>
+                      </div>
+                      <select
+                        value={formSettings.e2ee.auto_lock_minutes ?? 15}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          const updatedE2EE = {
+                            ...formSettings.e2ee,
+                            auto_lock_minutes: val,
+                          };
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            e2ee: updatedE2EE,
+                          }));
+                          onSaveSettings({ e2ee: updatedE2EE });
+                        }}
+                        className="bg-slate-900 text-xs text-slate-200 px-3 py-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500 w-full sm:max-w-xs"
+                      >
+                        <option value={0}>{language === 'id' ? 'Nonaktif (Hanya Kunci Manual)' : 'Disabled (Manual Lock Only)'}</option>
+                        <option value={1}>{language === 'id' ? '1 Menit (Maksimal)' : '1 Minute (Strict)'}</option>
+                        <option value={5}>5 {language === 'id' ? 'Menit (Cepat)' : 'Minutes (Fast)'}</option>
+                        <option value={15}>15 {language === 'id' ? 'Menit (Disarankan)' : 'Minutes (Recommended)'}</option>
+                        <option value={30}>30 {language === 'id' ? 'Menit' : 'Minutes'}</option>
+                        <option value={60}>60 {language === 'id' ? 'Menit (1 Jam)' : 'Minutes (1 Hour)'}</option>
+                      </select>
+                    </div>
                   </div>
                 ) : (
                   /* Set Up Master Password */
@@ -1597,6 +1750,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>{t.import_archive_button}</span>
                     <input type="file" accept=".json" onChange={onImportData} className="hidden" />
                   </label>
+                </div>
+
+                {/* Storage & Attachment Scalability Optimization */}
+                <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-emerald-400" />
+                    <h5 className="font-semibold text-white">
+                      {language === 'id' ? 'Optimasi Penyimpanan Lampiran' : 'Attachment Storage Optimization'}
+                    </h5>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    {language === 'id'
+                      ? 'Pindai seluruh catatan dan konversikan lampiran gambar/audio lama ke format Blob terpisah di tabel IndexedDB. Mengurangi ukuran basis data teks secara drastis dan mempercepat responsivitas aplikasi.'
+                      : 'Scan notes and migrate inline media into native Blobs in the dedicated IndexedDB attachments table to shrink note payload and speed up the app.'}
+                  </p>
+                  {optimizeResult && (
+                    <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300">
+                      {optimizeResult}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isOptimizing}
+                    onClick={handleOptimizeStorage}
+                    className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-medium flex items-center gap-2 transition text-xs shadow-sm disabled:opacity-50"
+                  >
+                    {isOptimizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-emerald-200" />}
+                    <span>
+                      {isOptimizing
+                        ? (language === 'id' ? 'Mengoptimalkan...' : 'Optimizing...')
+                        : (language === 'id' ? 'Optimalkan Penyimpanan Sekarang' : 'Optimize Storage Now')}
+                    </span>
+                  </button>
                 </div>
               </div>
             )}

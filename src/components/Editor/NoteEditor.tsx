@@ -29,6 +29,7 @@ import { FileAttachmentModal } from '../Modals/FileAttachmentModal';
 import { getT } from '../../utils/i18n';
 import { getNoteDirection } from '../../utils/rtl';
 import { htmlToMarkdown, markdownToHtml } from '../../utils/markdown';
+import { saveAttachment, preloadNoteAttachments, downloadAttachment } from '../../utils/attachments';
 
 interface NoteEditorProps {
   note: Note;
@@ -183,30 +184,28 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     });
   };
 
-  // Insert Image from Local File
-  const handleInsertImageFile = (file: File, altText?: string) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      const label = altText || file.name;
-      const newAttachment: Attachment = {
-        id: 'att-img-' + Date.now(),
-        name: file.name,
-        mime: file.type || 'image/png',
-        size: file.size,
-        dataUrl,
-        created_time: Date.now(),
-      };
+  // Preload attachments into object URL cache
+  useEffect(() => {
+    if (note?.attachments && note.attachments.length > 0) {
+      preloadNoteAttachments(note.attachments);
+    }
+  }, [note?.id, note?.attachments]);
 
+  // Insert Image from Local File (compressed & saved as native Blob in attachments table)
+  const handleInsertImageFile = async (file: File, altText?: string) => {
+    try {
+      const label = altText || file.name;
+      const newAttachment = await saveAttachment(file, file.name, file.type, note.id);
       const updatedAttachments = [...(note.attachments || []), newAttachment];
-      const imageMarkdown = `\n\n![${label}](${dataUrl})\n\n`;
+      const imageMarkdown = `\n\n![${label}](attachment:${newAttachment.id})\n\n`;
       onUpdateNote({
         attachments: updatedAttachments,
         body: note.body + imageMarkdown,
         updated_time: Date.now(),
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Failed to compress and save image attachment:', err);
+    }
   };
 
   // Insert Image from Web URL / Link
@@ -239,30 +238,63 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     });
   };
 
-  // Insert File Attachment from Local File
-  const handleInsertAttachmentFile = (file: File, customName?: string) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
+  // Insert File Attachment from Local File (saved as native Blob in attachments table)
+  const handleInsertAttachmentFile = async (file: File, customName?: string) => {
+    try {
       const finalName = customName || file.name;
-      const newAttachment: Attachment = {
-        id: 'att-file-' + Date.now(),
-        name: finalName,
-        mime: file.type || 'application/octet-stream',
-        size: file.size,
-        dataUrl,
-        created_time: Date.now(),
-      };
-
+      const isImg = file.type.startsWith('image/');
+      const newAttachment = await saveAttachment(file, finalName, file.type, note.id);
       const updatedAttachments = [...(note.attachments || []), newAttachment];
-      const fileMarkdown = `\n\n[📎 ${finalName}](${dataUrl})\n\n`;
+      const fileMarkdown = isImg
+        ? `\n\n![${finalName}](attachment:${newAttachment.id})\n\n`
+        : `\n\n[📎 ${finalName}](attachment:${newAttachment.id})\n\n`;
       onUpdateNote({
         attachments: updatedAttachments,
         body: note.body + fileMarkdown,
         updated_time: Date.now(),
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Failed to save file attachment blob:', err);
+    }
+  };
+
+  // Clipboard paste handler: automatically captures pasted screenshots & files into native Blobs
+  const handleEditorPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      for (const file of files) {
+        if (file.type.startsWith('image/')) {
+          await handleInsertImageFile(file, file.name.replace(/\.[^/.]+$/, '') || 'Pasted Image');
+        } else {
+          await handleInsertAttachmentFile(file);
+        }
+      }
+    }
+  };
+
+  // Drag and drop handler for media/files dropped directly into editor
+  const handleEditorDrop = async (e: React.DragEvent) => {
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      e.preventDefault();
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          await handleInsertImageFile(file, file.name);
+        } else {
+          await handleInsertAttachmentFile(file);
+        }
+      }
+    }
   };
 
   // Insert File Attachment from Web / Cloud URL
@@ -292,18 +324,24 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   // Open / Download Attachment safely without window.open
-  const handleDownloadOrOpenAttachment = (att: Attachment) => {
-    const a = document.createElement('a');
-    a.href = att.dataUrl;
-    if (att.dataUrl.startsWith('data:')) {
-      a.download = att.name;
-    } else {
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
+  const handleDownloadOrOpenAttachment = async (att: Attachment) => {
+    if (att.id) {
+      const ok = await downloadAttachment(att.id, att.name);
+      if (ok) return;
     }
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if (att.dataUrl) {
+      const a = document.createElement('a');
+      a.href = att.dataUrl;
+      if (att.dataUrl.startsWith('data:')) {
+        a.download = att.name;
+      } else {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      }
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   const handleRemoveAttachment = (attId: string) => {
@@ -1127,7 +1165,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               {t.attachments_label}
             </span>
             {note.attachments.map((att) => {
-              const isUrl = att.dataUrl.startsWith('http://') || att.dataUrl.startsWith('https://');
+              const isUrl = !!att.dataUrl && (att.dataUrl.startsWith('http://') || att.dataUrl.startsWith('https://'));
               return (
                 <div
                   key={att.id}
@@ -1231,7 +1269,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       )}
 
       {/* Editor Body, Locked Screen, or Mobile Reading Preview */}
-      <div className="flex-1 relative overflow-hidden flex flex-col">
+      <div
+        className="flex-1 relative overflow-hidden flex flex-col"
+        onPaste={handleEditorPaste}
+        onDrop={handleEditorDrop}
+        onDragOver={(e) => {
+          if (e.dataTransfer?.types?.includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }
+        }}
+      >
         {isEncryptedAndLocked ? (
           <div className="h-full w-full flex flex-col items-center justify-center p-8 text-center bg-[#182130]">
             <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
@@ -1260,6 +1308,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 const targetTitle = decodeURIComponent(wikiLinkEl.getAttribute('data-wikilink') || '');
                 if (targetTitle && onOpenWikiLink) {
                   onOpenWikiLink(targetTitle);
+                }
+                return;
+              }
+              const attLinkEl = target.closest('a[data-attachment-id], a[href^="attachment:"]');
+              if (attLinkEl) {
+                e.preventDefault();
+                const attId = attLinkEl.getAttribute('data-attachment-id') || (attLinkEl.getAttribute('href') || '').replace('attachment:', '').trim();
+                if (attId) {
+                  downloadAttachment(attId);
                 }
               }
             }}

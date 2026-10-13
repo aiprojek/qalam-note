@@ -376,7 +376,7 @@ function doGet(e) {
     (foundNote.tags ? "<span>Tags: " + escapeHtml(foundNote.tags) + "</span>" : "") +
     "</div></div>" +
     "<div class='content'>" + foundNote.html + "</div>" +
-    "<div class='footer'>Published from Qalam Note &bull; Powered by Google Sheets</div>" +
+    "<div class='footer'>Diterbitkan dari <a href='https://lam-note.aiprojek01.my.id/' target='_blank' style='color:#2563eb;text-decoration:underline;font-weight:600;'>Qalam Note</a></div>" +
     "</div></body></html>";
 
   return HtmlService.createHtmlOutput(html).setTitle(foundNote.title);

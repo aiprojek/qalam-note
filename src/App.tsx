@@ -4,7 +4,7 @@
  * End-to-End Encryption (E2EE), and Google Apps Script (GAS) Publishing.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   db,
   initDatabase,
@@ -22,6 +22,7 @@ import type {
   NoteSortField,
   NoteSortOrder,
   ViewFilter,
+  SyncConfig,
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
@@ -52,6 +53,7 @@ import { decodePublishCipher } from './services/publishCipher';
 import { fetchPublishedNoteFromGAS } from './services/gas';
 import { executeSync, exportAllData, importData } from './services/sync';
 import { isVaultUnlocked, lockVault } from './services/crypto';
+import { saveAttachment, dataUrlToBlob, migrateAllNotesInlineAttachments } from './utils/attachments';
 import {
   exportNoteToMarkdown,
   exportNoteToPdf,
@@ -338,6 +340,17 @@ export default function App() {
         }
         return activeNotes.length > 0 ? activeNotes[0].id : null;
       });
+
+      // Background check for legacy inline base64 attachments to ensure lean IndexedDB scalability
+      setTimeout(() => {
+        migrateAllNotesInlineAttachments().then(({ migratedNotesCount, totalSavedBytes }) => {
+          if (migratedNotesCount > 0) {
+            const savedKb = Math.round(totalSavedBytes / 1024);
+            console.log(`[Qalam] Migrated ${migratedNotesCount} notes with legacy inline media to native Blobs, saving ~${savedKb} KB.`);
+            db.notes.toArray().then((refreshed) => setNotes(refreshed));
+          }
+        }).catch(() => {});
+      }, 2500);
     } catch (err) {
       console.error('Failed to initialize database:', err);
     } finally {
@@ -348,6 +361,79 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Robust Inactivity Auto-Lock Timer for Encrypted E2EE Vault
+  const lastUserActivityRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (!settings.e2ee.enabled || !vaultUnlocked) {
+      return;
+    }
+
+    const autoLockMinutes = settings.e2ee.auto_lock_minutes ?? 15;
+    if (autoLockMinutes <= 0) {
+      return; // 0 = Never / Disabled
+    }
+
+    lastUserActivityRef.current = Date.now();
+
+    // Throttled activity recorder (prevents thrashing on high-frequency mousemove)
+    const recordActivity = () => {
+      const now = Date.now();
+      if (now - lastUserActivityRef.current > 1000) {
+        lastUserActivityRef.current = now;
+      }
+    };
+
+    const performLockIfInactive = () => {
+      const elapsed = Date.now() - lastUserActivityRef.current;
+      const timeoutMs = autoLockMinutes * 60 * 1000;
+      if (elapsed >= timeoutMs) {
+        lockVault();
+        setVaultUnlocked(false);
+        const lockNotice =
+          settings.language === 'id'
+            ? `🔒 Brankas dikunci otomatis karena tidak ada aktivitas (${autoLockMinutes} menit)`
+            : `🔒 Vault automatically locked due to inactivity (${autoLockMinutes} min)`;
+        setSyncMessage(lockNotice);
+        setTimeout(() => setSyncMessage(''), 6000);
+        return true;
+      }
+      return false;
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        const didLock = performLockIfInactive();
+        if (!didLock) {
+          lastUserActivityRef.current = Date.now();
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', recordActivity, { passive: true });
+    window.addEventListener('keydown', recordActivity, { passive: true });
+    window.addEventListener('touchstart', recordActivity, { passive: true });
+    window.addEventListener('click', recordActivity, { passive: true });
+    window.addEventListener('scroll', recordActivity, { passive: true });
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    const intervalId = setInterval(() => {
+      performLockIfInactive();
+    }, 5000); // Check every 5 seconds for responsive locking
+
+    return () => {
+      window.removeEventListener('mousemove', recordActivity);
+      window.removeEventListener('keydown', recordActivity);
+      window.removeEventListener('touchstart', recordActivity);
+      window.removeEventListener('click', recordActivity);
+      window.removeEventListener('scroll', recordActivity);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      clearInterval(intervalId);
+    };
+  }, [vaultUnlocked, settings.e2ee.enabled, settings.e2ee.auto_lock_minutes, settings.language]);
 
   // Synchronize document root theme and light/dark mode classes for accessibility and Tailwind
   useEffect(() => {
@@ -847,26 +933,71 @@ export default function App() {
   };
 
   // Synchronisation
-  const handleSync = async () => {
+  const handleSync = async (customSyncConfig?: SyncConfig) => {
     if (isSyncing) return;
     setIsSyncing(true);
-    setSyncMessage('Synchronising...');
+    setSyncMessage(settings.language === 'id' ? 'Menghubungkan sinkronisasi...' : 'Synchronising...');
 
     try {
-      const status = await executeSync(settings.sync, (s) => {
-        setSyncMessage(s.message);
-      });
+      const currentLatestSettings = await getSettings();
+      const activeSyncConfig = customSyncConfig || currentLatestSettings.sync;
+
+      const status = await executeSync(
+        activeSyncConfig,
+        (s) => {
+          setSyncMessage(s.message);
+        },
+        currentLatestSettings.language || settings.language
+      );
       setSyncMessage(status.message);
-      // Reload updated notes from Dexie
+
+      // Reload updated notes, folders, and tags from Dexie
       const refreshedNotes = await db.notes.toArray();
       setNotes(refreshedNotes);
+      const allFolders = await db.folders.toArray();
+      setFolders(allFolders.filter((f) => !f.is_deleted));
+      const allTags = await db.tags.toArray();
+      setTags(allTags);
+
+      // If no note was selected, or current selected note is gone, select the first valid note
+      const currentSelected = refreshedNotes.find((n) => n.id === selectedNoteId && !n.is_deleted);
+      if (!currentSelected && refreshedNotes.length > 0) {
+        const firstValid = refreshedNotes.find((n) => !n.is_deleted);
+        if (firstValid) {
+          setSelectedNoteId(firstValid.id);
+        }
+      }
+
+      // Update last sync time
+      handleSaveSettings({
+        sync: {
+          ...activeSyncConfig,
+          last_sync_time: status.lastSync,
+        },
+      });
     } catch (e: any) {
-      setSyncMessage(`Sync failed: ${e.message}`);
+      setSyncMessage(settings.language === 'id' ? `Sinkronisasi gagal: ${e.message}` : `Sync failed: ${e.message}`);
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setSyncMessage(''), 4000);
+      setTimeout(() => setSyncMessage(''), 5000);
     }
   };
+
+  // Background Auto-Sync timer
+  useEffect(() => {
+    if (settings.sync.target === 'disabled') return;
+    const intervalMinutes = settings.sync.auto_sync_interval || 15;
+    if (intervalMinutes <= 0) return;
+
+    const intervalMs = intervalMinutes * 60 * 1000;
+    const timer = setInterval(() => {
+      if (!isSyncing) {
+        handleSync();
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [settings.sync.target, settings.sync.auto_sync_interval, isSyncing]);
 
   // Export Data
   const handleExportData = async () => {
@@ -1092,67 +1223,69 @@ export default function App() {
     setIsTemplatesOpen(false);
   };
 
-  // Insert Voice Memo into Active Note
-  const handleInsertAudioMemo = (audioDataUrl: string, audioTitle?: string) => {
+  // Insert Voice Memo into Active Note (Stores native Blob in IndexedDB attachments table)
+  const handleInsertAudioMemo = async (audioDataUrl: string, audioTitle?: string, audioBlob?: Blob) => {
     const current = notes.find((n) => n.id === selectedNoteId);
     if (!current) return;
     const title = audioTitle || (settings.language === 'id' ? 'Memo Suara' : 'Voice Memo');
-    const snippet = `\n\n### 🎙️ ${title}\n<audio controls src="${audioDataUrl}" style="width: 100%; max-width: 420px; margin: 8px 0;"></audio>\n`;
-    const newBody = current.body ? current.body + snippet : snippet.trimStart();
-    const isLight = settings.theme === 'qalam-light';
-    const newHtml = markdownToHtml(newBody, isLight ? 'light' : 'dark');
-    const newAtt: Attachment = {
-      id: 'att-voice-' + Date.now(),
-      name: `${title}.webm`,
-      size: Math.round((audioDataUrl.length * 3) / 4),
-      mime: 'audio/webm',
-      dataUrl: audioDataUrl,
-      created_time: Date.now(),
-    };
-    handleUpdateNote({
-      body: newBody,
-      body_html: newHtml,
-      attachments: [...(current.attachments || []), newAtt],
-      updated_time: Date.now(),
-    });
+
+    try {
+      const blob = audioBlob || (audioDataUrl ? dataUrlToBlob(audioDataUrl) : new Blob([], { type: 'audio/webm' }));
+      const newAtt = await saveAttachment(blob, `${title}.webm`, 'audio/webm', current.id);
+
+      const snippet = `\n\n### 🎙️ ${title}\n<audio controls src="attachment:${newAtt.id}" style="width: 100%; max-width: 420px; margin: 8px 0;"></audio>\n`;
+      const newBody = current.body ? current.body + snippet : snippet.trimStart();
+      const isLight = settings.theme === 'qalam-light';
+      const newHtml = markdownToHtml(newBody, isLight ? 'light' : 'dark');
+
+      handleUpdateNote({
+        body: newBody,
+        body_html: newHtml,
+        attachments: [...(current.attachments || []), newAtt],
+        updated_time: Date.now(),
+      });
+    } catch (err) {
+      console.warn('Failed to save audio attachment blob:', err);
+    }
     setIsAudioRecordOpen(false);
   };
 
   // Insert Handwriting / Drawing Canvas Image into Active Note
-  const handleInsertDrawing = (
+  const handleInsertDrawing = async (
     drawingDataUrl: string,
     options?: { displayWidth?: string; width?: number; height?: number }
   ) => {
     const current = notes.find((n) => n.id === selectedNoteId);
     if (!current) return;
     const label = settings.language === 'id' ? 'Sketsa Tangan' : 'Handwriting Sketch';
-    let snippet = '';
-    if (options?.displayWidth && options.displayWidth !== '100%') {
-      const widthVal =
-        options.displayWidth.endsWith('%') || options.displayWidth.endsWith('px')
-          ? options.displayWidth
-          : `${options.displayWidth}px`;
-      snippet = `\n\n### ✍️ ${label}\n<img src="${drawingDataUrl}" alt="${label}" width="${widthVal}" style="max-width: 100%; height: auto; border-radius: 8px;" />\n`;
-    } else {
-      snippet = `\n\n### ✍️ ${label}\n![${label}](${drawingDataUrl})\n`;
+
+    try {
+      const blob = dataUrlToBlob(drawingDataUrl);
+      const newAtt = await saveAttachment(blob, `${label}.png`, 'image/png', current.id);
+
+      let snippet = '';
+      if (options?.displayWidth && options.displayWidth !== '100%') {
+        const widthVal =
+          options.displayWidth.endsWith('%') || options.displayWidth.endsWith('px')
+            ? options.displayWidth
+            : `${options.displayWidth}px`;
+        snippet = `\n\n### ✍️ ${label}\n<img src="attachment:${newAtt.id}" alt="${label}" width="${widthVal}" style="max-width: 100%; height: auto; border-radius: 8px;" />\n`;
+      } else {
+        snippet = `\n\n### ✍️ ${label}\n![${label}](attachment:${newAtt.id})\n`;
+      }
+      const newBody = current.body ? current.body + snippet : snippet.trimStart();
+      const isLight = settings.theme === 'qalam-light';
+      const newHtml = markdownToHtml(newBody, isLight ? 'light' : 'dark');
+
+      handleUpdateNote({
+        body: newBody,
+        body_html: newHtml,
+        attachments: [...(current.attachments || []), newAtt],
+        updated_time: Date.now(),
+      });
+    } catch (err) {
+      console.warn('Failed to save drawing attachment blob:', err);
     }
-    const newBody = current.body ? current.body + snippet : snippet.trimStart();
-    const isLight = settings.theme === 'qalam-light';
-    const newHtml = markdownToHtml(newBody, isLight ? 'light' : 'dark');
-    const newAtt: Attachment = {
-      id: 'att-draw-' + Date.now(),
-      name: `${label}.png`,
-      size: Math.round((drawingDataUrl.length * 3) / 4),
-      mime: 'image/png',
-      dataUrl: drawingDataUrl,
-      created_time: Date.now(),
-    };
-    handleUpdateNote({
-      body: newBody,
-      body_html: newHtml,
-      attachments: [...(current.attachments || []), newAtt],
-      updated_time: Date.now(),
-    });
     setIsDrawingModalOpen(false);
   };
 
@@ -2038,6 +2171,8 @@ export default function App() {
           syncMessage={syncMessage}
           isVaultUnlocked={vaultUnlocked}
           isE2EEEnabled={settings.e2ee.enabled}
+          autoLockMinutes={settings.e2ee.auto_lock_minutes ?? 15}
+          onToggleVaultLock={handleToggleVaultLock}
           language={settings.language}
         />
       )}
@@ -2056,6 +2191,9 @@ export default function App() {
             setIsGASHelpOpen(true);
           }}
           onClose={() => setIsSettingsOpen(false)}
+          onSync={handleSync}
+          isSyncing={isSyncing}
+          syncMessage={syncMessage}
         />
       )}
 

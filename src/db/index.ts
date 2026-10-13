@@ -23,6 +23,9 @@ export class QalamDB extends Dexie {
     this.version(2).stores({
       revisions: 'id, note_id, created_time',
     });
+    this.version(3).stores({
+      attachments: 'id, name, note_id, created_time',
+    });
   }
 }
 
@@ -112,6 +115,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     is_unlocked: false,
     salt: '',
     verifier_hash: '',
+    auto_lock_minutes: 15,
   },
   gas: {
     web_app_url: '',

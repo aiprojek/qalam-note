@@ -599,9 +599,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
                 {/* Article Footer */}
                 <div className="border-t border-slate-200 mt-8 pt-4 text-xs text-center text-slate-500 font-medium">
-                  {isId
-                    ? 'Diterbitkan dari Qalam Note • Didukung oleh Google Sheets'
-                    : 'Published from Qalam Note • Powered by Google Sheets'}
+                  Diterbitkan dari{' '}
+                  <a
+                    href="https://lam-note.aiprojek01.my.id/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline font-semibold"
+                  >
+                    Qalam Note
+                  </a>
                 </div>
               </div>
             </div>

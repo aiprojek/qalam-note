@@ -60,7 +60,9 @@ export interface Attachment {
   name: string;
   mime: string;
   size: number;
-  dataUrl: string;
+  dataUrl?: string;
+  blob?: Blob;
+  note_id?: string;
   created_time: number;
 }
 
@@ -91,6 +93,7 @@ export interface E2EEConfig {
   is_unlocked: boolean;
   salt: string;
   verifier_hash: string; // hash of master key to verify password
+  auto_lock_minutes?: number; // Inactivity auto-lock timeout in minutes (0 = never, default 15)
 }
 
 export interface GASConfig {

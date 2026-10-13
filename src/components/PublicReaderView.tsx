@@ -334,18 +334,21 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
           {/* Footer note */}
           <footer
-            className={`mt-12 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-medium ${
+            className={`mt-12 pt-6 border-t text-center text-xs font-medium ${
               isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'
             }`}
           >
-            <span>Diterbitkan dari Qalam Note &bull; Local-First & PWA</span>
-            <button
-              onClick={onBackToApp}
-              className="text-blue-500 hover:underline inline-flex items-center gap-1 font-semibold"
-            >
-              <span>Mulai Menulis dengan Qalam Note</span>
-              <ExternalLink className="w-3 h-3" />
-            </button>
+            <span>
+              Diterbitkan dari{' '}
+              <a
+                href="https://lam-note.aiprojek01.my.id/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline font-semibold"
+              >
+                Qalam Note
+              </a>
+            </span>
           </footer>
         </article>
       </main>

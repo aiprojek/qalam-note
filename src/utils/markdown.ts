@@ -5,7 +5,8 @@
  */
 
 import DOMPurify from 'dompurify';
-import { RTL_REGEX } from './rtl';
+import { isBlockRTL } from './rtl';
+import { getSyncAttachmentUrl } from './attachments';
 
 export interface MarkdownOptions {
   theme?: 'dark' | 'light';
@@ -151,22 +152,56 @@ export function markdownToHtml(
       : `<code dir="ltr" class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-xs border border-slate-700/50 whitespace-pre-wrap break-all overflow-wrap-anywhere">${escaped}</code>`;
   });
 
-  // Headings with RTL alignment support
-  if (isLight) {
-    html = html.replace(/^###### (.*$)/gim, '<h6 class="text-xs font-bold text-slate-700 mt-4 mb-1.5 uppercase tracking-wider rtl:text-right">$1</h6>');
-    html = html.replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-slate-800 mt-4 mb-2 rtl:text-right">$1</h5>');
-    html = html.replace(/^#### (.*$)/gim, '<h4 class="text-base font-bold text-slate-900 mt-4 mb-2 rtl:text-right">$1</h4>');
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-slate-950 mt-5 mb-2.5 rtl:text-right">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-extrabold text-slate-950 mt-6 mb-3 pb-1 border-b border-slate-200 rtl:text-right">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-black text-slate-950 mt-6 mb-4 pb-2 border-b border-slate-300 rtl:text-right">$1</h1>');
-  } else {
-    html = html.replace(/^###### (.*$)/gim, '<h6 class="text-xs font-bold text-slate-300 mt-4 mb-1.5 uppercase tracking-wider rtl:text-right">$1</h6>');
-    html = html.replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-slate-200 mt-4 mb-2 rtl:text-right">$1</h5>');
-    html = html.replace(/^#### (.*$)/gim, '<h4 class="text-base font-semibold text-slate-200 mt-4 mb-2 rtl:text-right">$1</h4>');
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-slate-100 mt-5 mb-2.5 rtl:text-right">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-white mt-6 mb-3 pb-1 border-b border-slate-800 rtl:text-right">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-white mt-6 mb-4 pb-2 border-b border-slate-700 rtl:text-right">$1</h1>');
-  }
+  // Headings with dynamic RTL alignment support
+  const formatHeading = (level: number, text: string) => {
+    const isHeadRtl = isBlockRTL(text);
+    const dirAttr = isHeadRtl ? ' dir="rtl"' : ' dir="ltr"';
+    const alignClass = isHeadRtl ? ' text-right font-arabic' : ' text-left';
+    const styleAttr = isHeadRtl
+      ? ' style="direction: rtl; text-align: right; unicode-bidi: isolate;"'
+      : ' style="direction: ltr; text-align: left; unicode-bidi: isolate;"';
+
+    if (isLight) {
+      switch (level) {
+        case 6:
+          return `<h6${dirAttr}${styleAttr} class="text-xs font-bold text-slate-700 mt-4 mb-1.5 uppercase tracking-wider${alignClass}">${text}</h6>`;
+        case 5:
+          return `<h5${dirAttr}${styleAttr} class="text-sm font-bold text-slate-800 mt-4 mb-2${alignClass}">${text}</h5>`;
+        case 4:
+          return `<h4${dirAttr}${styleAttr} class="text-base font-bold text-slate-900 mt-4 mb-2${alignClass}">${text}</h4>`;
+        case 3:
+          return `<h3${dirAttr}${styleAttr} class="text-lg font-bold text-slate-950 mt-5 mb-2.5${alignClass}">${text}</h3>`;
+        case 2:
+          return `<h2${dirAttr}${styleAttr} class="text-xl font-extrabold text-slate-950 mt-6 mb-3 pb-1 border-b border-slate-200${alignClass}">${text}</h2>`;
+        case 1:
+        default:
+          return `<h1${dirAttr}${styleAttr} class="text-2xl font-black text-slate-950 mt-6 mb-4 pb-2 border-b border-slate-300${alignClass}">${text}</h1>`;
+      }
+    } else {
+      switch (level) {
+        case 6:
+          return `<h6${dirAttr}${styleAttr} class="text-xs font-bold text-slate-300 mt-4 mb-1.5 uppercase tracking-wider${alignClass}">${text}</h6>`;
+        case 5:
+          return `<h5${dirAttr}${styleAttr} class="text-sm font-bold text-slate-200 mt-4 mb-2${alignClass}">${text}</h5>`;
+        case 4:
+          return `<h4${dirAttr}${styleAttr} class="text-base font-semibold text-slate-200 mt-4 mb-2${alignClass}">${text}</h4>`;
+        case 3:
+          return `<h3${dirAttr}${styleAttr} class="text-lg font-semibold text-slate-100 mt-5 mb-2.5${alignClass}">${text}</h3>`;
+        case 2:
+          return `<h2${dirAttr}${styleAttr} class="text-xl font-bold text-white mt-6 mb-3 pb-1 border-b border-slate-800${alignClass}">${text}</h2>`;
+        case 1:
+        default:
+          return `<h1${dirAttr}${styleAttr} class="text-2xl font-bold text-white mt-6 mb-4 pb-2 border-b border-slate-700${alignClass}">${text}</h1>`;
+      }
+    }
+  };
+
+  html = html.replace(/^###### (.*$)/gim, (_m, t) => formatHeading(6, t));
+  html = html.replace(/^##### (.*$)/gim, (_m, t) => formatHeading(5, t));
+  html = html.replace(/^#### (.*$)/gim, (_m, t) => formatHeading(4, t));
+  html = html.replace(/^### (.*$)/gim, (_m, t) => formatHeading(3, t));
+  html = html.replace(/^## (.*$)/gim, (_m, t) => formatHeading(2, t));
+  html = html.replace(/^# (.*$)/gim, (_m, t) => formatHeading(1, t));
 
   // Horizontal rules
   html = html.replace(
@@ -248,15 +283,15 @@ export function markdownToHtml(
 
   // Blockquotes with RTL detection and mirrored styling
   html = html.replace(/^>\s+(.*$)/gim, (_match, quoteContent) => {
-    const isQuoteRtl = RTL_REGEX.test(quoteContent);
+    const isQuoteRtl = isBlockRTL(quoteContent);
     if (isQuoteRtl) {
       return isLight
         ? `<blockquote dir="rtl" class="border-r-4 border-l-0 border-blue-600 bg-blue-50/70 pr-4 pl-0 py-2 my-3 text-slate-800 italic rounded-l text-right font-arabic break-words overflow-wrap-anywhere" style="direction: rtl; unicode-bidi: isolate; text-align: right;">${quoteContent}</blockquote>`
         : `<blockquote dir="rtl" class="border-r-4 border-l-0 border-blue-500 bg-blue-950/20 pr-4 pl-0 py-2 my-3 text-slate-300 italic rounded-l text-right font-arabic break-words overflow-wrap-anywhere" style="direction: rtl; unicode-bidi: isolate; text-align: right;">${quoteContent}</blockquote>`;
     }
     return isLight
-      ? `<blockquote class="border-l-4 rtl:border-l-0 rtl:border-r-4 border-blue-600 bg-blue-50/70 pl-4 rtl:pl-0 rtl:pr-4 py-2 my-3 text-slate-800 italic rounded-r rtl:rounded-r-none rtl:rounded-l rtl:text-right break-words overflow-wrap-anywhere">${quoteContent}</blockquote>`
-      : `<blockquote class="border-l-4 rtl:border-l-0 rtl:border-r-4 border-blue-500 bg-blue-950/20 pl-4 rtl:pl-0 rtl:pr-4 py-2 my-3 text-slate-300 italic rounded-r rtl:rounded-r-none rtl:rounded-l rtl:text-right break-words overflow-wrap-anywhere">${quoteContent}</blockquote>`;
+      ? `<blockquote dir="ltr" class="border-l-4 border-blue-600 bg-blue-50/70 pl-4 py-2 my-3 text-slate-800 italic rounded-r text-left break-words overflow-wrap-anywhere" style="direction: ltr; unicode-bidi: isolate; text-align: left;">${quoteContent}</blockquote>`
+      : `<blockquote dir="ltr" class="border-l-4 border-blue-500 bg-blue-950/20 pl-4 py-2 my-3 text-slate-300 italic rounded-r text-left break-words overflow-wrap-anywhere" style="direction: ltr; unicode-bidi: isolate; text-align: left;">${quoteContent}</blockquote>`;
   });
 
   // Details / Collapsible Spoiler: <details><summary>Title</summary>Body</details>
@@ -282,32 +317,29 @@ export function markdownToHtml(
   );
 
   // Checklists (interactive with RTL flex reversal, NO disabled attribute)
-  if (isLight) {
-    html = html.replace(
-      /^-\s*\[x\]\s+(.*$)/gim,
-      '<div class="qalam-todo-item flex items-start gap-2.5 my-1.5 rtl:flex-row-reverse"><input type="checkbox" checked class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="line-through text-slate-500 rtl:text-right">$1</span></div>'
-    );
-    html = html.replace(
-      /^-\s*\[ \]\s+(.*$)/gim,
-      '<div class="qalam-todo-item flex items-start gap-2.5 my-1.5 rtl:flex-row-reverse"><input type="checkbox" class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="text-slate-900 font-medium rtl:text-right">$1</span></div>'
-    );
-  } else {
-    html = html.replace(
-      /^-\s*\[x\]\s+(.*$)/gim,
-      '<div class="qalam-todo-item flex items-start gap-2.5 my-1.5 rtl:flex-row-reverse"><input type="checkbox" checked class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="line-through text-slate-400 rtl:text-right">$1</span></div>'
-    );
-    html = html.replace(
-      /^-\s*\[ \]\s+(.*$)/gim,
-      '<div class="qalam-todo-item flex items-start gap-2.5 my-1.5 rtl:flex-row-reverse"><input type="checkbox" class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="text-slate-200 rtl:text-right">$1</span></div>'
-    );
-  }
+  html = html.replace(
+    /^-\s*\[([ xX])\]\s+(.*$)/gim,
+    (_match, checkChar, itemText) => {
+      const isDone = checkChar.toLowerCase() === 'x';
+      const isItemRtl = isBlockRTL(itemText);
+      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
+      const flexDir = isItemRtl ? 'flex-row-reverse text-right font-arabic' : 'flex-row text-left';
+      const textStyle = isDone
+        ? (isLight ? 'line-through text-slate-500' : 'line-through text-slate-400')
+        : (isLight ? 'text-slate-900 font-medium' : 'text-slate-200');
+      return `<div${dirAttr} class="qalam-todo-item flex items-start gap-2.5 my-1.5 ${flexDir}"><input type="checkbox" ${isDone ? 'checked ' : ''}class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="${textStyle}">${itemText}</span></div>`;
+    }
+  );
 
   // Bullet Lists: Convert consecutive items and wrap into a real <ul>
   html = html.replace(
-    /^[\*\-]\s+(?!\[[ x]\])(.*$)/gim,
-    isLight
-      ? '<!--QLM_UL--><li class="ml-5 rtl:ml-0 rtl:mr-5 list-disc my-1 text-slate-900 rtl:text-right">$1</li>'
-      : '<!--QLM_UL--><li class="ml-5 rtl:ml-0 rtl:mr-5 list-disc my-1 text-slate-200 rtl:text-right">$1</li>'
+    /^[\*\-]\s+(?!\[[ xX]\])(.*$)/gim,
+    (_match, itemText) => {
+      const isItemRtl = isBlockRTL(itemText);
+      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
+      const alignClass = isItemRtl ? ' text-right font-arabic' : ' text-left';
+      return `<!--QLM_UL--><li${dirAttr} class="ml-5 list-disc my-1 ${isLight ? 'text-slate-900' : 'text-slate-200'}${alignClass}">${itemText}</li>`;
+    }
   );
   html = html.replace(/((?:<!--QLM_UL--><li[\s\S]*?<\/li>\n?)+)/g, '<ul class="list-disc pl-5 my-2 space-y-1">$1</ul>');
   html = html.replace(/<!--QLM_UL-->/g, '');
@@ -315,9 +347,12 @@ export function markdownToHtml(
   // Numbered Lists: Convert consecutive items and wrap into a real <ol>
   html = html.replace(
     /^\d+\.\s+(.*$)/gim,
-    isLight
-      ? '<!--QLM_OL--><li class="ml-5 rtl:ml-0 rtl:mr-5 list-decimal my-1 text-slate-900 rtl:text-right">$1</li>'
-      : '<!--QLM_OL--><li class="ml-5 rtl:ml-0 rtl:mr-5 list-decimal my-1 text-slate-200 rtl:text-right">$1</li>'
+    (_match, itemText) => {
+      const isItemRtl = isBlockRTL(itemText);
+      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
+      const alignClass = isItemRtl ? ' text-right font-arabic' : ' text-left';
+      return `<!--QLM_OL--><li${dirAttr} class="ml-5 list-decimal my-1 ${isLight ? 'text-slate-900' : 'text-slate-200'}${alignClass}">${itemText}</li>`;
+    }
   );
   html = html.replace(/((?:<!--QLM_OL--><li[\s\S]*?<\/li>\n?)+)/g, '<ol class="list-decimal pl-5 my-2 space-y-1">$1</ol>');
   html = html.replace(/<!--QLM_OL-->/g, '');
@@ -342,17 +377,44 @@ export function markdownToHtml(
   // Images: ![alt](url)
   html = html.replace(
     /!\[(.*?)\]\((.*?)\)/g,
-    isLight
-      ? '<figure class="my-3"><img src="$2" alt="$1" class="max-w-full rounded-md border border-slate-200 shadow-sm" /><figcaption class="text-xs text-slate-600 mt-1 italic rtl:text-right">$1</figcaption></figure>'
-      : '<figure class="my-3"><img src="$2" alt="$1" class="max-w-full rounded-md border border-slate-700 shadow-md" /><figcaption class="text-xs text-slate-400 mt-1 italic rtl:text-right">$1</figcaption></figure>'
+    (_match, altText, imgUrl) => {
+      const isAltRtl = isBlockRTL(altText);
+      const alignClass = isAltRtl ? ' text-right font-arabic' : ' text-left';
+      let resolvedUrl = imgUrl;
+      if (imgUrl.startsWith('attachment:')) {
+        const id = imgUrl.replace('attachment:', '').trim();
+        resolvedUrl = getSyncAttachmentUrl(id) || imgUrl;
+      }
+      return isLight
+        ? `<figure class="my-3"><img src="${resolvedUrl}" alt="${altText}" class="max-w-full rounded-md border border-slate-200 shadow-sm" /><figcaption class="text-xs text-slate-600 mt-1 italic${alignClass}">${altText}</figcaption></figure>`
+        : `<figure class="my-3"><img src="${resolvedUrl}" alt="${altText}" class="max-w-full rounded-md border border-slate-700 shadow-md" /><figcaption class="text-xs text-slate-400 mt-1 italic${alignClass}">${altText}</figcaption></figure>`;
+    }
   );
 
-  // Links: [text](url)
+  // HTML Audio and Image tags with attachment: URLs
+  html = html.replace(/(src|href)=["'](attachment:[a-zA-Z0-9_-]+)["']/g, (_m, attr, ref) => {
+    const id = ref.replace('attachment:', '').trim();
+    const resolved = getSyncAttachmentUrl(id);
+    return resolved ? `${attr}="${resolved}"` : `${attr}="${ref}"`;
+  });
+
+  // Links: [text](url) - Supports web URLs and native attachment:id references
   html = html.replace(
     /\[(.*?)\]\((.*?)\)/g,
-    isLight
-      ? '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 font-medium underline underline-offset-2 transition break-all overflow-wrap-anywhere">$1</a>'
-      : '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition break-all overflow-wrap-anywhere">$1</a>'
+    (_match, linkText, linkUrl) => {
+      if (linkUrl.startsWith('attachment:')) {
+        const id = linkUrl.replace('attachment:', '').trim();
+        const resolved = getSyncAttachmentUrl(id);
+        const cleanName = linkText.replace(/[^\w\s.-]/g, '').trim() || 'attachment';
+        const hrefVal = resolved || linkUrl;
+        return isLight
+          ? `<a href="${hrefVal}" download="${cleanName}" data-attachment-id="${id}" class="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium text-xs border border-blue-200 shadow-2xs transition"><span class="opacity-75">📎</span><span>${linkText}</span></a>`
+          : `<a href="${hrefVal}" download="${cleanName}" data-attachment-id="${id}" class="inline-flex items-center gap-1.5 px-2.5 py-1 my-1 rounded-md bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 font-medium text-xs border border-blue-800/60 shadow-2xs transition"><span class="opacity-75">📎</span><span>${linkText}</span></a>`;
+      }
+      return isLight
+        ? `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 font-medium underline underline-offset-2 transition break-all overflow-wrap-anywhere">${linkText}</a>`
+        : `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition break-all overflow-wrap-anywhere">${linkText}</a>`;
+    }
   );
 
   // WikiLinks: [[Target Note]] or [[Target Note|Display Alias]] (Obsidian/Roam style)
@@ -379,26 +441,24 @@ export function markdownToHtml(
           .filter((cell: string) => cell.length > 0)
       );
 
-    if (isLight) {
-      const thead = `<tr>${headers.map((h: string) => `<th class="px-3 py-2 bg-slate-100 text-left rtl:text-right font-bold text-xs text-slate-900 border border-slate-300">${h}</th>`).join('')}</tr>`;
-      const tbody = rows
-        .map(
-          (row: string[]) =>
-            `<tr>${row.map((cell: string) => `<td class="px-3 py-2 border border-slate-200 text-xs text-slate-800 rtl:text-right">${cell}</td>`).join('')}</tr>`
-        )
-        .join('');
-      return `<div class="my-4 overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-sm"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
-    }
+    const thead = `<tr>${headers.map((h: string) => {
+      const isCellRtl = isBlockRTL(h);
+      const align = isCellRtl ? 'text-right font-arabic' : 'text-left';
+      return `<th class="px-3 py-2 ${isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-800 text-slate-200 border-slate-700'} ${align} font-bold text-xs border" ${isCellRtl ? 'dir="rtl"' : 'dir="ltr"'}>${h}</th>`;
+    }).join('')}</tr>`;
 
-    const thead = `<tr>${headers.map((h: string) => `<th class="px-3 py-2 bg-slate-800 text-left rtl:text-right font-semibold text-xs text-slate-200 border border-slate-700">${h}</th>`).join('')}</tr>`;
     const tbody = rows
       .map(
         (row: string[]) =>
-          `<tr>${row.map((cell: string) => `<td class="px-3 py-2 border border-slate-700/70 text-xs text-slate-300 rtl:text-right">${cell}</td>`).join('')}</tr>`
+          `<tr>${row.map((cell: string) => {
+            const isCellRtl = isBlockRTL(cell);
+            const align = isCellRtl ? 'text-right font-arabic' : 'text-left';
+            return `<td class="px-3 py-2 border ${isLight ? 'border-slate-200 text-slate-800' : 'border-slate-700/70 text-slate-300'} text-xs ${align}" ${isCellRtl ? 'dir="rtl"' : 'dir="ltr"'}>${cell}</td>`;
+          }).join('')}</tr>`
       )
       .join('');
 
-    return `<div class="my-4 overflow-x-auto"><table class="w-full border-collapse border border-slate-700 text-sm"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+    return `<div class="my-4 overflow-x-auto"><table class="w-full border-collapse border ${isLight ? 'border-slate-300' : 'border-slate-700'} text-sm"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
   });
 
   // Directional blocks: <div dir="rtl"> or <div dir="ltr">
@@ -419,8 +479,8 @@ export function markdownToHtml(
           return trimmed;
         }
         return isLight
-          ? `<p class="my-2 leading-relaxed text-slate-900 ${isRtlBlock ? 'text-right' : 'text-left'}">${trimmed.replace(/\n/g, '<br/>')}</p>`
-          : `<p class="my-2 leading-relaxed text-slate-200 ${isRtlBlock ? 'text-right' : 'text-left'}">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+          ? `<p class="my-2 leading-relaxed text-slate-900 ${isRtlBlock ? 'text-right font-arabic' : 'text-left'}">${trimmed.replace(/\n/g, '<br/>')}</p>`
+          : `<p class="my-2 leading-relaxed text-slate-200 ${isRtlBlock ? 'text-right font-arabic' : 'text-left'}">${trimmed.replace(/\n/g, '<br/>')}</p>`;
       })
       .filter(Boolean)
       .join('\n');
@@ -473,13 +533,15 @@ export function markdownToHtml(
       ) {
         return block;
       }
-      const isParagraphRtl = RTL_REGEX.test(block);
-      const dirAttr = isParagraphRtl ? ' dir="rtl"' : '';
-      const alignClass = isParagraphRtl ? ' text-right font-arabic' : ' rtl:text-right';
-      const styleAttr = isParagraphRtl ? ' style="direction: rtl; unicode-bidi: isolate; text-align: right;"' : '';
+      const isParagraphRtl = isBlockRTL(block);
+      const dirAttr = isParagraphRtl ? ' dir="rtl"' : ' dir="ltr"';
+      const alignClass = isParagraphRtl ? ' text-right font-arabic' : ' text-left';
+      const styleAttr = isParagraphRtl
+        ? ' style="direction: rtl; unicode-bidi: isolate; text-align: right;"'
+        : ' style="direction: ltr; unicode-bidi: isolate; text-align: left;"';
       return isLight
         ? `<p${dirAttr}${styleAttr} class="my-2 leading-relaxed text-slate-900 font-normal${alignClass}">${block.replace(/\n/g, '<br/>')}</p>`
-        : `<p${dirAttr}${styleAttr} class="my-2 leading-relaxed text-slate-200${alignClass}">${block.replace(/\n/g, '<br/>')}</p>`;
+        : `<p${dirAttr}${styleAttr} class="my-2 leading-relaxed text-slate-200 font-normal${alignClass}">${block.replace(/\n/g, '<br/>')}</p>`;
     })
     .join('\n');
 
@@ -487,7 +549,7 @@ export function markdownToHtml(
     ADD_TAGS: ['div', 'span', 'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins', 'audio', 'source', 'figure', 'figcaption'],
     ADD_ATTR: ['target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id', 'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height'],
     ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data|blob|attachment):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
 }
 

@@ -5,7 +5,7 @@ import type { AppLanguage } from '../../types';
 interface AudioRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInsertAudio: (audioDataUrl: string, audioTitle?: string) => void;
+  onInsertAudio: (audioDataUrl: string, audioTitle?: string, audioBlob?: Blob) => void;
   language?: AppLanguage;
 }
 
@@ -25,6 +25,7 @@ export const AudioRecordModal: React.FC<AudioRecordModalProps> = ({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordedBlobRef = useRef<Blob | null>(null);
   const timerIntervalRef = useRef<any>(null);
 
   useEffect(() => {
@@ -55,7 +56,20 @@ export const AudioRecordModal: React.FC<AudioRecordModalProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // Configure speech-optimized audio compression (32kbps Opus)
+      const options: MediaRecorderOptions = {};
+      if (typeof MediaRecorder.isTypeSupported === 'function') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options.mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+          options.mimeType = 'audio/ogg;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options.mimeType = 'audio/mp4';
+        }
+      }
+      options.audioBitsPerSecond = 32000; // 32 kbps voice compression
+
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -65,16 +79,11 @@ export const AudioRecordModal: React.FC<AudioRecordModalProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = options.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        recordedBlobRef.current = audioBlob;
         const previewUrl = URL.createObjectURL(audioBlob);
         setAudioUrl(previewUrl);
-
-        // Convert to base64 Data URL for persistent offline storage in IndexedDB
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          setAudioDataUrl(reader.result as string);
-        };
 
         // Stop all audio tracks
         stream.getTracks().forEach((track) => track.stop());
@@ -87,7 +96,7 @@ export const AudioRecordModal: React.FC<AudioRecordModalProps> = ({
       timerIntervalRef.current = setInterval(() => {
         setRecordingTime((prev) => prev + 1);
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error accessing microphone:', err);
       setErrorMessage(
         isId
@@ -114,8 +123,8 @@ export const AudioRecordModal: React.FC<AudioRecordModalProps> = ({
   };
 
   const handleSaveAndInsert = () => {
-    if (audioDataUrl) {
-      onInsertAudio(audioDataUrl, memoTitle);
+    if (recordedBlobRef.current) {
+      onInsertAudio('', memoTitle, recordedBlobRef.current);
       onClose();
     }
   };

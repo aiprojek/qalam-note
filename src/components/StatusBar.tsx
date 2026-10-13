@@ -9,6 +9,8 @@ interface StatusBarProps {
   syncMessage?: string;
   isVaultUnlocked: boolean;
   isE2EEEnabled: boolean;
+  autoLockMinutes?: number;
+  onToggleVaultLock?: () => void;
   language?: AppLanguage;
 }
 
@@ -18,6 +20,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   syncMessage,
   isVaultUnlocked,
   isE2EEEnabled,
+  autoLockMinutes = 15,
+  onToggleVaultLock,
   language = 'id',
 }) => {
   const t = getT(language);
@@ -70,9 +74,20 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         </span>
 
         {isE2EEEnabled && (
-          <span
-            className={`flex items-center gap-1 ${
-              isVaultUnlocked ? 'text-emerald-400' : 'text-amber-400'
+          <button
+            type="button"
+            onClick={onToggleVaultLock}
+            title={
+              isVaultUnlocked
+                ? language === 'id'
+                  ? `Brankas Terbuka (Kunci otomatis dalam ${autoLockMinutes} mnt tidak aktif). Klik untuk mengunci sekarang.`
+                  : `Vault Unlocked (Auto-locks after ${autoLockMinutes} min inactivity). Click to lock now.`
+                : language === 'id'
+                ? 'Brankas Terkunci. Klik untuk membuka brankas.'
+                : 'Vault Locked. Click to unlock.'
+            }
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition hover:opacity-90 active:scale-95 cursor-pointer ${
+              isVaultUnlocked ? 'text-emerald-400 hover:bg-emerald-950/40' : 'text-amber-400 hover:bg-amber-950/40'
             }`}
           >
             {isVaultUnlocked ? (
@@ -86,7 +101,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                 <span>{t.e2ee_locked}</span>
               </>
             )}
-          </span>
+          </button>
         )}
       </div>
     </div>

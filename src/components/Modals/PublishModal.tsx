@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Share2,
   AlertTriangle,
+  Calendar,
 } from 'lucide-react';
 import type { Note, GASConfig, AppLanguage } from '../../types';
 import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
@@ -289,15 +290,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         type="text"
                         readOnly
                         value={publicUrl}
-                        className={`w-full text-xs font-mono px-3 py-2 pr-20 rounded-lg border outline-none select-all truncate ${
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none select-all truncate ${
                           isLight
                             ? 'bg-white text-slate-900 border-emerald-300 focus:border-emerald-500'
                             : 'bg-slate-900/90 text-slate-200 border-slate-700 focus:border-blue-500'
                         }`}
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/25">
-                        ?k=cipher
-                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
@@ -326,19 +324,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
                   <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400 flex-wrap gap-1">
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ {isId ? 'Link ringkas terenkripsi (?k=...) siap dibagikan' : 'Encrypted compact link (?k=...) ready to share'}
+                      ✓ {isId ? 'Tautan siap dibagikan ke pembaca' : 'Public link is live and ready to share'}
                     </span>
-                    {(note.published_info?.gas_url || gasUrl) && (
-                      <a
-                        href={`${note.published_info?.gas_url || gasUrl}?id=${encodeURIComponent(note.id)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-slate-400 hover:text-slate-300 underline inline-flex items-center gap-1 text-[10px]"
-                      >
-                        <span>{isId ? 'Buka langsung di GAS' : 'Open raw GAS endpoint'}</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -536,16 +523,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               >
                 {/* Header */}
                 <div className="border-b border-slate-200 pb-4 mb-6">
-                  <div className={`flex items-center gap-2 mb-2.5 ${isRtl ? 'justify-end' : 'justify-start'}`}>
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-blue-600 text-white shadow-xs">
-                      {isId ? 'Catatan Publik Qalam Note' : 'Qalam Public Note'}
-                    </span>
-                    {isRtl && (
+                  {isRtl && (
+                    <div className="flex items-center gap-2 mb-2.5 justify-end">
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 border border-amber-500/30">
                         RTL
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <h1
                     className={`text-xl sm:text-2xl md:text-3xl font-black mt-2 mb-3 tracking-tight text-slate-950 ${
@@ -556,41 +540,36 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </h1>
 
                   <div
-                    className={`flex items-center gap-2 text-xs flex-wrap text-slate-600 ${
-                      isRtl ? 'justify-end text-right' : 'justify-start text-left'
+                    className={`flex items-center justify-between gap-3 text-xs flex-wrap text-slate-600 ${
+                      isRtl ? 'flex-row-reverse text-right' : 'text-left'
                     }`}
                   >
-                    <span>
-                      {isId ? 'Oleh' : 'By'}{' '}
+                    <div className="flex items-center gap-1.5">
+                      <span>{isId ? 'Oleh' : 'By'}:</span>
                       <strong className="text-slate-900 font-bold">{authorName}</strong>
-                    </span>
-                    <span>&bull;</span>
-                    <span>{new Date().toLocaleDateString(isId ? 'id-ID' : 'en-US')}</span>
-                    {note.tags && note.tags.length > 0 && (
-                      <>
-                        <span>&bull;</span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {note.tags.map((t) => (
-                            <span
-                              key={t}
-                              className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800 border border-slate-200"
-                            >
-                              #{t}
-                            </span>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                    </div>
+                    <div className="flex items-center gap-1.5 font-medium ml-auto">
+                      <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span>
+                        {isId ? 'Tanggal Publikasi' : 'Publication Date'}:{' '}
+                        <strong className="text-slate-900 font-bold">
+                          {new Date(note.published_info?.published_at || Date.now()).toLocaleDateString(
+                            isId ? 'id-ID' : 'en-US',
+                            { day: 'numeric', month: 'short', year: 'numeric' }
+                          )}
+                        </strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Article Body: Rendered with Light Theme */}
+                {/* Article Body: Rendered with Light Theme and rich typography */}
                 <div
-                  className={`text-sm sm:text-[15px] leading-relaxed max-w-none text-slate-900 space-y-3 ${
+                  className={`qalam-markdown-preview prose max-w-none text-slate-900 text-sm sm:text-[15px] leading-relaxed break-words ${
                     isRtl ? 'text-right' : 'text-left'
                   }`}
                   dangerouslySetInnerHTML={{
-                    __html: markdownToHtml(note.body, {
+                    __html: note.body_html || markdownToHtml(note.body, {
                       theme: 'light',
                       direction: noteDirection,
                     }),

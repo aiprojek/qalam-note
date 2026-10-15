@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Globe,
   ArrowLeft,
   Share2,
   Copy,
@@ -9,10 +8,10 @@ import {
   Moon,
   AlignLeft,
   AlignRight,
-  ExternalLink,
   AlertTriangle,
-  RotateCw,
+  Calendar,
 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import type { Note } from '../types';
 import { markdownToHtml } from '../utils/markdown';
 import { getNoteDirection } from '../utils/rtl';
@@ -25,6 +24,7 @@ export interface RemotePublishedNote {
   author?: string;
   tags?: string[];
   updated_at?: number | string;
+  published_at?: number | string;
   gasUrl?: string;
 }
 
@@ -34,6 +34,7 @@ interface PublicReaderViewProps {
   authorName?: string;
   gasUrl?: string;
   noteId?: string;
+  publishedAt?: number | string;
   isLoadingRemote?: boolean;
   errorMessage?: string | null;
   onBackToApp: () => void;
@@ -45,6 +46,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   authorName = 'Anonymous',
   gasUrl,
   noteId,
+  publishedAt,
   isLoadingRemote = false,
   errorMessage = null,
   onBackToApp,
@@ -54,16 +56,59 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   // Determine active note data
   const title = note?.title || remoteNote?.title || 'Catatan Publik';
-  const rawHtml = remoteNote?.html || (note?.body ? markdownToHtml(note.body, { theme }) : '');
   const tags = note?.tags || remoteNote?.tags || [];
   const displayAuthor = remoteNote?.author || authorName || 'Anonymous';
-  const effectiveGasUrl = gasUrl || remoteNote?.gasUrl;
 
   const [isRtl, setIsRtl] = useState<boolean>(() => {
     if (note) return getNoteDirection(note) === 'rtl';
     const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
     return arabicRegex.test(title);
   });
+
+  // Calculate formatted publication date (never show 'Tersimpan')
+  const displayPublicationDate = useMemo(() => {
+    const rawTime =
+      publishedAt ||
+      note?.published_info?.published_at ||
+      remoteNote?.published_at ||
+      remoteNote?.updated_at ||
+      note?.updated_time ||
+      Date.now();
+
+    const timestamp =
+      typeof rawTime === 'string'
+        ? isNaN(Number(rawTime))
+          ? Date.parse(rawTime)
+          : Number(rawTime)
+        : rawTime;
+    const dateObj = isNaN(timestamp) ? new Date() : new Date(timestamp);
+
+    return dateObj.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }, [
+    publishedAt,
+    note?.published_info?.published_at,
+    remoteNote?.published_at,
+    remoteNote?.updated_at,
+    note?.updated_time,
+  ]);
+
+  // Ensure body scroll is unlocked when reader view is mounted
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const hadOverflowHidden = document.body.classList.contains('overflow-hidden');
+    document.body.classList.remove('overflow-hidden');
+    document.body.style.overflow = 'auto';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      if (hadOverflowHidden) {
+        document.body.classList.add('overflow-hidden');
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (note) {
@@ -82,19 +127,55 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   const isLight = theme === 'light';
 
+  // Format and sanitize HTML/Markdown content with support for both editor modes
+  const formattedHtml = useMemo(() => {
+    // Priority:
+    // 1. Remote published HTML (from GAS)
+    // 2. Local note WYSIWYG HTML (note.body_html)
+    // 3. Local note Markdown body (note.body)
+    const content = remoteNote?.html || note?.body_html || note?.body || '';
+    if (!content || !content.trim()) return '';
+
+    // Check whether content is already rich structured HTML or raw markdown
+    const hasHtmlTags = /<(?:p|h[1-6]|ul|ol|li|table|div|blockquote|pre|span|b|strong|i|em)\b[^>]*>/i.test(content);
+    const hasMarkdownSyntax = /(?:^|\n)(?:#{1,6}\s|>\s|[-*+]\s|\d+\.\s|```|\|)|(?:\*\*|__|\$\$|==)/m.test(content);
+
+    // If it's Markdown or plain text without block tags, compile to HTML:
+    if (hasMarkdownSyntax || !hasHtmlTags) {
+      return markdownToHtml(content, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+    }
+
+    // It's rich HTML: sanitize safely retaining all structure, tables, and styles
+    return DOMPurify.sanitize(content, {
+      ADD_TAGS: [
+        'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+        'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+        'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+      ],
+      ADD_ATTR: [
+        'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+        'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+        'allow', 'allowfullscreen', 'align', 'valign'
+      ],
+      ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+    });
+  }, [note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
+
   // Loading State
   if (isLoadingRemote) {
     return (
       <div
-        className={`min-h-screen flex flex-col items-center justify-center p-6 transition-colors duration-200 select-none ${
+        className={`h-screen h-dvh w-full overflow-y-auto flex flex-col items-center justify-center p-6 transition-colors duration-200 select-none ${
           isLight ? 'bg-slate-100 text-slate-800' : 'bg-[#0a0f1d] text-slate-100'
         }`}
       >
         <div className="flex flex-col items-center gap-3 text-center max-w-sm">
           <QalamIcon className="w-14 h-14 shadow-2xl animate-pulse" />
-          <h2 className="text-base font-bold">Memuat Catatan Publik...</h2>
+          <h2 className="text-base font-bold">Memuat Catatan...</h2>
           <p className="text-xs text-slate-400">
-            Mengambil isi dokumen dari Google Sheets (GAS)...
+            Mengambil isi dokumen yang dipublikasikan...
           </p>
         </div>
       </div>
@@ -105,7 +186,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   if (errorMessage && !note && !remoteNote) {
     return (
       <div
-        className={`min-h-screen flex flex-col items-center justify-center p-6 text-center transition-colors duration-200 select-none ${
+        className={`h-screen h-dvh w-full overflow-y-auto flex flex-col items-center justify-center p-6 text-center transition-colors duration-200 select-none ${
           isLight ? 'bg-slate-100 text-slate-800' : 'bg-[#0a0f1d] text-slate-100'
         }`}
       >
@@ -123,17 +204,6 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
             >
               Buka Beranda Qalam Note
             </button>
-            {effectiveGasUrl && noteId && (
-              <a
-                href={`${effectiveGasUrl}?id=${encodeURIComponent(noteId)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 transition border border-slate-700"
-              >
-                <span>Buka Langsung di GAS</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
           </div>
         </div>
       </div>
@@ -142,12 +212,13 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans select-text transition-colors duration-200 ${
-        isLight ? 'bg-slate-100 text-slate-900' : 'bg-[#0a0f1d] text-slate-100'
+      className={`fixed inset-0 z-50 h-screen h-dvh w-full overflow-y-auto overflow-x-hidden flex flex-col font-sans select-text transition-colors duration-200 custom-scrollbar ${
+        isLight ? 'qalam-light bg-slate-100 text-slate-900' : 'bg-[#0a0f1d] text-slate-100'
       }`}
+      style={{ WebkitOverflowScrolling: 'touch' }}
     >
       {/* Top Banner Bar */}
-      <header className="bg-[#151f32] text-white px-4 sm:px-6 py-3 flex items-center justify-between shadow-md border-b border-slate-800 shrink-0">
+      <header className="sticky top-0 z-40 bg-[#151f32] text-white px-4 sm:px-6 py-3 flex items-center justify-between shadow-md border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             onClick={onBackToApp}
@@ -165,20 +236,6 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Direct GAS Source Link if available */}
-          {effectiveGasUrl && (
-            <a
-              href={`${effectiveGasUrl}?id=${encodeURIComponent(note?.id || remoteNote?.id || noteId || '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-[11px] font-medium text-slate-300 border border-slate-700/60 transition"
-              title="Buka endpoint Google Apps Script"
-            >
-              <span>Sumber GAS</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-
           {/* Theme switcher */}
           <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 text-xs">
             <button
@@ -239,8 +296,8 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
         </div>
       </header>
 
-      {/* Main Reading Container */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      {/* Main Reading Container with generous bottom scroll padding */}
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-36 sm:pb-48">
         <article
           dir={isRtl ? 'rtl' : 'ltr'}
           className={`rounded-2xl border p-6 sm:p-10 md:p-12 transition-colors ${
@@ -255,34 +312,30 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
               isLight ? 'border-slate-200' : 'border-slate-800'
             }`}
           >
-            <div className={`flex items-center gap-2 mb-3 flex-wrap ${isRtl ? 'justify-end' : 'justify-start'}`}>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                <Globe className="w-3 h-3" />
-                Catatan Publik
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                ?k=cipher
-              </span>
-              {isRtl && (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                  Aksara RTL
-                </span>
-              )}
-              {tags && tags.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap">
-                  {tags.map((t) => (
-                    <span
-                      key={t}
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      #{t}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Tags and RTL pill only - public note & cipher pills removed */}
+            {(isRtl || (tags && tags.length > 0)) && (
+              <div className={`flex items-center gap-2 mb-3 flex-wrap ${isRtl ? 'justify-end' : 'justify-start'}`}>
+                {isRtl && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                    Aksara RTL
+                  </span>
+                )}
+                {tags && tags.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {tags.map((t) => (
+                      <span
+                        key={t}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
+                        }`}
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <h1
               className={`text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight ${
@@ -293,42 +346,30 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
             </h1>
 
             <div
-              className={`flex items-center gap-2 mt-4 text-xs flex-wrap ${
-                isRtl ? 'justify-end text-right' : 'justify-start text-left'
+              className={`flex items-center justify-between gap-3 mt-4 text-xs flex-wrap ${
+                isRtl ? 'flex-row-reverse text-right' : 'text-left'
               } ${isLight ? 'text-slate-600' : 'text-slate-400'}`}
             >
-              <span>
-                Oleh:{' '}
+              <div className="flex items-center gap-1.5">
+                <span>Oleh:</span>
                 <strong className={isLight ? 'text-slate-950 font-bold' : 'text-slate-200 font-bold'}>
                   {displayAuthor}
                 </strong>
-              </span>
-              <span>&bull;</span>
-              <span>
-                {note?.updated_time
-                  ? new Date(note.updated_time).toLocaleDateString([], {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : remoteNote?.updated_at
-                  ? new Date(remoteNote.updated_at).toLocaleDateString([], {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : 'Tersimpan'}
-              </span>
+              </div>
+              <div className="flex items-center gap-1.5 font-medium ml-auto">
+                <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span>Tanggal Publikasi: <strong className={isLight ? 'text-slate-900 font-bold' : 'text-slate-100 font-bold'}>{displayPublicationDate}</strong></span>
+              </div>
             </div>
           </div>
 
-          {/* Rendered Body */}
+          {/* Rendered Body with qalam-markdown-preview typography */}
           <div
-            className={`text-[15px] leading-relaxed max-w-none break-words ${
-              isRtl ? 'text-right' : 'text-left'
-            }`}
+            className={`qalam-markdown-preview prose max-w-none text-[15px] sm:text-base leading-relaxed break-words ${
+              isLight ? 'text-slate-900' : 'text-slate-100'
+            } ${isRtl ? 'text-right' : 'text-left'}`}
             dangerouslySetInnerHTML={{
-              __html: rawHtml,
+              __html: formattedHtml,
             }}
           />
 

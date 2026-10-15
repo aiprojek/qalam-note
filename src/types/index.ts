@@ -44,6 +44,7 @@ export interface Folder {
   parent_id: string; // empty string for root
   created_time: number;
   updated_time: number;
+  sync_time?: number;
   is_deleted: boolean;
   order: number;
 }

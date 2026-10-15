@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.0.0';
-export const APP_BUILD_DATE = '2026-10-07';
+export const APP_VERSION = '1.0.2';
+export const APP_BUILD_DATE = '2026-10-14';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,60 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.0.2',
+    date: '2026-10-14',
+    title: {
+      id: 'Pembaruan v1.0.2: Tampilan Publikasi Web Sempurna, Tanggal Publikasi, Penamaan Folder Sinkron & Build Cloudflare',
+      en: 'v1.0.2 Update: Flawless Web Reader, Publication Date, Folder Sync Naming & Cloudflare CI Fix',
+    },
+    highlights: {
+      id: [
+        'Render Teks Publikasi Sempurna: Teks HTML maupun Markdown baik dari editor WYSIWYG maupun editor Markdown kini dirender secara kaya dan akurat dengan format paragraf, tabel, kutipan, dan gaya teks utuh.',
+        'Penanggalan Publikasi Eksplisit: Mengganti teks "Tersimpan" di sisi kanan hasil publikasi menjadi Tanggal Publikasi resmi yang informatif.',
+        'Penamaan Folder Mengikuti Perangkat Utama: Memperbaiki sinkronisasi agar nama buku catatan/folder dari perangkat induk tidak berubah menjadi "Folder Sinkron", melainkan mempertahankan nama asli dari perangkat utama secara konsisten.',
+        'Perbaikan Pengguliran (Scroll) Halaman: Membuka kunci batasan overflow halaman sehingga seluruh isi catatan dapat di-scroll ke bawah sampai tuntas tanpa terpotong di peramban ponsel maupun desktop.',
+        'Penguatan Keamanan Publikasi (Security Hardening): Menghilangkan tautan langsung ke endpoint sumber Google Apps Script (GAS) dan skrip mentah untuk melindungi privasi URL Google Sheets pemilik.',
+        'Pembersihan Antarmuka Pembaca: Menghilangkan badge/pill "Catatan Publik" dan "?k=cipher" untuk menyajikan ruang membaca yang bersih, minimalis, dan elegan.',
+        'Penyelarasan Build Cloudflare Pages: Memperbarui package-lock.json agar perintah "npm ci" berjalan mulus tanpa kegagalan paket hilang pada pipeline Cloudflare.',
+      ],
+      en: [
+        'Flawless Web Reader Rendering: Rich HTML and Markdown from both WYSIWYG and Markdown editor modes now render with full typographical accuracy, styled tables, blockquotes, and lists.',
+        'Explicit Publication Date: Replaced "Tersimpan" on the right side of publication with the official formatted Publication Date.',
+        'Notebook Naming Follows Primary Device: Fixed sync folder reconciliation so folders never get renamed to "Folder Sinkron", faithfully preserving the folder titles from the master device.',
+        'Smooth Vertical Scrolling: Unlocked page overflow constraints, enabling readers to effortlessly scroll long notes all the way to the bottom on both mobile and desktop screens.',
+        'Publishing Security Hardening: Completely removed raw Google Apps Script (GAS) source links to safeguard owner deployment URLs and Google Sheets storage.',
+        'Clean & Minimalist Reader Interface: Removed redundant "Catatan Publik" and "?k=cipher" badge pills for an uncluttered, reading-focused presentation.',
+        'Cloudflare Pages CI/CD Alignment: Synchronized package-lock.json with package.json so "npm ci" completes reliably without missing package errors on automated deployments.',
+      ],
+    },
+  },
+  {
+    version: '1.0.1',
+    date: '2026-10-14',
+    title: {
+      id: 'Pembaruan v1.0.1: Perbaikan Ekspor PDF, UI Pairing, Layer Menu & Sinkronisasi Lintas Perangkat',
+      en: 'v1.0.1 Update: PDF Export Polish, Pairing UI, Action Menu Layer & Robust Cross-Device Sync',
+    },
+    highlights: {
+      id: [
+        'Ekspor PDF Lebih Bersih: Menghilangkan kredit duplikat/redundant di footer halaman PDF, menjaga atribusi rapi dan elegan.',
+        'Penyempurnaan UI Kode Pairing: Menata ulang tombol aksi ("Salin Kode Pairing" & "Segarkan") tepat di bawah field kode agar tidak terdorong keluar kartu modal pada resolusi sempit.',
+        'Peningkatan Layer Dropdown Catatan: Menaikkan z-index/layer dropdown aksi catatan (z-50) serta menambahkan penutup otomatis saat klik di luar area atau menekan tombol Escape agar menu tidak tertutup catatan di bawahnya.',
+        'Sistem Sinkronisasi Lintas Perangkat (Multi-Device Sync): Rekonsiliasi sinkronisasi dua arah yang tangguh terhadap clock-skew, memastikan catatan baru dan editan dari perangkat utama langsung tersinkron dan tampil di perangkat kedua.',
+        'Auto-Sync Otomatis: Sinkronisasi otomatis saat catatan dibuat, diedit (debounced), dihapus, serta saat aplikasi/tab kembali dibuka (visibility change).',
+        'Integritas Data Catatan Pengguna: Mencegah penimpaan catatan oleh pembersih preset bawaan dan menyajikan laporan galat (error reporting) yang transparan jika koneksi cloud terkendala.',
+      ],
+      en: [
+        'Cleaner PDF Export: Eliminated duplicate/redundant credits in PDF page footers, keeping document attribution neat and elegant.',
+        'Pairing Code UI Polish: Repositioned action buttons ("Copy Pairing Code" & "Refresh") directly below the input field to prevent overflow outside modal cards on compact displays.',
+        'Elevated Action Menu Layer: Raised note action dropdown layer (z-50) and added global click-outside and Escape key dismissal to avoid overlapping note items below.',
+        'Robust Cross-Device Sync: Re-engineered two-way synchronization reconciliation to handle clock-skew differences, guaranteeing new notes and edits from the primary device promptly sync and display on the second device.',
+        'Automatic Background Sync: Debounced auto-sync when creating, modifying, duplicating, or trashing notes, as well as upon tab focus / app reopen.',
+        'Data Integrity & Error Transparency: Shielded user notes from preset sanitation overrides and enabled transparent error reporting for cloud connectivity issues.',
+      ],
+    },
+  },
   {
     version: '1.0.0',
     date: '2026-10-07',

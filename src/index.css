@@ -853,6 +853,56 @@ html.light .qalam-todo-item span.line-through {
   color: #64748b !important;
 }
 
+/* Qalam Markdown & HTML Preview Typography Defaults */
+.qalam-markdown-preview p {
+  margin-top: 0.85rem !important;
+  margin-bottom: 0.85rem !important;
+  line-height: 1.75 !important;
+}
+
+.qalam-markdown-preview a {
+  color: #3b82f6 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  font-weight: 500 !important;
+}
+.qalam-markdown-preview a:hover {
+  color: #60a5fa !important;
+}
+
+.qalam-light .qalam-markdown-preview a,
+html.light .qalam-markdown-preview a {
+  color: #2563eb !important;
+}
+.qalam-light .qalam-markdown-preview a:hover,
+html.light .qalam-markdown-preview a:hover {
+  color: #1d4ed8 !important;
+}
+
+.qalam-markdown-preview strong,
+.qalam-markdown-preview b {
+  font-weight: 700 !important;
+}
+
+.qalam-markdown-preview em,
+.qalam-markdown-preview i {
+  font-style: italic !important;
+}
+
+.qalam-markdown-preview img {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 0.75rem !important;
+  margin: 1.25rem auto !important;
+  display: block !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
+}
+
+.qalam-light .qalam-markdown-preview p,
+html.light .qalam-markdown-preview p {
+  color: #1e293b !important;
+}
+
 /* System Arabic Typography Stack (100% Offline Compatible) */
 .font-arabic {
   font-family: 'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', 'Geeza Pro', 'Al Bayan', 'DejaVu Sans', serif, system-ui;

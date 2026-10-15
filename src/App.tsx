@@ -168,6 +168,7 @@ export default function App() {
     gasUrl?: string;
     title?: string;
     author?: string;
+    publishedAt?: number | string;
     remoteNote: RemotePublishedNote | null;
     isLoadingRemote: boolean;
     errorMessage: string | null;
@@ -220,6 +221,7 @@ export default function App() {
               gasUrl: decoded.gasUrl,
               title: decoded.title,
               author: decoded.author,
+              publishedAt: decoded.publishedAt,
               remoteNote: null,
               isLoadingRemote: !!decoded.gasUrl,
               errorMessage: null,
@@ -234,6 +236,7 @@ export default function App() {
                 setPublicReaderState((prev) => ({
                   ...prev,
                   isLoadingRemote: false,
+                  publishedAt: prev.publishedAt || remote.published_at || remote.updated_at,
                   remoteNote: {
                     id: decoded.id,
                     title: remote.title,
@@ -241,6 +244,8 @@ export default function App() {
                     author: remote.author || decoded.author,
                     tags: remote.tags,
                     gasUrl: decoded.gasUrl,
+                    updated_at: remote.updated_at,
+                    published_at: remote.published_at || remote.updated_at || decoded.publishedAt,
                   },
                 }));
               } else {
@@ -447,6 +452,20 @@ export default function App() {
     }
   }, [settings.theme]);
 
+  // Ref to hold current handleSync function for background and event-triggered auto-sync
+  const handleSyncRef = useRef<(cfg?: SyncConfig) => Promise<void>>(() => Promise.resolve());
+  const autoSyncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const requestAutoSync = useCallback((delayMs: number = 2000) => {
+    if (settings.sync.target === 'disabled') return;
+    if (autoSyncDebounceTimerRef.current) {
+      clearTimeout(autoSyncDebounceTimerRef.current);
+    }
+    autoSyncDebounceTimerRef.current = setTimeout(() => {
+      handleSyncRef.current();
+    }, delayMs);
+  }, [settings.sync.target]);
+
   // Handle Note Update in Dexie & State
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
     if (!selectedNoteId) return;
@@ -463,6 +482,7 @@ export default function App() {
 
     setNotes((prev) => prev.map((n) => (n.id === selectedNoteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
+    requestAutoSync(2500);
   };
 
   // Create New Note
@@ -496,6 +516,7 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     setSelectedNoteId(newNoteId);
     setSelectedSpecialView(null);
+    requestAutoSync(800);
   };
 
   // Toggle To-do Completion
@@ -503,10 +524,11 @@ export default function App() {
     const nextCompleted = currentCompleted ? 0 : Date.now();
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === noteId ? { ...n, todo_completed: nextCompleted, updated_time: Date.now() } : n
+        n.id === noteId ? { ...n, todo_completed: nextCompleted, updated_time: Date.now(), sync_status: 'pending' } : n
       )
     );
-    await db.notes.update(noteId, { todo_completed: nextCompleted, updated_time: Date.now() });
+    await db.notes.update(noteId, { todo_completed: nextCompleted, updated_time: Date.now(), sync_status: 'pending' });
+    requestAutoSync(1000);
   };
 
   // Toggle Star / Favorite
@@ -514,10 +536,11 @@ export default function App() {
     const nextStar = !currentStar;
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === noteId ? { ...n, is_favorite: nextStar, updated_time: Date.now() } : n
+        n.id === noteId ? { ...n, is_favorite: nextStar, updated_time: Date.now(), sync_status: 'pending' } : n
       )
     );
-    await db.notes.update(noteId, { is_favorite: nextStar, updated_time: Date.now() });
+    await db.notes.update(noteId, { is_favorite: nextStar, updated_time: Date.now(), sync_status: 'pending' });
+    requestAutoSync(1000);
   };
 
   // Toggle Pin
@@ -525,10 +548,11 @@ export default function App() {
     const nextPin = !currentPin;
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === noteId ? { ...n, is_pinned: nextPin, updated_time: Date.now() } : n
+        n.id === noteId ? { ...n, is_pinned: nextPin, updated_time: Date.now(), sync_status: 'pending' } : n
       )
     );
-    await db.notes.update(noteId, { is_pinned: nextPin, updated_time: Date.now() });
+    await db.notes.update(noteId, { is_pinned: nextPin, updated_time: Date.now(), sync_status: 'pending' });
+    requestAutoSync(1000);
   };
 
   // Duplicate Note
@@ -545,6 +569,7 @@ export default function App() {
     await db.notes.add(dupNote);
     setNotes((prev) => [dupNote, ...prev]);
     setSelectedNoteId(dupId);
+    requestAutoSync(800);
   };
 
   // Soft Delete Note (Move to Trash) with Confirmation
@@ -570,9 +595,10 @@ export default function App() {
       onConfirm: async () => {
         const now = Date.now();
         setNotes((prev) =>
-          prev.map((n) => (n.id === noteId ? { ...n, is_deleted: true, updated_time: now } : n))
+          prev.map((n) => (n.id === noteId ? { ...n, is_deleted: true, updated_time: now, sync_status: 'pending' } : n))
         );
-        await db.notes.update(noteId, { is_deleted: true, updated_time: now });
+        await db.notes.update(noteId, { is_deleted: true, updated_time: now, sync_status: 'pending' });
+        requestAutoSync(800);
 
         // Pick next active note
         const remaining = notes.filter((n) => n.id !== noteId && !n.is_deleted);
@@ -589,9 +615,10 @@ export default function App() {
   const handleRestoreNote = async (noteId: string) => {
     const now = Date.now();
     setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, is_deleted: false, updated_time: now } : n))
+      prev.map((n) => (n.id === noteId ? { ...n, is_deleted: false, updated_time: now, sync_status: 'pending' } : n))
     );
-    await db.notes.update(noteId, { is_deleted: false, updated_time: now });
+    await db.notes.update(noteId, { is_deleted: false, updated_time: now, sync_status: 'pending' });
+    requestAutoSync(800);
   };
 
   // Permanent Delete Note with Confirmation
@@ -699,6 +726,7 @@ export default function App() {
         setSelectedSpecialView(null);
         setSelectedTagId(null);
       }
+      requestAutoSync(1000);
     } catch (err) {
       console.error('Failed to save notebook to database:', err);
       throw err;
@@ -783,6 +811,7 @@ export default function App() {
             setSelectedSpecialView('all');
           }
         }
+        requestAutoSync(1000);
       },
     });
   };
@@ -982,6 +1011,7 @@ export default function App() {
       setTimeout(() => setSyncMessage(''), 5000);
     }
   };
+  handleSyncRef.current = handleSync;
 
   // Background Auto-Sync timer
   useEffect(() => {
@@ -998,6 +1028,17 @@ export default function App() {
 
     return () => clearInterval(timer);
   }, [settings.sync.target, settings.sync.auto_sync_interval, isSyncing]);
+
+  // Sync when app/tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && settings.sync.target !== 'disabled' && !isSyncing) {
+        requestAutoSync(400);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [settings.sync.target, isSyncing, requestAutoSync]);
 
   // Export Data
   const handleExportData = async () => {
@@ -1374,7 +1415,8 @@ export default function App() {
         } else if (selectedTagId) {
           if (!note.tags || !note.tags.includes(selectedTagId)) return false;
         } else if (selectedFolderId) {
-          if (note.folder_id !== selectedFolderId) return false;
+          const isDefaultFolder = selectedFolderId === (folders[0]?.id || 'folder-welcome-01');
+          if (note.folder_id !== selectedFolderId && (!isDefaultFolder || note.folder_id)) return false;
         }
 
         // View Type Filter (Notes / Todos)

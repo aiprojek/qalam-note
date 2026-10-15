@@ -17,7 +17,19 @@ export interface SyncStatus {
 /**
  * Format a note into standard markdown serialization
  */
-export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder'): string {
+/**
+ * Helper to parse timestamps from numeric values or ISO 8601 strings
+ */
+export function parseSyncTimestamp(val: any): number {
+  if (!val) return Date.now();
+  if (typeof val === 'number') return isNaN(val) ? Date.now() : val;
+  const num = Number(val);
+  if (!isNaN(num) && num > 0) return num;
+  const parsed = Date.parse(val);
+  return isNaN(parsed) ? Date.now() : parsed;
+}
+
+export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', folderTitle?: string): string {
   const meta: Record<string, any> = {
     id: item.id,
     type_: type === 'note' ? 1 : 2,
@@ -31,6 +43,10 @@ export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder'):
   if (type === 'note') {
     const note = item as Note;
     meta.parent_id = note.folder_id || '';
+    if (folderTitle) {
+      meta.parent_title = folderTitle;
+      meta.folder_title = folderTitle;
+    }
     meta.is_todo = note.is_todo ? 1 : 0;
     meta.todo_completed = note.todo_completed || 0;
     meta.todo_due = note.todo_due || 0;
@@ -49,6 +65,7 @@ export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder'):
   } else {
     const folder = item as Folder;
     meta.parent_id = folder.parent_id || '';
+    meta.title = folder.title; // Explicitly preserve folder title in metadata for cross-device fidelity
     if (folder.order !== undefined) meta.order = folder.order;
     body = folder.title;
   }
@@ -144,7 +161,8 @@ export function parseSyncItem(rawContent: string): {
     }
     return { type, meta, title, body };
   } else if (type === 'folder') {
-    return { type, meta, title: rawBody, body: '' };
+    const folderTitle = (rawBody || meta.title || meta.name || '').trim();
+    return { type, meta, title: folderTitle, body: '' };
   } else {
     return { type, meta, title: rawBody, body: '' };
   }
@@ -515,13 +533,18 @@ async function listWebDAVFiles(cleanUrl: string, authHeader: string): Promise<Re
     const files: RemoteSyncFile[] = [];
     for (const match of hrefMatches) {
       const href = match[1].trim();
-      const decoded = decodeURIComponent(href);
+      const cleanHref = href.split('?')[0].split('#')[0];
+      const decoded = decodeURIComponent(cleanHref);
       const filename = decoded.split('/').filter(Boolean).pop() || '';
       if (filename.toLowerCase().endsWith('.md')) {
-        let fileUrl = href;
-        if (!fileUrl.startsWith('http')) {
-          const origin = new URL(cleanUrl).origin;
-          fileUrl = `${origin}${href.startsWith('/') ? '' : '/'}${href}`;
+        let fileUrl = cleanHref;
+        if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
+          if (cleanHref.startsWith('/')) {
+            const origin = new URL(cleanUrl).origin;
+            fileUrl = `${origin}${cleanHref}`;
+          } else {
+            fileUrl = `${cleanUrl}/${cleanHref.replace(/^\.\//, '')}`;
+          }
         }
         files.push({ name: filename, pathOrUrl: fileUrl });
       }
@@ -551,7 +574,7 @@ async function downloadWebDAVFile(url: string, authHeader: string): Promise<stri
  * Upload a file to WebDAV
  */
 async function uploadWebDAVFile(url: string, authHeader: string, content: string): Promise<void> {
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method: 'PUT',
     headers: {
       'Authorization': authHeader,
@@ -559,6 +582,23 @@ async function uploadWebDAVFile(url: string, authHeader: string, content: string
     },
     body: content,
   });
+
+  // If directory not found, attempt to create directory via MKCOL and retry
+  if (res.status === 404 || res.status === 409) {
+    try {
+      const parentUrl = url.substring(0, url.lastIndexOf('/'));
+      await fetch(parentUrl, { method: 'MKCOL', headers: { 'Authorization': authHeader } });
+      res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'text/markdown; charset=utf-8',
+        },
+        body: content,
+      });
+    } catch {}
+  }
+
   if (!res.ok && res.status !== 201 && res.status !== 204) {
     throw new Error(`WebDAV upload error (${res.status})`);
   }
@@ -677,6 +717,7 @@ export async function executeSync(
     }
 
     const downloadedItemIds = new Set<string>();
+    const syncErrors: string[] = [];
     let downloadedCount = 0;
     let uploadedCount = 0;
 
@@ -704,16 +745,18 @@ export async function executeSync(
           const parsed = parseSyncItem(rawContent);
 
           if (parsed.type === 'folder') {
+            const folderTitle = (parsed.title || parsed.meta.title || parsed.meta.name || '').trim();
             const remoteFolder: Folder = {
               id: parsed.meta.id || itemId,
-              title: parsed.title || 'Folder',
+              title: folderTitle || (isId ? 'Buku Catatan' : 'Notebook'),
               parent_id: parsed.meta.parent_id || '',
-              created_time: Number(parsed.meta.created_time || Date.now()),
-              updated_time: Number(parsed.meta.updated_time || Date.now()),
+              created_time: parseSyncTimestamp(parsed.meta.created_time),
+              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+              sync_time: Date.now(),
               is_deleted: parsed.meta.is_deleted === '1',
               order: Number(parsed.meta.order || 0),
             };
-            if (!localFolder || remoteFolder.updated_time >= localFolder.updated_time) {
+            if (!localFolder || remoteFolder.updated_time >= (localFolder.updated_time || 0) || (remoteFolder.title && remoteFolder.title !== localFolder.title)) {
               await db.folders.put(remoteFolder);
               localFoldersMap.set(remoteFolder.id, remoteFolder);
               downloadedCount++;
@@ -723,10 +766,10 @@ export async function executeSync(
             const remoteTag: Tag = {
               id: parsed.meta.id || itemId,
               title: parsed.title || 'tag',
-              created_time: Number(parsed.meta.created_time || Date.now()),
-              updated_time: Number(parsed.meta.updated_time || Date.now()),
+              created_time: parseSyncTimestamp(parsed.meta.created_time),
+              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
             };
-            if (!localTag || remoteTag.updated_time >= localTag.updated_time) {
+            if (!localTag || remoteTag.updated_time >= (localTag.updated_time || 0) || remoteTag.title !== localTag.title) {
               await db.tags.put(remoteTag);
               localTagsMap.set(remoteTag.id, remoteTag);
               downloadedCount++;
@@ -747,9 +790,29 @@ export async function executeSync(
               } catch {}
             }
 
+            // If remote note mentions a folder ID and folder title from parent device, register it immediately
+            const inferredFolderTitle = (parsed.meta.parent_title || parsed.meta.folder_title || '').trim();
+            if (parsed.meta.parent_id && !localFoldersMap.has(parsed.meta.parent_id) && inferredFolderTitle) {
+              const inheritedFolder: Folder = {
+                id: parsed.meta.parent_id,
+                title: inferredFolderTitle,
+                parent_id: '',
+                created_time: parseSyncTimestamp(parsed.meta.created_time),
+                updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+                sync_time: Date.now(),
+                is_deleted: false,
+                order: (localFoldersMap.size || 0) + 1,
+              };
+              await db.folders.put(inheritedFolder);
+              localFoldersMap.set(inheritedFolder.id, inheritedFolder);
+            }
+
             const remoteNote: Note = {
               id: parsed.meta.id || itemId,
-              folder_id: parsed.meta.parent_id || '',
+              folder_id:
+                parsed.meta.parent_id ||
+                localNote?.folder_id ||
+                (localFolders.length > 0 ? localFolders[0].id : 'folder-welcome-01'),
               title: parsed.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note'),
               body: parsed.body || '',
               body_html: '',
@@ -766,34 +829,60 @@ export async function executeSync(
               is_encrypted: parsed.meta.is_encrypted === '1',
               encrypted_data: encryptedDataParsed || localNote?.encrypted_data,
               attachments: attachmentsParsed || localNote?.attachments || [],
-              created_time: Number(parsed.meta.created_time || Date.now()),
-              updated_time: Number(parsed.meta.updated_time || Date.now()),
+              created_time: parseSyncTimestamp(parsed.meta.created_time),
+              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
               sync_time: Date.now(),
               sync_status: 'synced',
               order: Number(parsed.meta.order || 0),
             };
 
             if (!localNote) {
+              // Brand new note from remote storage
               await db.notes.put(remoteNote);
               localNotesMap.set(remoteNote.id, remoteNote);
               downloadedCount++;
               downloadedItemIds.add(remoteNote.id);
-            } else if (!localNote.sync_time || remoteNote.updated_time >= localNote.updated_time) {
-              await db.notes.put({
-                ...localNote,
-                ...remoteNote,
-                sync_time: Date.now(),
-                sync_status: 'synced',
-              });
-              localNotesMap.set(remoteNote.id, remoteNote);
-              downloadedCount++;
-              downloadedItemIds.add(remoteNote.id);
-            } else if (remoteNote.updated_time === localNote.updated_time) {
-              await db.notes.update(localNote.id, { sync_time: Date.now(), sync_status: 'synced' });
+            } else {
+              // Local note already exists. Determine if remote note should overwrite local:
+              const isLocalClean = localNote.sync_status !== 'pending';
+              const isRemoteNewer = remoteNote.updated_time >= (localNote.updated_time || 0);
+              const isRemoteModifiedSinceLastSync = localNote.sync_time
+                ? remoteNote.updated_time > localNote.sync_time
+                : true;
+              const hasContentDifference =
+                remoteNote.title !== localNote.title ||
+                remoteNote.body !== localNote.body ||
+                remoteNote.folder_id !== localNote.folder_id ||
+                remoteNote.is_todo !== localNote.is_todo ||
+                remoteNote.todo_completed !== localNote.todo_completed ||
+                remoteNote.is_deleted !== localNote.is_deleted ||
+                remoteNote.is_favorite !== localNote.is_favorite ||
+                remoteNote.is_pinned !== localNote.is_pinned;
+
+              if (
+                isRemoteNewer ||
+                (isLocalClean && hasContentDifference) ||
+                (isRemoteModifiedSinceLastSync && hasContentDifference)
+              ) {
+                await db.notes.put({
+                  ...localNote,
+                  ...remoteNote,
+                  sync_time: Date.now(),
+                  sync_status: 'synced',
+                });
+                localNotesMap.set(remoteNote.id, remoteNote);
+                downloadedCount++;
+                downloadedItemIds.add(remoteNote.id);
+              } else if (remoteNote.updated_time === localNote.updated_time || !hasContentDifference) {
+                await db.notes.update(localNote.id, { sync_time: Date.now(), sync_status: 'synced' });
+                downloadedItemIds.add(remoteNote.id);
+              }
             }
           }
-        } catch (dlErr) {
-          console.warn(`Error processing remote file ${rf.name}:`, dlErr);
+        } catch (dlErr: any) {
+          const errDetail = dlErr?.message || String(dlErr);
+          console.warn(`Error processing remote file ${rf.name}:`, errDetail);
+          syncErrors.push(`${rf.name}: ${errDetail}`);
         }
       }
     }
@@ -803,7 +892,9 @@ export async function executeSync(
     const currentFolders = await db.folders.toArray();
     for (const folder of currentFolders) {
       if (downloadedItemIds.has(folder.id)) continue;
-      if (!remoteIdMap.has(folder.id)) {
+      const isNewToRemote = !remoteIdMap.has(folder.id);
+      const isLocallyModified = !folder.sync_time || folder.updated_time > folder.sync_time;
+      if (isNewToRemote || isLocallyModified) {
         status.message = isId
           ? `Mengunggah folder "${folder.title}"...`
           : `Uploading notebook "${folder.title}"...`;
@@ -813,8 +904,11 @@ export async function executeSync(
           const content = serializeNoteItem(folder, 'folder');
           await uploadRemote(`${folder.id}.md`, content);
           uploadedCount++;
-        } catch (e) {
-          console.warn(`Could not upload folder ${folder.id}:`, e);
+          await db.folders.update(folder.id, { sync_time: Date.now() });
+        } catch (e: any) {
+          const errDetail = e?.message || String(e);
+          console.warn(`Could not upload folder ${folder.id}:`, errDetail);
+          syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
         }
       }
     }
@@ -824,8 +918,11 @@ export async function executeSync(
     for (const note of currentNotes) {
       if (downloadedItemIds.has(note.id)) continue;
 
-      const needsUpload =
-        !remoteIdMap.has(note.id) || !note.sync_time || note.updated_time > note.sync_time;
+      const isNewToRemote = !remoteIdMap.has(note.id);
+      const hasLocalPendingEdits = note.sync_status === 'pending';
+      const isLocallyModified = !note.sync_time || note.updated_time > note.sync_time;
+
+      const needsUpload = isNewToRemote || hasLocalPendingEdits || isLocallyModified;
 
       if (needsUpload) {
         status.message = isId
@@ -834,12 +931,15 @@ export async function executeSync(
         if (onProgress) onProgress(status);
 
         try {
-          const content = serializeNoteItem(note, 'note');
+          const parentFolder = currentFolders.find((f) => f.id === note.folder_id);
+          const content = serializeNoteItem(note, 'note', parentFolder?.title);
           await uploadRemote(`${note.id}.md`, content);
           uploadedCount++;
           await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
-        } catch (e) {
-          console.warn(`Could not upload note ${note.id}:`, e);
+        } catch (e: any) {
+          const errDetail = e?.message || String(e);
+          console.warn(`Could not upload note ${note.id}:`, errDetail);
+          syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
         }
       }
     }
@@ -853,28 +953,39 @@ export async function executeSync(
           const content = serializeTagItem(tag);
           await uploadRemote(`${tag.id}.md`, content);
           uploadedCount++;
-        } catch (e) {
-          console.warn(`Could not upload tag ${tag.id}:`, e);
+        } catch (e: any) {
+          const errDetail = e?.message || String(e);
+          console.warn(`Could not upload tag ${tag.id}:`, errDetail);
+          syncErrors.push(`Tag "${tag.title}": ${errDetail}`);
         }
       }
     }
 
     // Step 5: Integrity Check - ensure notes with folder_id have an existing folder
     const allRefreshedNotes = await db.notes.toArray();
-    const existingFolderIds = new Set((await db.folders.toArray()).map((f) => f.id));
+    const existingFolders = await db.folders.toArray();
+    const existingFolderMap = new Map<string, Folder>(existingFolders.map((f) => [f.id, f]));
+    const primaryFolder = existingFolders.find((f) => !f.is_deleted) || existingFolders[0];
+    const fallbackFolderId = primaryFolder?.id || 'folder-welcome-01';
+
     for (const n of allRefreshedNotes) {
-      if (n.folder_id && !existingFolderIds.has(n.folder_id)) {
-        const fallbackFolder: Folder = {
+      if (!n.folder_id) {
+        await db.notes.update(n.id, { folder_id: fallbackFolderId });
+      } else if (!existingFolderMap.has(n.folder_id)) {
+        // Adopt the primary device's naming or fallback to primary notebook, NEVER create a dummy "Folder Sinkron"
+        const adoptedTitle = primaryFolder?.title || (isId ? 'Buku Catatan Utama' : 'Main Notebook');
+        const recoveredFolder: Folder = {
           id: n.folder_id,
-          title: isId ? 'Folder Sinkron' : 'Synced Notebook',
+          title: adoptedTitle,
           parent_id: '',
           created_time: Date.now(),
           updated_time: Date.now(),
+          sync_time: Date.now(),
           is_deleted: false,
-          order: 1,
+          order: existingFolders.length + 1,
         };
-        await db.folders.put(fallbackFolder);
-        existingFolderIds.add(n.folder_id);
+        await db.folders.put(recoveredFolder);
+        existingFolderMap.set(n.folder_id, recoveredFolder);
       }
     }
 
@@ -884,7 +995,12 @@ export async function executeSync(
     status.inProgress = false;
     status.lastSync = Date.now();
 
-    if (downloadedCount > 0 || uploadedCount > 0) {
+    if (syncErrors.length > 0) {
+      status.error = syncErrors.join('; ');
+      status.message = isId
+        ? `Sinkronisasi selesai dengan ${syncErrors.length} kendala: ${syncErrors[0]}`
+        : `Sync completed with ${syncErrors.length} issue(s): ${syncErrors[0]}`;
+    } else if (downloadedCount > 0 || uploadedCount > 0) {
       status.message = isId
         ? `Sinkronisasi berhasil! ${downloadedCount} data diunduh, ${uploadedCount} data diunggah.`
         : `Sync completed! ${downloadedCount} item(s) downloaded, ${uploadedCount} item(s) uploaded.`;

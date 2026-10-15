@@ -5,6 +5,8 @@
 
 import type { Note } from '../types';
 import { encodePublishCipher } from './publishCipher';
+import { markdownToHtml } from '../utils/markdown';
+import { getNoteDirection } from '../utils/rtl';
 
 export interface PublishResult {
   success: boolean;
@@ -47,13 +49,25 @@ export async function publishNoteToGAS(
     };
   }
 
+  // Support both WYSIWYG rich HTML and Markdown editor content
+  const noteDir = getNoteDirection(note);
+  let compiledHtml = '';
+  if (note.body_html && note.body_html.trim()) {
+    compiledHtml = note.body_html;
+  } else {
+    compiledHtml = markdownToHtml(note.body || '', {
+      theme: 'light',
+      direction: noteDir,
+    });
+  }
+
   const payload = {
     action: 'publish',
     id: note.id,
     slug,
     title: note.title,
     content: note.body,
-    html: note.body_html || note.body,
+    html: compiledHtml,
     author: authorName,
     tags: note.tags || [],
     is_todo: note.is_todo,
@@ -106,7 +120,14 @@ export async function publishNoteToGAS(
 export async function fetchPublishedNoteFromGAS(
   gasUrl: string,
   noteId: string
-): Promise<{ title: string; html: string; author?: string; tags?: string[] } | null> {
+): Promise<{
+  title: string;
+  html: string;
+  author?: string;
+  tags?: string[];
+  updated_at?: number | string;
+  published_at?: number | string;
+} | null> {
   if (!gasUrl || !noteId) return null;
   try {
     const url = `${gasUrl}?id=${encodeURIComponent(noteId)}&format=json`;
@@ -121,6 +142,8 @@ export async function fetchPublishedNoteFromGAS(
         tags: typeof data.note.tags === 'string'
           ? data.note.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
           : (data.note.tags || []),
+        updated_at: data.note.updated_at,
+        published_at: data.note.published_at || data.note.updated_at,
       };
     }
     return null;
@@ -368,15 +391,15 @@ function doGet(e) {
     "</style></head><body>" +
     "<div class='container'>" +
     "<div class='header'>" +
-    "<span class='badge'>Qalam Public Note</span>" +
     "<h1>" + escapeHtml(foundNote.title) + "</h1>" +
     "<div class='meta'>" +
-    "<span>By <strong>" + escapeHtml(foundNote.author) + "</strong></span>" +
-    "<span>Updated: " + new Date(foundNote.updated_at).toLocaleDateString() + "</span>" +
-    (foundNote.tags ? "<span>Tags: " + escapeHtml(foundNote.tags) + "</span>" : "") +
+    "<span>Oleh <strong>" + escapeHtml(foundNote.author) + "</strong></span>" +
+    "<span>&bull;</span>" +
+    "<span>Tanggal Publikasi: <strong>" + new Date(foundNote.updated_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) + "</strong></span>" +
+    (foundNote.tags ? "<span>&bull;</span><span>Tags: " + escapeHtml(foundNote.tags) + "</span>" : "") +
     "</div></div>" +
     "<div class='content'>" + foundNote.html + "</div>" +
-    "<div class='footer'>Diterbitkan dari <a href='https://lam-note.aiprojek01.my.id/' target='_blank' style='color:#2563eb;text-decoration:underline;font-weight:600;'>Qalam Note</a></div>" +
+    "<div class='footer'>Diterbitkan dari <a href='https://qalam-note.aiprojek01.my.id/' target='_blank' style='color:#2563eb;text-decoration:underline;font-weight:600;'>Qalam Note</a></div>" +
     "</div></body></html>";
 
   return HtmlService.createHtmlOutput(html).setTitle(foundNote.title);

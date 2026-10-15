@@ -1022,44 +1022,9 @@ export async function alignAndDeduplicatePresetNotes(
     sampleMap.set(s.id, s);
   }
 
-  // Helper to match a note against one of the 8 canonical sample note IDs
+  // Match note strictly by canonical sample ID (never match by broad title/body substrings)
   const matchSampleId = (note: Note): string | null => {
     if (sampleMap.has(note.id)) return note.id;
-
-    const t = note.title.toLowerCase();
-    const b = (note.body_html || note.body || '').toLowerCase();
-
-    if (t.includes('selamat datang') || t.includes('welcome to')) {
-      return 'note-01-welcome';
-    }
-    if (t.includes('sinkronisasi') || t.includes('cloud sync')) {
-      return 'note-02-sync-pairing';
-    }
-    if (t.includes('enkripsi') || t.includes('encryption') || t.includes('e2ee')) {
-      return 'note-03-e2ee';
-    }
-    if (t.includes('publikasi') || t.includes('publish') || b.includes('simplenote style')) {
-      return 'note-04-publish-gas';
-    }
-    if (t.includes('format') || t.includes('tabel') || t.includes('katex') || t.includes('diagram')) {
-      return 'note-05-formatting-tables';
-    }
-    if (
-      t.includes('rencana memulai') ||
-      t.includes('daftar tugas') ||
-      t.includes('workspace setup') ||
-      t.includes('checklist') ||
-      b.includes("today's getting started checklist") ||
-      b.includes('daftar tugas hari ini')
-    ) {
-      return 'note-06-todo-workspace';
-    }
-    if (t.includes('memo suara') || t.includes('sketsa') || t.includes('voice memo') || t.includes('sketch')) {
-      return 'note-07-multimedia-productivity';
-    }
-    if (t.includes('lisensi') || t.includes('license') || t.includes('gpl')) {
-      return 'note-08-license-sovereignty';
-    }
     return null;
   };
 
@@ -1076,24 +1041,28 @@ export async function alignAndDeduplicatePresetNotes(
       // Pick keeper: prefer note that already has canonical sample.id, otherwise the first match
       const keeper = matches.find((n) => n.id === sample.id) || matches[0];
 
-      // Update keeper with current localized sample data & ensure folder_id is folder-welcome-01
+      // Only update sample content if user hasn't modified it
+      const isUntouchedSample =
+        !keeper.sync_time &&
+        (keeper.title === sample.title || keeper.updated_time === keeper.created_time);
+
       await db.notes.put({
         ...keeper,
         id: sample.id, // Guarantee canonical ID
-        folder_id: 'folder-welcome-01', // ALL prenotes belong in folder-welcome-01
-        title: sample.title,
-        body: sample.body,
+        folder_id: keeper.folder_id || 'folder-welcome-01',
+        title: isUntouchedSample ? sample.title : keeper.title,
+        body: isUntouchedSample ? sample.body : keeper.body,
         body_html: undefined, // Clear stale HTML cache
-        tags: sample.tags,
-        is_todo: sample.is_todo,
-        todo_completed: sample.todo_completed,
-        todo_due: sample.todo_due,
-        is_favorite: sample.is_favorite,
-        is_pinned: sample.is_pinned,
-        is_deleted: false,
-        is_encrypted: false,
-        sync_status: 'synced',
-        order: sample.order,
+        tags: keeper.tags?.length ? keeper.tags : sample.tags,
+        is_todo: keeper.is_todo ?? sample.is_todo,
+        todo_completed: keeper.todo_completed ?? sample.todo_completed,
+        todo_due: keeper.todo_due ?? sample.todo_due,
+        is_favorite: keeper.is_favorite ?? sample.is_favorite,
+        is_pinned: keeper.is_pinned ?? sample.is_pinned,
+        is_deleted: keeper.is_deleted ?? false,
+        is_encrypted: keeper.is_encrypted ?? false,
+        sync_status: keeper.sync_status || 'synced',
+        order: keeper.order ?? sample.order,
         updated_time: keeper.updated_time || keeper.created_time || sample.updated_time,
       });
 
@@ -1265,9 +1234,13 @@ export async function initDatabase(): Promise<void> {
     }
   }
 
-  // Active deduplication, migration, and folder cleanup pass
+  // Active deduplication, migration, and folder cleanup pass (run once on setup/migration)
   try {
-    await alignAndDeduplicatePresetNotes(sampleNotes, defaultFolders, defaultTags);
+    const isSeeded = await db.settings.get('db_seeded_v1');
+    if (!isSeeded) {
+      await alignAndDeduplicatePresetNotes(sampleNotes, defaultFolders, defaultTags);
+      await db.settings.put({ key: 'db_seeded_v1', value: true });
+    }
 
     // Sanitize any residual "Joplin" occurrences in general user notes
     const allNotes = await db.notes.toArray();

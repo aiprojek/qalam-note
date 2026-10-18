@@ -626,7 +626,7 @@ async function uploadWebDAVFile(url: string, authHeader: string, content: string
  */
 async function deleteDropboxFile(token: string, path: string): Promise<void> {
   try {
-    await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+    const res = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -634,8 +634,15 @@ async function deleteDropboxFile(token: string, path: string): Promise<void> {
       },
       body: JSON.stringify({ path }),
     });
+    if (!res.ok && res.status !== 409) {
+      const errData = await res.json().catch(() => ({}));
+      const summary = errData?.error_summary || `Dropbox delete error (${res.status})`;
+      if (!summary.includes('not_found')) {
+        console.warn(`Dropbox delete warning for ${path}:`, summary);
+      }
+    }
   } catch (err) {
-    console.warn('Dropbox delete error:', err);
+    console.warn('Dropbox delete network error:', err);
   }
 }
 
@@ -644,14 +651,17 @@ async function deleteDropboxFile(token: string, path: string): Promise<void> {
  */
 async function deleteWebDAVFile(url: string, authHeader: string): Promise<void> {
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'DELETE',
       headers: {
         'Authorization': authHeader,
       },
     });
+    if (!res.ok && res.status !== 404 && res.status !== 204 && res.status !== 200) {
+      console.warn(`WebDAV delete warning for ${url}: status ${res.status}`);
+    }
   } catch (err) {
-    console.warn('WebDAV delete error:', err);
+    console.warn('WebDAV delete network error:', err);
   }
 }
 
@@ -737,9 +747,20 @@ export async function executeSync(
         const fullPath = dropboxActiveBasePath ? `${dropboxActiveBasePath}/${filename}` : `/${filename}`;
         return uploadDropboxFile(token, fullPath, content);
       };
-      deleteRemote = (filename: string) => {
-        const fullPath = dropboxActiveBasePath ? `${dropboxActiveBasePath}/${filename}` : `/${filename}`;
-        return deleteDropboxFile(token, fullPath);
+      deleteRemote = async (filenameOrId: string) => {
+        const lower = filenameOrId.replace(/\.md$/i, '').trim().toLowerCase();
+        const rf = remoteIdMap.get(lower);
+        const pathToDelete =
+          rf?.pathOrUrl ||
+          (dropboxActiveBasePath
+            ? `${dropboxActiveBasePath}/${filenameOrId.endsWith('.md') ? filenameOrId : `${filenameOrId}.md`}`
+            : `/${filenameOrId.endsWith('.md') ? filenameOrId : `${filenameOrId}.md`}`);
+        await deleteDropboxFile(token, pathToDelete);
+        remoteIdMap.delete(lower);
+        const idx = remoteFiles.findIndex(
+          (f) => f.name.replace(/\.md$/i, '').trim().toLowerCase() === lower
+        );
+        if (idx !== -1) remoteFiles.splice(idx, 1);
       };
     } else if (syncConfig.target === 'webdav') {
       const webdav = syncConfig.webdav;
@@ -756,8 +777,19 @@ export async function executeSync(
         downloadWebDAVFile(rf.pathOrUrl || `${cleanUrl}/${rf.name}`, authHeader);
       uploadRemote = (filename: string, content: string) =>
         uploadWebDAVFile(`${cleanUrl}/${filename}`, authHeader, content);
-      deleteRemote = (filename: string) =>
-        deleteWebDAVFile(`${cleanUrl}/${filename}`, authHeader);
+      deleteRemote = async (filenameOrId: string) => {
+        const lower = filenameOrId.replace(/\.md$/i, '').trim().toLowerCase();
+        const rf = remoteIdMap.get(lower);
+        const urlToDelete =
+          rf?.pathOrUrl ||
+          `${cleanUrl}/${filenameOrId.endsWith('.md') ? filenameOrId : `${filenameOrId}.md`}`;
+        await deleteWebDAVFile(urlToDelete, authHeader);
+        remoteIdMap.delete(lower);
+        const idx = remoteFiles.findIndex(
+          (f) => f.name.replace(/\.md$/i, '').trim().toLowerCase() === lower
+        );
+        if (idx !== -1) remoteFiles.splice(idx, 1);
+      };
     } else {
       throw new Error(`Target sinkronisasi tidak didukung: ${syncConfig.target}`);
     }
@@ -786,7 +818,24 @@ export async function executeSync(
     const deletedIds = await getDeletedSyncIds();
     const deletedIdsSet = new Set<string>(deletedIds.map((x) => x.trim().toLowerCase()));
 
+    // Also populate deletedIdsSet and handledLocalIds with ALL locally soft-deleted folders and notes
+    // so they are NEVER resurrected under any circumstance
     const handledLocalIds = new Set<string>();
+    for (const f of localFolders) {
+      const lower = f.id.trim().toLowerCase();
+      if (f.is_deleted) {
+        deletedIdsSet.add(lower);
+        handledLocalIds.add(lower);
+      }
+    }
+    for (const n of localNotes) {
+      const lower = n.id.trim().toLowerCase();
+      if (n.is_deleted) {
+        deletedIdsSet.add(lower);
+        handledLocalIds.add(lower);
+      }
+    }
+
     const syncErrors: string[] = [];
     let downloadedCount = 0;
     let uploadedCount = 0;
@@ -801,10 +850,10 @@ export async function executeSync(
     for (const delId of deletedIds) {
       const lower = delId.trim().toLowerCase();
       handledLocalIds.add(lower);
+      deletedIdsSet.add(lower);
       if (remoteIdMap.has(lower)) {
         try {
-          await deleteRemote(`${delId}.md`);
-          await removeDeletedSyncId(delId);
+          await deleteRemote(delId);
         } catch (e: any) {
           console.warn(`Could not delete remote tombstone ${delId}:`, e);
         }
@@ -820,34 +869,37 @@ export async function executeSync(
         !folder.sync_time ||
         folder.updated_time > (folder.sync_time || 0);
 
-      if (isNewToRemote || isLocallyModified) {
-        // ALWAYS mark handled so Step 4 will NEVER overwrite this local folder with cloud data!
+      if (folder.is_deleted) {
+        // ALWAYS mark handled & deleted so Step 4 will NEVER resurrect or download this folder!
         handledLocalIds.add(lowerId);
+        deletedIdsSet.add(lowerId);
 
-        if (folder.is_deleted) {
-          // Propagate folder deletion to cloud
+        if (isLocallyModified || isNewToRemote || remoteIdMap.has(lowerId)) {
           try {
-            await deleteRemote(`${folder.id}.md`);
+            await deleteRemote(folder.id);
             await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
           } catch (e: any) {
             console.warn(`Could not delete remote folder ${folder.id}:`, e);
           }
-        } else {
-          status.message = isId
-            ? `Mengunggah folder "${folder.title}"...`
-            : `Uploading notebook "${folder.title}"...`;
-          if (onProgress) onProgress(status);
+        }
+      } else if (isNewToRemote || isLocallyModified) {
+        // ALWAYS mark handled so Step 4 will NEVER overwrite this local folder with cloud data!
+        handledLocalIds.add(lowerId);
 
-          try {
-            const content = serializeNoteItem(folder, 'folder');
-            await uploadRemote(`${folder.id}.md`, content);
-            uploadedCount++;
-            await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
-          } catch (e: any) {
-            const errDetail = e?.message || String(e);
-            console.warn(`Could not upload folder ${folder.id}:`, errDetail);
-            syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
-          }
+        status.message = isId
+          ? `Mengunggah folder "${folder.title}"...`
+          : `Uploading notebook "${folder.title}"...`;
+        if (onProgress) onProgress(status);
+
+        try {
+          const content = serializeNoteItem(folder, 'folder');
+          await uploadRemote(`${folder.id}.md`, content);
+          uploadedCount++;
+          await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
+        } catch (e: any) {
+          const errDetail = e?.message || String(e);
+          console.warn(`Could not upload folder ${folder.id}:`, errDetail);
+          syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
         }
       }
     }
@@ -859,20 +911,24 @@ export async function executeSync(
       const hasLocalPendingEdits = note.sync_status === 'pending';
       const isLocallyModified = !note.sync_time || note.updated_time > (note.sync_time || 0);
 
-      const needsUpload = isNewToRemote || hasLocalPendingEdits || isLocallyModified;
-
-      if (needsUpload) {
-        // ALWAYS mark handled so Step 4 will NEVER overwrite this local note with cloud data!
+      if (note.is_deleted) {
+        // ALWAYS mark handled & deleted so Step 4 will NEVER download or resurrect this note!
         handledLocalIds.add(lowerId);
+        deletedIdsSet.add(lowerId);
 
-        if (note.is_deleted) {
+        if (hasLocalPendingEdits || isLocallyModified || isNewToRemote || remoteIdMap.has(lowerId)) {
           try {
-            await deleteRemote(`${note.id}.md`);
+            await deleteRemote(note.id);
             await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
           } catch (e: any) {
             console.warn(`Could not delete remote note ${note.id}:`, e);
           }
-        } else {
+        }
+      } else {
+        const needsUpload = isNewToRemote || hasLocalPendingEdits || isLocallyModified;
+        if (needsUpload) {
+          handledLocalIds.add(lowerId);
+
           status.message = isId
             ? `Mengunggah catatan "${(note.title || '').slice(0, 24)}"...`
             : `Uploading note "${(note.title || '').slice(0, 24)}"...`;
@@ -991,11 +1047,26 @@ export async function executeSync(
           order: Number(parsed.meta.order || 0),
         });
 
-        const localFolder = localFoldersMap.get(folderId) || localFoldersMap.get(itemId);
+        // Case-insensitive lookup of localFolder
+        const localFolder =
+          localFoldersMap.get(folderId) ||
+          localFoldersMap.get(itemId) ||
+          Array.from(localFoldersMap.values()).find(
+            (f) => f.id.toLowerCase() === lowerFolderId || f.id.toLowerCase() === lowerId
+          );
+
+        if (
+          localFolder?.is_deleted ||
+          deletedIdsSet.has(lowerId) ||
+          deletedIdsSet.has(lowerFolderId)
+        ) {
+          // Local folder was deleted on this device or tombstoned: NEVER resurrect from cloud
+          continue;
+        }
 
         if (!localFolder) {
           // Brand new folder created on another device
-          if (!remoteFolder.is_deleted && !deletedIdsSet.has(lowerId) && !deletedIdsSet.has(lowerFolderId)) {
+          if (!remoteFolder.is_deleted) {
             await db.folders.put(remoteFolder);
             localFoldersMap.set(remoteFolder.id, remoteFolder);
             downloadedCount++;
@@ -1098,13 +1169,29 @@ export async function executeSync(
 
         const localNote = localNotesMap.get(noteId) || localNotesMap.get(itemId);
 
-        // Verify or inherit parent notebook
+        // Verify parent notebook
         let targetFolderId = String(parsed.meta.parent_id || localNote?.folder_id || '').trim();
-        const parentFolder = localFoldersMap.get(targetFolderId);
+        const lowerTarget = targetFolderId.toLowerCase();
+        const parentFolder = targetFolderId
+          ? localFoldersMap.get(targetFolderId) ||
+            Array.from(localFoldersMap.values()).find((f) => f.id.toLowerCase() === lowerTarget)
+          : undefined;
 
-        if (!targetFolderId || !parentFolder || parentFolder.is_deleted) {
+        const isParentDeleted =
+          (parentFolder && parentFolder.is_deleted) ||
+          deletedIdsSet.has(lowerTarget) ||
+          handledLocalIds.has(lowerTarget);
+
+        if (isParentDeleted) {
+          // Parent folder was deleted on this device or tombstoned: NEVER resurrect it!
+          // Reassign active note to an active notebook
+          const activeFolder = Array.from(localFoldersMap.values()).find((f) => !f.is_deleted);
+          targetFolderId = activeFolder?.id || 'folder-welcome-01';
+        } else if (!parentFolder) {
+          // Folder does not exist at all and was never deleted on this device:
+          // Check if inferred title is available
           const inferredFolderTitle = (parsed.meta.parent_title || parsed.meta.folder_title || '').trim();
-          if (targetFolderId && inferredFolderTitle && !deletedIdsSet.has(targetFolderId.toLowerCase())) {
+          if (targetFolderId && inferredFolderTitle) {
             const inheritedFolder = cleanFolderForDb({
               id: targetFolderId,
               title: inferredFolderTitle,
@@ -1214,8 +1301,21 @@ export async function executeSync(
     const allRefreshedFolders = await db.folders.toArray();
     const activeFolders = allRefreshedFolders.filter((f) => !f.is_deleted);
     const activeFolderMap = new Map<string, Folder>(activeFolders.map((f) => [f.id, f]));
-    const primaryFolder = activeFolders[0] || allRefreshedFolders[0];
-    const fallbackFolderId = primaryFolder?.id || 'folder-welcome-01';
+    let fallbackFolderId = activeFolders[0]?.id;
+
+    if (!fallbackFolderId) {
+      // If all folders were deleted, create default Welcome notebook so user is never left without a folder
+      const defaultFolder = cleanFolderForDb({
+        id: 'folder-welcome-01',
+        title: isId ? 'Selamat Datang di Qalam Note' : 'Welcome to Qalam Note',
+        created_time: Date.now(),
+        updated_time: Date.now(),
+        sync_status: 'synced',
+        is_deleted: false,
+      });
+      await db.folders.put(defaultFolder);
+      fallbackFolderId = defaultFolder.id;
+    }
 
     for (const n of allRefreshedNotes) {
       if (!n.is_deleted && (!n.folder_id || !activeFolderMap.has(n.folder_id))) {

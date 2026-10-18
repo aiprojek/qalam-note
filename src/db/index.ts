@@ -105,7 +105,8 @@ export async function addDeletedSyncId(id: string): Promise<void> {
     const cleanId = id.trim();
     if (!current.some((x) => x.toLowerCase() === cleanId.toLowerCase())) {
       current.push(cleanId);
-      await db.settings.put({ key: 'sync_tombstones', value: current });
+      const bounded = current.length > 500 ? current.slice(-500) : current;
+      await db.settings.put({ key: 'sync_tombstones', value: bounded });
     }
   } catch (err) {
     console.warn('Failed to add sync tombstone:', err);

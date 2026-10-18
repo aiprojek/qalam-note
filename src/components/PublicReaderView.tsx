@@ -129,38 +129,55 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   // Format and sanitize HTML/Markdown content with support for both editor modes
   const formattedHtml = useMemo(() => {
-    // Priority:
     // 1. Remote published HTML (from GAS)
-    // 2. Local note WYSIWYG HTML (note.body_html)
-    // 3. Local note Markdown body (note.body)
-    const content = remoteNote?.html || note?.body_html || note?.body || '';
-    if (!content || !content.trim()) return '';
-
-    // Check whether content is already rich structured HTML or raw markdown
-    const hasHtmlTags = /<(?:p|h[1-6]|ul|ol|li|table|div|blockquote|pre|span|b|strong|i|em)\b[^>]*>/i.test(content);
-    const hasMarkdownSyntax = /(?:^|\n)(?:#{1,6}\s|>\s|[-*+]\s|\d+\.\s|```|\|)|(?:\*\*|__|\$\$|==)/m.test(content);
-
-    // If it's Markdown or plain text without block tags, compile to HTML:
-    if (hasMarkdownSyntax || !hasHtmlTags) {
+    if (remoteNote?.html && remoteNote.html.trim()) {
+      const content = remoteNote.html.trim();
+      const hasBlockTags = /<(?:p|h[1-6]|ul|ol|li|table|div|blockquote|pre|span|b|strong|i|em)\b[^>]*>/i.test(content);
+      if (hasBlockTags) {
+        return DOMPurify.sanitize(content, {
+          ADD_TAGS: [
+            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+            'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+            'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+            'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+          ],
+          ADD_ATTR: [
+            'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+            'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+            'allow', 'allowfullscreen', 'align', 'valign'
+          ],
+          ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+        });
+      }
       return markdownToHtml(content, { theme, direction: isRtl ? 'rtl' : 'ltr' });
     }
 
-    // It's rich HTML: sanitize safely retaining all structure, tables, and styles
-    return DOMPurify.sanitize(content, {
-      ADD_TAGS: [
-        'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-        'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
-        'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
-        'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
-      ],
-      ADD_ATTR: [
-        'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
-        'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
-        'allow', 'allowfullscreen', 'align', 'valign'
-      ],
-      ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
-    });
+    // 2. Local note WYSIWYG HTML (note.body_html)
+    if (note?.body_html && note.body_html.trim()) {
+      return DOMPurify.sanitize(note.body_html.trim(), {
+        ADD_TAGS: [
+          'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+          'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+          'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+        ],
+        ADD_ATTR: [
+          'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+          'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+          'allow', 'allowfullscreen', 'align', 'valign'
+        ],
+        ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+      });
+    }
+
+    // 3. Local note Markdown body (note.body)
+    if (note?.body && note.body.trim()) {
+      return markdownToHtml(note.body, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+    }
+
+    return '';
   }, [note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
 
   // Loading State

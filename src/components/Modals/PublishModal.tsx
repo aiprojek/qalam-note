@@ -19,6 +19,7 @@ import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
 import { encodePublishCipher } from '../../services/publishCipher';
 import { markdownToHtml } from '../../utils/markdown';
 import { getNoteDirection } from '../../utils/rtl';
+import DOMPurify from 'dompurify';
 
 interface PublishModalProps {
   note: Note;
@@ -519,7 +520,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {/* Reader Note Container: Crisp Light Theme by default */}
               <div
                 dir={noteDirection}
-                className="rounded-2xl p-5 sm:p-8 transition-colors select-text border border-slate-200 bg-white text-slate-900 shadow-sm"
+                className="qalam-light rounded-2xl p-5 sm:p-8 transition-colors select-text border border-slate-200 bg-white text-slate-900 shadow-sm"
               >
                 {/* Header */}
                 <div className="border-b border-slate-200 pb-4 mb-6">
@@ -569,10 +570,26 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     isRtl ? 'text-right' : 'text-left'
                   }`}
                   dangerouslySetInnerHTML={{
-                    __html: note.body_html || markdownToHtml(note.body, {
-                      theme: 'light',
-                      direction: noteDirection,
-                    }),
+                    __html: (note.body_html && note.body_html.trim())
+                      ? DOMPurify.sanitize(note.body_html, {
+                          ADD_TAGS: [
+                            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                            'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                            'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+                            'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+                            'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+                          ],
+                          ADD_ATTR: [
+                            'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+                            'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+                            'allow', 'allowfullscreen', 'align', 'valign'
+                          ],
+                          ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+                        })
+                      : markdownToHtml(note.body, {
+                          theme: 'light',
+                          direction: noteDirection,
+                        }),
                   }}
                 />
 

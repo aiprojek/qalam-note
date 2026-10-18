@@ -45,6 +45,7 @@ export interface Folder {
   created_time: number;
   updated_time: number;
   sync_time?: number;
+  sync_status?: 'synced' | 'pending';
   is_deleted: boolean;
   order: number;
 }

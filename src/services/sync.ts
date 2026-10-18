@@ -2,7 +2,14 @@
  * Qalam Note - Sync Engine (WebDAV & Dropbox)
  */
 
-import { db } from '../db';
+import {
+  db,
+  cleanNoteForDb,
+  cleanFolderForDb,
+  cleanTagForDb,
+  getDeletedSyncIds,
+  removeDeletedSyncId,
+} from '../db';
 import type { Note, Folder, SyncConfig, Tag } from '../types';
 
 export interface SyncStatus {
@@ -15,19 +22,23 @@ export interface SyncStatus {
 }
 
 /**
- * Format a note into standard markdown serialization
- */
-/**
- * Helper to parse timestamps from numeric values or ISO 8601 strings
+ * Helper to parse timestamps from numeric values or ISO 8601 strings.
+ * CRITICAL: Returns 0 for missing or invalid timestamps so stale remote items never
+ * erroneously appear "newer" than recently saved local changes.
  */
 export function parseSyncTimestamp(val: any): number {
-  if (!val) return Date.now();
-  if (typeof val === 'number') return isNaN(val) ? Date.now() : val;
+  if (!val) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
   const num = Number(val);
   if (!isNaN(num) && num > 0) return num;
-  const parsed = Date.parse(val);
-  return isNaN(parsed) ? Date.now() : parsed;
+  if (typeof val === 'string') {
+    const cleaned = val.trim().replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/, '$1T$2');
+    const parsed = Date.parse(cleaned);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
 }
+
 
 export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', folderTitle?: string): string {
   const meta: Record<string, any> = {
@@ -146,7 +157,7 @@ export function parseSyncItem(rawContent: string): {
   if (typeNum === 1) type = 'note';
   else if (typeNum === 2) type = 'folder';
   else if (typeNum === 5) type = 'tag';
-  else type = 'note';
+  else type = 'unknown';
 
   if (type === 'note') {
     const firstNewline = rawBody.indexOf('\n');
@@ -163,8 +174,10 @@ export function parseSyncItem(rawContent: string): {
   } else if (type === 'folder') {
     const folderTitle = (rawBody || meta.title || meta.name || '').trim();
     return { type, meta, title: folderTitle, body: '' };
+  } else if (type === 'tag') {
+    return { type, meta, title: (rawBody || meta.title || 'tag').trim(), body: '' };
   } else {
-    return { type, meta, title: rawBody, body: '' };
+    return { type: 'unknown', meta, title: '', body: '' };
   }
 }
 
@@ -392,7 +405,7 @@ interface RemoteSyncFile {
 /**
  * List files in Dropbox target directory with pagination and fallback
  */
-async function listDropboxFiles(token: string, targetPath: string): Promise<RemoteSyncFile[]> {
+async function listDropboxFiles(token: string, targetPath: string): Promise<{ files: RemoteSyncFile[]; activeBasePath: string }> {
   const normPath = normalizeDropboxPath(targetPath);
 
   const fetchEntriesForPath = async (
@@ -448,6 +461,7 @@ async function listDropboxFiles(token: string, targetPath: string): Promise<Remo
   };
 
   // 1. Try target path (e.g. /QalamNote) with recursive search
+  let chosenBasePath = normPath;
   let result = await fetchEntriesForPath(normPath, true);
   let mdEntries = (result.entries || []).filter(
     (e) => e['.tag'] === 'file' && typeof e.name === 'string' && e.name.toLowerCase().endsWith('.md')
@@ -462,15 +476,18 @@ async function listDropboxFiles(token: string, targetPath: string): Promise<Remo
     );
     if (altMd.length > 0) {
       result = altResult;
+      chosenBasePath = altPath;
     }
   }
 
-  return (result.entries || [])
+  const files = (result.entries || [])
     .filter((e) => e['.tag'] === 'file' && typeof e.name === 'string' && e.name.toLowerCase().endsWith('.md'))
     .map((e) => ({
       name: e.name,
-      pathOrUrl: e.path_display || e.path_lower || (normPath ? `${normPath}/${e.name}` : `/${e.name}`),
+      pathOrUrl: e.path_display || e.path_lower || (chosenBasePath ? `${chosenBasePath}/${e.name}` : `/${e.name}`),
     }));
+
+  return { files, activeBasePath: chosenBasePath };
 }
 
 /**
@@ -605,7 +622,43 @@ async function uploadWebDAVFile(url: string, authHeader: string, content: string
 }
 
 /**
+ * Delete a file on Dropbox
+ */
+async function deleteDropboxFile(token: string, path: string): Promise<void> {
+  try {
+    await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path }),
+    });
+  } catch (err) {
+    console.warn('Dropbox delete error:', err);
+  }
+}
+
+/**
+ * Delete a file on WebDAV
+ */
+async function deleteWebDAVFile(url: string, authHeader: string): Promise<void> {
+  try {
+    await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': authHeader,
+      },
+    });
+  } catch (err) {
+    console.warn('WebDAV delete error:', err);
+  }
+}
+
+/**
  * Main Two-Way Synchronisation Execution (Bi-directional Sync for Dropbox & WebDAV)
+ * Implements strict Local-First reconciliation: pending local edits/renames are ALWAYS
+ * uploaded first so cloud never reverts active user work.
  */
 export async function executeSync(
   syncConfig: SyncConfig,
@@ -637,6 +690,7 @@ export async function executeSync(
     let listRemote: () => Promise<RemoteSyncFile[]>;
     let downloadRemote: (file: RemoteSyncFile) => Promise<string>;
     let uploadRemote: (filename: string, content: string) => Promise<void>;
+    let deleteRemote: (filename: string) => Promise<void>;
 
     if (syncConfig.target === 'dropbox') {
       let token = syncConfig.dropbox.access_token;
@@ -670,12 +724,22 @@ export async function executeSync(
       }
 
       const basePath = normalizeDropboxPath(syncConfig.dropbox.path);
-      listRemote = () => listDropboxFiles(token, basePath);
+      let dropboxActiveBasePath = basePath;
+
+      listRemote = async () => {
+        const res = await listDropboxFiles(token, basePath);
+        dropboxActiveBasePath = res.activeBasePath;
+        return res.files;
+      };
       downloadRemote = (rf: RemoteSyncFile) =>
-        downloadDropboxFile(token, rf.pathOrUrl || (basePath ? `${basePath}/${rf.name}` : `/${rf.name}`));
+        downloadDropboxFile(token, rf.pathOrUrl || (dropboxActiveBasePath ? `${dropboxActiveBasePath}/${rf.name}` : `/${rf.name}`));
       uploadRemote = (filename: string, content: string) => {
-        const fullPath = basePath ? `${basePath}/${filename}` : `/${filename}`;
+        const fullPath = dropboxActiveBasePath ? `${dropboxActiveBasePath}/${filename}` : `/${filename}`;
         return uploadDropboxFile(token, fullPath, content);
+      };
+      deleteRemote = (filename: string) => {
+        const fullPath = dropboxActiveBasePath ? `${dropboxActiveBasePath}/${filename}` : `/${filename}`;
+        return deleteDropboxFile(token, fullPath);
       };
     } else if (syncConfig.target === 'webdav') {
       const webdav = syncConfig.webdav;
@@ -692,6 +756,8 @@ export async function executeSync(
         downloadWebDAVFile(rf.pathOrUrl || `${cleanUrl}/${rf.name}`, authHeader);
       uploadRemote = (filename: string, content: string) =>
         uploadWebDAVFile(`${cleanUrl}/${filename}`, authHeader, content);
+      deleteRemote = (filename: string) =>
+        deleteWebDAVFile(`${cleanUrl}/${filename}`, authHeader);
     } else {
       throw new Error(`Target sinkronisasi tidak didukung: ${syncConfig.target}`);
     }
@@ -712,243 +778,126 @@ export async function executeSync(
 
     const remoteIdMap = new Map<string, RemoteSyncFile>();
     for (const rf of remoteFiles) {
-      const cleanId = rf.name.replace(/\.md$/i, '');
+      const cleanId = rf.name.replace(/\.md$/i, '').trim().toLowerCase();
       remoteIdMap.set(cleanId, rf);
     }
 
-    const downloadedItemIds = new Set<string>();
+    // Load permanently deleted item tombstones
+    const deletedIds = await getDeletedSyncIds();
+    const deletedIdsSet = new Set<string>(deletedIds.map((x) => x.trim().toLowerCase()));
+
+    const handledLocalIds = new Set<string>();
     const syncErrors: string[] = [];
     let downloadedCount = 0;
     let uploadedCount = 0;
 
-    // Step 3: Two-Way Reconcile - Download remote files that are missing locally or updated remotely
-    if (remoteFiles.length > 0) {
-      status.message = isId
-        ? `Ditemukan ${remoteFiles.length} berkas di cloud. Mengunduh data...`
-        : `Found ${remoteFiles.length} cloud files. Downloading data...`;
-      if (onProgress) onProgress(status);
+    // =========================================================================
+    // STEP 3: UPLOAD LOCAL ITEMS (LOCAL-FIRST PRESERVATION)
+    // Local modifications on the active device must be preserved and pushed to cloud.
+    // They MUST NEVER be overwritten by older cloud snapshots.
+    // =========================================================================
 
-      for (let i = 0; i < remoteFiles.length; i++) {
-        const rf = remoteFiles[i];
-        const itemId = rf.name.replace(/\.md$/i, '');
-        const localNote = localNotesMap.get(itemId);
-        const localFolder = localFoldersMap.get(itemId);
-        const localTag = localTagsMap.get(itemId);
-
-        status.message = isId
-          ? `Mengunduh berkas (${i + 1}/${remoteFiles.length})...`
-          : `Downloading item (${i + 1}/${remoteFiles.length})...`;
-        if (onProgress) onProgress(status);
-
+    // 3.0 Propagate permanently deleted tombstones to cloud
+    for (const delId of deletedIds) {
+      const lower = delId.trim().toLowerCase();
+      handledLocalIds.add(lower);
+      if (remoteIdMap.has(lower)) {
         try {
-          const rawContent = await downloadRemote(rf);
-          const parsed = parseSyncItem(rawContent);
-
-          if (parsed.type === 'folder') {
-            const folderTitle = (parsed.title || parsed.meta.title || parsed.meta.name || '').trim();
-            const remoteFolder: Folder = {
-              id: parsed.meta.id || itemId,
-              title: folderTitle || (isId ? 'Buku Catatan' : 'Notebook'),
-              parent_id: parsed.meta.parent_id || '',
-              created_time: parseSyncTimestamp(parsed.meta.created_time),
-              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
-              sync_time: Date.now(),
-              is_deleted: parsed.meta.is_deleted === '1',
-              order: Number(parsed.meta.order || 0),
-            };
-            if (!localFolder || remoteFolder.updated_time >= (localFolder.updated_time || 0) || (remoteFolder.title && remoteFolder.title !== localFolder.title)) {
-              await db.folders.put(remoteFolder);
-              localFoldersMap.set(remoteFolder.id, remoteFolder);
-              downloadedCount++;
-              downloadedItemIds.add(remoteFolder.id);
-            }
-          } else if (parsed.type === 'tag') {
-            const remoteTag: Tag = {
-              id: parsed.meta.id || itemId,
-              title: parsed.title || 'tag',
-              created_time: parseSyncTimestamp(parsed.meta.created_time),
-              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
-            };
-            if (!localTag || remoteTag.updated_time >= (localTag.updated_time || 0) || remoteTag.title !== localTag.title) {
-              await db.tags.put(remoteTag);
-              localTagsMap.set(remoteTag.id, remoteTag);
-              downloadedCount++;
-              downloadedItemIds.add(remoteTag.id);
-            }
-          } else {
-            // Default: Note item (type_ === 1)
-            let attachmentsParsed = undefined;
-            if (parsed.meta.attachments) {
-              try {
-                attachmentsParsed = JSON.parse(parsed.meta.attachments);
-              } catch {}
-            }
-            let encryptedDataParsed = undefined;
-            if (parsed.meta.encrypted_data) {
-              try {
-                encryptedDataParsed = JSON.parse(parsed.meta.encrypted_data);
-              } catch {}
-            }
-
-            // If remote note mentions a folder ID and folder title from parent device, register it immediately
-            const inferredFolderTitle = (parsed.meta.parent_title || parsed.meta.folder_title || '').trim();
-            if (parsed.meta.parent_id && !localFoldersMap.has(parsed.meta.parent_id) && inferredFolderTitle) {
-              const inheritedFolder: Folder = {
-                id: parsed.meta.parent_id,
-                title: inferredFolderTitle,
-                parent_id: '',
-                created_time: parseSyncTimestamp(parsed.meta.created_time),
-                updated_time: parseSyncTimestamp(parsed.meta.updated_time),
-                sync_time: Date.now(),
-                is_deleted: false,
-                order: (localFoldersMap.size || 0) + 1,
-              };
-              await db.folders.put(inheritedFolder);
-              localFoldersMap.set(inheritedFolder.id, inheritedFolder);
-            }
-
-            const remoteNote: Note = {
-              id: parsed.meta.id || itemId,
-              folder_id:
-                parsed.meta.parent_id ||
-                localNote?.folder_id ||
-                (localFolders.length > 0 ? localFolders[0].id : 'folder-welcome-01'),
-              title: parsed.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note'),
-              body: parsed.body || '',
-              body_html: '',
-              is_todo: parsed.meta.is_todo === '1',
-              todo_completed: Number(parsed.meta.todo_completed || 0),
-              todo_due: Number(parsed.meta.todo_due || 0),
-              tags: parsed.meta.tags ? parsed.meta.tags.split(',').filter(Boolean) : [],
-              is_favorite: parsed.meta.is_favorite === '1',
-              is_pinned: parsed.meta.is_pinned === '1',
-              is_rtl: parsed.meta.is_rtl === '1',
-              text_direction:
-                (parsed.meta.text_direction as any) || (parsed.meta.is_rtl === '1' ? 'rtl' : 'ltr'),
-              is_deleted: parsed.meta.is_deleted === '1',
-              is_encrypted: parsed.meta.is_encrypted === '1',
-              encrypted_data: encryptedDataParsed || localNote?.encrypted_data,
-              attachments: attachmentsParsed || localNote?.attachments || [],
-              created_time: parseSyncTimestamp(parsed.meta.created_time),
-              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
-              sync_time: Date.now(),
-              sync_status: 'synced',
-              order: Number(parsed.meta.order || 0),
-            };
-
-            if (!localNote) {
-              // Brand new note from remote storage
-              await db.notes.put(remoteNote);
-              localNotesMap.set(remoteNote.id, remoteNote);
-              downloadedCount++;
-              downloadedItemIds.add(remoteNote.id);
-            } else {
-              // Local note already exists. Determine if remote note should overwrite local:
-              const isLocalClean = localNote.sync_status !== 'pending';
-              const isRemoteNewer = remoteNote.updated_time >= (localNote.updated_time || 0);
-              const isRemoteModifiedSinceLastSync = localNote.sync_time
-                ? remoteNote.updated_time > localNote.sync_time
-                : true;
-              const hasContentDifference =
-                remoteNote.title !== localNote.title ||
-                remoteNote.body !== localNote.body ||
-                remoteNote.folder_id !== localNote.folder_id ||
-                remoteNote.is_todo !== localNote.is_todo ||
-                remoteNote.todo_completed !== localNote.todo_completed ||
-                remoteNote.is_deleted !== localNote.is_deleted ||
-                remoteNote.is_favorite !== localNote.is_favorite ||
-                remoteNote.is_pinned !== localNote.is_pinned;
-
-              if (
-                isRemoteNewer ||
-                (isLocalClean && hasContentDifference) ||
-                (isRemoteModifiedSinceLastSync && hasContentDifference)
-              ) {
-                await db.notes.put({
-                  ...localNote,
-                  ...remoteNote,
-                  sync_time: Date.now(),
-                  sync_status: 'synced',
-                });
-                localNotesMap.set(remoteNote.id, remoteNote);
-                downloadedCount++;
-                downloadedItemIds.add(remoteNote.id);
-              } else if (remoteNote.updated_time === localNote.updated_time || !hasContentDifference) {
-                await db.notes.update(localNote.id, { sync_time: Date.now(), sync_status: 'synced' });
-                downloadedItemIds.add(remoteNote.id);
-              }
-            }
-          }
-        } catch (dlErr: any) {
-          const errDetail = dlErr?.message || String(dlErr);
-          console.warn(`Error processing remote file ${rf.name}:`, errDetail);
-          syncErrors.push(`${rf.name}: ${errDetail}`);
-        }
-      }
-    }
-
-    // Step 4: Two-Way Reconcile - Upload local items that are new or modified
-    // 4a. Upload Folders
-    const currentFolders = await db.folders.toArray();
-    for (const folder of currentFolders) {
-      if (downloadedItemIds.has(folder.id)) continue;
-      const isNewToRemote = !remoteIdMap.has(folder.id);
-      const isLocallyModified = !folder.sync_time || folder.updated_time > folder.sync_time;
-      if (isNewToRemote || isLocallyModified) {
-        status.message = isId
-          ? `Mengunggah folder "${folder.title}"...`
-          : `Uploading notebook "${folder.title}"...`;
-        if (onProgress) onProgress(status);
-
-        try {
-          const content = serializeNoteItem(folder, 'folder');
-          await uploadRemote(`${folder.id}.md`, content);
-          uploadedCount++;
-          await db.folders.update(folder.id, { sync_time: Date.now() });
+          await deleteRemote(`${delId}.md`);
+          await removeDeletedSyncId(delId);
         } catch (e: any) {
-          const errDetail = e?.message || String(e);
-          console.warn(`Could not upload folder ${folder.id}:`, errDetail);
-          syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
+          console.warn(`Could not delete remote tombstone ${delId}:`, e);
         }
       }
     }
 
-    // 4b. Upload Notes
-    const currentNotes = await db.notes.toArray();
-    for (const note of currentNotes) {
-      if (downloadedItemIds.has(note.id)) continue;
+    // 3a. Upload Local Folders (New, Modified, Renamed, or Soft-Deleted)
+    for (const folder of localFolders) {
+      const lowerId = folder.id.trim().toLowerCase();
+      const isNewToRemote = !remoteIdMap.has(lowerId);
+      const isLocallyModified =
+        folder.sync_status === 'pending' ||
+        !folder.sync_time ||
+        folder.updated_time > (folder.sync_time || 0);
 
-      const isNewToRemote = !remoteIdMap.has(note.id);
+      if (isNewToRemote || isLocallyModified) {
+        // ALWAYS mark handled so Step 4 will NEVER overwrite this local folder with cloud data!
+        handledLocalIds.add(lowerId);
+
+        if (folder.is_deleted) {
+          // Propagate folder deletion to cloud
+          try {
+            await deleteRemote(`${folder.id}.md`);
+            await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
+          } catch (e: any) {
+            console.warn(`Could not delete remote folder ${folder.id}:`, e);
+          }
+        } else {
+          status.message = isId
+            ? `Mengunggah folder "${folder.title}"...`
+            : `Uploading notebook "${folder.title}"...`;
+          if (onProgress) onProgress(status);
+
+          try {
+            const content = serializeNoteItem(folder, 'folder');
+            await uploadRemote(`${folder.id}.md`, content);
+            uploadedCount++;
+            await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
+          } catch (e: any) {
+            const errDetail = e?.message || String(e);
+            console.warn(`Could not upload folder ${folder.id}:`, errDetail);
+            syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
+          }
+        }
+      }
+    }
+
+    // 3b. Upload Local Notes (New, Pending Edits, Modified, or Trashed)
+    for (const note of localNotes) {
+      const lowerId = note.id.trim().toLowerCase();
+      const isNewToRemote = !remoteIdMap.has(lowerId);
       const hasLocalPendingEdits = note.sync_status === 'pending';
-      const isLocallyModified = !note.sync_time || note.updated_time > note.sync_time;
+      const isLocallyModified = !note.sync_time || note.updated_time > (note.sync_time || 0);
 
       const needsUpload = isNewToRemote || hasLocalPendingEdits || isLocallyModified;
 
       if (needsUpload) {
-        status.message = isId
-          ? `Mengunggah catatan "${(note.title || '').slice(0, 24)}"...`
-          : `Uploading note "${(note.title || '').slice(0, 24)}"...`;
-        if (onProgress) onProgress(status);
+        // ALWAYS mark handled so Step 4 will NEVER overwrite this local note with cloud data!
+        handledLocalIds.add(lowerId);
 
-        try {
-          const parentFolder = currentFolders.find((f) => f.id === note.folder_id);
-          const content = serializeNoteItem(note, 'note', parentFolder?.title);
-          await uploadRemote(`${note.id}.md`, content);
-          uploadedCount++;
-          await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
-        } catch (e: any) {
-          const errDetail = e?.message || String(e);
-          console.warn(`Could not upload note ${note.id}:`, errDetail);
-          syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
+        if (note.is_deleted) {
+          try {
+            await deleteRemote(`${note.id}.md`);
+            await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
+          } catch (e: any) {
+            console.warn(`Could not delete remote note ${note.id}:`, e);
+          }
+        } else {
+          status.message = isId
+            ? `Mengunggah catatan "${(note.title || '').slice(0, 24)}"...`
+            : `Uploading note "${(note.title || '').slice(0, 24)}"...`;
+          if (onProgress) onProgress(status);
+
+          try {
+            const parentFolder = localFolders.find((f) => f.id === note.folder_id);
+            const content = serializeNoteItem(note, 'note', parentFolder?.title);
+            await uploadRemote(`${note.id}.md`, content);
+            uploadedCount++;
+            await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
+          } catch (e: any) {
+            const errDetail = e?.message || String(e);
+            console.warn(`Could not upload note ${note.id}:`, errDetail);
+            syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
+          }
         }
       }
     }
 
-    // 4c. Upload Tags
-    const currentTags = await db.tags.toArray();
-    for (const tag of currentTags) {
-      if (downloadedItemIds.has(tag.id)) continue;
-      if (!remoteIdMap.has(tag.id)) {
+    // 3c. Upload Local Tags
+    for (const tag of localTags) {
+      const lowerId = tag.id.toLowerCase();
+      if (!remoteIdMap.has(lowerId)) {
+        handledLocalIds.add(lowerId);
         try {
           const content = serializeTagItem(tag);
           await uploadRemote(`${tag.id}.md`, content);
@@ -961,31 +910,316 @@ export async function executeSync(
       }
     }
 
-    // Step 5: Integrity Check - ensure notes with folder_id have an existing folder
+    // =========================================================================
+    // STEP 4: DOWNLOAD REMAINING REMOTE FILES (CREATED/MODIFIED ON OTHER DEVICES)
+    // Only downloads files that were NOT just modified and uploaded on this device.
+    // =========================================================================
+    if (remoteFiles.length > 0) {
+      status.message = isId
+        ? `Memeriksa pembaruan cloud (${remoteFiles.length} berkas)...`
+        : `Checking cloud updates (${remoteFiles.length} files)...`;
+      if (onProgress) onProgress(status);
+
+      interface ParsedRemoteItem {
+        rf: RemoteSyncFile;
+        itemId: string;
+        parsed: ReturnType<typeof parseSyncItem>;
+      }
+
+      const downloadedItems: ParsedRemoteItem[] = [];
+
+      for (let i = 0; i < remoteFiles.length; i++) {
+        const rf = remoteFiles[i];
+        const itemId = rf.name.replace(/\.md$/i, '').trim();
+        const lowerId = itemId.toLowerCase();
+
+        // Skip items already handled during upload or marked as deleted tombstones
+        if (handledLocalIds.has(lowerId) || deletedIdsSet.has(lowerId)) {
+          continue;
+        }
+
+        try {
+          const rawContent = await downloadRemote(rf);
+          const parsed = parseSyncItem(rawContent);
+
+          // Skip unknown types (Joplin resource metadata type 4, note-tags type 6, revisions type 13, etc.)
+          if (parsed.type === 'unknown') {
+            continue;
+          }
+
+          const parsedId = String(parsed.meta.id || itemId).trim().toLowerCase();
+          if (handledLocalIds.has(parsedId) || deletedIdsSet.has(parsedId)) {
+            continue;
+          }
+
+          downloadedItems.push({ rf, itemId, parsed });
+        } catch (dlErr: any) {
+          const errDetail = dlErr?.message || String(dlErr);
+          console.warn(`Error downloading remote file ${rf.name}:`, errDetail);
+          syncErrors.push(`${rf.name}: ${errDetail}`);
+        }
+      }
+
+      // 4a. Process Remote Folders FIRST so notebooks exist before notes reference them
+      const remoteFoldersList = downloadedItems.filter((x) => x.parsed.type === 'folder');
+      for (const item of remoteFoldersList) {
+        const { itemId, parsed } = item;
+        const lowerId = itemId.toLowerCase();
+        const folderTitle = (parsed.title || parsed.meta.title || parsed.meta.name || '').trim();
+        const folderId = String(parsed.meta.id || itemId).trim();
+        if (!folderId) continue;
+        const lowerFolderId = folderId.toLowerCase();
+
+        if (
+          handledLocalIds.has(lowerId) ||
+          handledLocalIds.has(lowerFolderId) ||
+          deletedIdsSet.has(lowerId) ||
+          deletedIdsSet.has(lowerFolderId)
+        ) {
+          continue;
+        }
+
+        const remoteFolder: Folder = cleanFolderForDb({
+          id: folderId,
+          title: folderTitle || (isId ? 'Buku Catatan' : 'Notebook'),
+          parent_id: String(parsed.meta.parent_id || '').trim(),
+          created_time: parseSyncTimestamp(parsed.meta.created_time),
+          updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+          sync_time: Date.now(),
+          sync_status: 'synced',
+          is_deleted: parsed.meta.is_deleted === '1',
+          order: Number(parsed.meta.order || 0),
+        });
+
+        const localFolder = localFoldersMap.get(folderId) || localFoldersMap.get(itemId);
+
+        if (!localFolder) {
+          // Brand new folder created on another device
+          if (!remoteFolder.is_deleted && !deletedIdsSet.has(lowerId) && !deletedIdsSet.has(lowerFolderId)) {
+            await db.folders.put(remoteFolder);
+            localFoldersMap.set(remoteFolder.id, remoteFolder);
+            downloadedCount++;
+          }
+        } else {
+          // Existing local folder: NEVER overwrite if local has pending edits or changes
+          const isLocalPending =
+            localFolder.sync_status === 'pending' ||
+            !localFolder.sync_time ||
+            localFolder.updated_time > (localFolder.sync_time || 0);
+
+          if (isLocalPending) {
+            // Local active device changes ALWAYS win!
+            continue;
+          }
+
+          if (localFolder.is_deleted) {
+            // Local folder was deleted on this device: NEVER resurrect from cloud
+            continue;
+          }
+
+          // Overwrite ONLY if remote is strictly newer than local
+          if (remoteFolder.updated_time > (localFolder.updated_time || 0)) {
+            if (remoteFolder.is_deleted) {
+              await db.folders.update(localFolder.id, {
+                is_deleted: true,
+                updated_time: remoteFolder.updated_time,
+                sync_time: Date.now(),
+                sync_status: 'synced',
+              });
+            } else {
+              const safeFolder = cleanFolderForDb({
+                ...localFolder,
+                ...remoteFolder,
+                sync_time: Date.now(),
+                sync_status: 'synced',
+              });
+              await db.folders.put(safeFolder);
+              localFoldersMap.set(safeFolder.id, safeFolder);
+            }
+            downloadedCount++;
+          }
+        }
+      }
+
+      // 4b. Process Remote Tags SECOND
+      const remoteTagsList = downloadedItems.filter((x) => x.parsed.type === 'tag');
+      for (const item of remoteTagsList) {
+        const { itemId, parsed } = item;
+        const tagId = String(parsed.meta.id || itemId).trim();
+        if (!tagId) continue;
+        const lowerTagId = tagId.toLowerCase();
+        if (handledLocalIds.has(lowerTagId) || deletedIdsSet.has(lowerTagId)) continue;
+
+        const remoteTag: Tag = cleanTagForDb({
+          id: tagId,
+          title: parsed.title || 'tag',
+          created_time: parseSyncTimestamp(parsed.meta.created_time),
+          updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+        });
+
+        const localTag = localTagsMap.get(tagId) || localTagsMap.get(itemId);
+        if (!localTag || remoteTag.updated_time > (localTag.updated_time || 0)) {
+          await db.tags.put(remoteTag);
+          localTagsMap.set(remoteTag.id, remoteTag);
+          downloadedCount++;
+        }
+      }
+
+      // 4c. Process Remote Notes THIRD
+      const remoteNotesList = downloadedItems.filter((x) => x.parsed.type === 'note');
+      for (const item of remoteNotesList) {
+        const { itemId, parsed } = item;
+        const lowerId = itemId.toLowerCase();
+        const noteId = String(parsed.meta.id || itemId).trim();
+        if (!noteId) continue;
+        const lowerNoteId = noteId.toLowerCase();
+
+        if (
+          handledLocalIds.has(lowerId) ||
+          handledLocalIds.has(lowerNoteId) ||
+          deletedIdsSet.has(lowerId) ||
+          deletedIdsSet.has(lowerNoteId)
+        ) {
+          continue;
+        }
+
+        let attachmentsParsed: any = undefined;
+        if (parsed.meta.attachments) {
+          try {
+            attachmentsParsed = JSON.parse(parsed.meta.attachments);
+          } catch {}
+        }
+        let encryptedDataParsed: any = undefined;
+        if (parsed.meta.encrypted_data) {
+          try {
+            encryptedDataParsed = JSON.parse(parsed.meta.encrypted_data);
+          } catch {}
+        }
+
+        const localNote = localNotesMap.get(noteId) || localNotesMap.get(itemId);
+
+        // Verify or inherit parent notebook
+        let targetFolderId = String(parsed.meta.parent_id || localNote?.folder_id || '').trim();
+        const parentFolder = localFoldersMap.get(targetFolderId);
+
+        if (!targetFolderId || !parentFolder || parentFolder.is_deleted) {
+          const inferredFolderTitle = (parsed.meta.parent_title || parsed.meta.folder_title || '').trim();
+          if (targetFolderId && inferredFolderTitle && !deletedIdsSet.has(targetFolderId.toLowerCase())) {
+            const inheritedFolder = cleanFolderForDb({
+              id: targetFolderId,
+              title: inferredFolderTitle,
+              parent_id: '',
+              created_time: parseSyncTimestamp(parsed.meta.created_time),
+              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+              sync_time: Date.now(),
+              sync_status: 'synced',
+              is_deleted: false,
+              order: (localFoldersMap.size || 0) + 1,
+            });
+            await db.folders.put(inheritedFolder);
+            localFoldersMap.set(inheritedFolder.id, inheritedFolder);
+          } else {
+            const activeFolder = Array.from(localFoldersMap.values()).find((f) => !f.is_deleted);
+            targetFolderId = activeFolder?.id || 'folder-welcome-01';
+          }
+        }
+
+        const remoteNote: Note = cleanNoteForDb({
+          id: noteId,
+          folder_id: targetFolderId,
+          title: parsed.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note'),
+          body: parsed.body || '',
+          body_html: '',
+          is_todo: parsed.meta.is_todo === '1',
+          todo_completed: Number(parsed.meta.todo_completed || 0),
+          todo_due: Number(parsed.meta.todo_due || 0),
+          tags: parsed.meta.tags
+            ? parsed.meta.tags
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean)
+            : [],
+          is_favorite: parsed.meta.is_favorite === '1',
+          is_pinned: parsed.meta.is_pinned === '1',
+          is_rtl: parsed.meta.is_rtl === '1',
+          text_direction:
+            (parsed.meta.text_direction as any) || (parsed.meta.is_rtl === '1' ? 'rtl' : 'ltr'),
+          is_deleted: parsed.meta.is_deleted === '1',
+          is_encrypted: parsed.meta.is_encrypted === '1',
+          encrypted_data: encryptedDataParsed || localNote?.encrypted_data,
+          attachments: Array.isArray(attachmentsParsed) ? attachmentsParsed : (localNote?.attachments || []),
+          created_time: parseSyncTimestamp(parsed.meta.created_time),
+          updated_time: parseSyncTimestamp(parsed.meta.updated_time),
+          sync_time: Date.now(),
+          sync_status: 'synced',
+          order: Number(parsed.meta.order || 0),
+        });
+
+        if (!localNote) {
+          // Brand new note from remote storage
+          if (!remoteNote.is_deleted && !deletedIdsSet.has(lowerId) && !deletedIdsSet.has(lowerNoteId)) {
+            await db.notes.put(remoteNote);
+            localNotesMap.set(remoteNote.id, remoteNote);
+            downloadedCount++;
+          }
+        } else {
+          // Existing local note: NEVER overwrite if local has pending edits or changes
+          const isLocalPending =
+            localNote.sync_status === 'pending' ||
+            !localNote.sync_time ||
+            localNote.updated_time > (localNote.sync_time || 0);
+
+          if (isLocalPending) {
+            // Local active device changes ALWAYS win!
+            continue;
+          }
+
+          if (localNote.is_deleted) {
+            // Local note was deleted on this device (moved to trash): NEVER resurrect from cloud
+            continue;
+          }
+
+          // Overwrite ONLY if remote is strictly newer than local
+          if (remoteNote.updated_time > (localNote.updated_time || 0)) {
+            if (remoteNote.is_deleted) {
+              await db.notes.update(localNote.id, {
+                is_deleted: true,
+                updated_time: remoteNote.updated_time,
+                sync_time: Date.now(),
+                sync_status: 'synced',
+              });
+            } else {
+              const mergedNote = cleanNoteForDb({
+                ...localNote,
+                ...remoteNote,
+                folder_id: targetFolderId,
+                sync_time: Date.now(),
+                sync_status: 'synced',
+              });
+              await db.notes.put(mergedNote);
+              localNotesMap.set(mergedNote.id, mergedNote);
+            }
+            downloadedCount++;
+          } else if (remoteNote.updated_time === localNote.updated_time && localNote.sync_status !== 'synced') {
+            await db.notes.update(localNote.id, { sync_time: Date.now(), sync_status: 'synced' });
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // STEP 5: INTEGRITY CHECK - Ensure active notes have an existing folder
+    // =========================================================================
     const allRefreshedNotes = await db.notes.toArray();
-    const existingFolders = await db.folders.toArray();
-    const existingFolderMap = new Map<string, Folder>(existingFolders.map((f) => [f.id, f]));
-    const primaryFolder = existingFolders.find((f) => !f.is_deleted) || existingFolders[0];
+    const allRefreshedFolders = await db.folders.toArray();
+    const activeFolders = allRefreshedFolders.filter((f) => !f.is_deleted);
+    const activeFolderMap = new Map<string, Folder>(activeFolders.map((f) => [f.id, f]));
+    const primaryFolder = activeFolders[0] || allRefreshedFolders[0];
     const fallbackFolderId = primaryFolder?.id || 'folder-welcome-01';
 
     for (const n of allRefreshedNotes) {
-      if (!n.folder_id) {
+      if (!n.is_deleted && (!n.folder_id || !activeFolderMap.has(n.folder_id))) {
         await db.notes.update(n.id, { folder_id: fallbackFolderId });
-      } else if (!existingFolderMap.has(n.folder_id)) {
-        // Adopt the primary device's naming or fallback to primary notebook, NEVER create a dummy "Folder Sinkron"
-        const adoptedTitle = primaryFolder?.title || (isId ? 'Buku Catatan Utama' : 'Main Notebook');
-        const recoveredFolder: Folder = {
-          id: n.folder_id,
-          title: adoptedTitle,
-          parent_id: '',
-          created_time: Date.now(),
-          updated_time: Date.now(),
-          sync_time: Date.now(),
-          is_deleted: false,
-          order: existingFolders.length + 1,
-        };
-        await db.folders.put(recoveredFolder);
-        existingFolderMap.set(n.folder_id, recoveredFolder);
       }
     }
 
@@ -1002,8 +1236,8 @@ export async function executeSync(
         : `Sync completed with ${syncErrors.length} issue(s): ${syncErrors[0]}`;
     } else if (downloadedCount > 0 || uploadedCount > 0) {
       status.message = isId
-        ? `Sinkronisasi berhasil! ${downloadedCount} data diunduh, ${uploadedCount} data diunggah.`
-        : `Sync completed! ${downloadedCount} item(s) downloaded, ${uploadedCount} item(s) uploaded.`;
+        ? `Sinkronisasi berhasil! ${uploadedCount} data diunggah, ${downloadedCount} data diunduh.`
+        : `Sync completed! ${uploadedCount} item(s) uploaded, ${downloadedCount} item(s) downloaded.`;
     } else {
       status.message = isId
         ? 'Sinkronisasi berhasil! Semua data lokal dan cloud sudah selaras.'
@@ -1011,13 +1245,15 @@ export async function executeSync(
     }
 
     // Log sync event in IndexedDB
-    await db.sync_logs.add({
-      id: 'sync-' + Date.now(),
-      timestamp: Date.now(),
-      type: syncConfig.target,
-      message: status.message,
-      details: { uploaded: status.itemsUploaded, downloaded: status.itemsDownloaded },
-    });
+    try {
+      await db.sync_logs.add({
+        id: 'sync-' + Date.now(),
+        timestamp: Date.now(),
+        type: syncConfig.target,
+        message: status.message,
+        details: { uploaded: status.itemsUploaded, downloaded: status.itemsDownloaded },
+      });
+    } catch {}
 
     if (onProgress) onProgress(status);
     return status;

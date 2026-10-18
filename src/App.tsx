@@ -12,6 +12,10 @@ import {
   saveSettings,
   updatePresetNotesLanguage,
   DEFAULT_SETTINGS,
+  cleanNoteForDb,
+  cleanFolderForDb,
+  cleanTagForDb,
+  addDeletedSyncId,
 } from './db';
 import type {
   Note,
@@ -456,15 +460,17 @@ export default function App() {
   const handleSyncRef = useRef<(cfg?: SyncConfig) => Promise<void>>(() => Promise.resolve());
   const autoSyncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const requestAutoSync = useCallback((delayMs: number = 2000) => {
+  const requestAutoSync = useCallback((delayMs: number = 6000) => {
     if (settings.sync.target === 'disabled') return;
     if (autoSyncDebounceTimerRef.current) {
       clearTimeout(autoSyncDebounceTimerRef.current);
     }
     autoSyncDebounceTimerRef.current = setTimeout(() => {
-      handleSyncRef.current();
+      if (!isSyncing) {
+        handleSyncRef.current();
+      }
     }, delayMs);
-  }, [settings.sync.target]);
+  }, [settings.sync.target, isSyncing]);
 
   // Handle Note Update in Dexie & State
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
@@ -473,27 +479,27 @@ export default function App() {
     const currentNote = notes.find((n) => n.id === selectedNoteId);
     if (!currentNote) return;
 
-    const updatedNote: Note = {
+    const updatedNote: Note = cleanNoteForDb({
       ...currentNote,
       ...updatedFields,
       updated_time: Date.now(),
       sync_status: 'pending',
-    };
+    });
 
     setNotes((prev) => prev.map((n) => (n.id === selectedNoteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
-    requestAutoSync(2500);
+    requestAutoSync(5000);
   };
 
   // Create New Note
   const handleCreateNote = async (isTodo: boolean = false) => {
     const targetFolderId =
-      selectedFolderId || (folders.length > 0 ? folders[0].id : 'folder-default');
+      selectedFolderId || (folders.length > 0 ? folders[0].id : 'folder-welcome-01');
 
     const newNoteId = 'note-' + Date.now();
     const now = Date.now();
 
-    const newNote: Note = {
+    const newNote: Note = cleanNoteForDb({
       id: newNoteId,
       folder_id: targetFolderId,
       title: isTodo ? 'New To-do' : 'New Note',
@@ -510,13 +516,13 @@ export default function App() {
       updated_time: now,
       sync_status: 'pending',
       order: notes.length + 1,
-    };
+    });
 
-    await db.notes.add(newNote);
+    await db.notes.put(newNote);
     setNotes((prev) => [newNote, ...prev]);
     setSelectedNoteId(newNoteId);
     setSelectedSpecialView(null);
-    requestAutoSync(800);
+    requestAutoSync(5000);
   };
 
   // Toggle To-do Completion
@@ -644,6 +650,7 @@ export default function App() {
       onConfirm: async () => {
         setNotes((prev) => prev.filter((n) => n.id !== noteId));
         await db.notes.delete(noteId);
+        await addDeletedSyncId(noteId);
 
         if (selectedNoteId === noteId) {
           const remainingTrash = notes.filter((n) => n.id !== noteId && n.is_deleted);
@@ -653,6 +660,7 @@ export default function App() {
             setSelectedNoteId(null);
           }
         }
+        requestAutoSync(4000);
       },
     });
   };
@@ -679,11 +687,13 @@ export default function App() {
       onConfirm: async () => {
         for (const n of trashed) {
           await db.notes.delete(n.id);
+          await addDeletedSyncId(n.id);
         }
         setNotes((prev) => prev.filter((n) => !n.is_deleted));
         if (selectedSpecialView === 'trash') {
           setSelectedNoteId(null);
         }
+        requestAutoSync(4000);
       },
     });
   };
@@ -699,34 +709,36 @@ export default function App() {
     try {
       if (folderToEdit) {
         // Rename or re-parent existing notebook
-        const updated: Folder = {
+        const updated: Folder = cleanFolderForDb({
           ...folderToEdit,
           title: trimmedTitle,
           parent_id: sanitizedParentId,
           updated_time: now,
+          sync_status: 'pending',
           is_deleted: false,
-        };
+        });
         await db.folders.put(updated);
         setFolders((prev) => prev.map((f) => (f.id === folderToEdit.id ? updated : f)));
       } else {
         // Create new notebook
         const uniqueId = 'folder-' + now + '-' + Math.random().toString(36).substring(2, 8);
-        const newFolder: Folder = {
+        const newFolder: Folder = cleanFolderForDb({
           id: uniqueId,
           title: trimmedTitle,
           parent_id: sanitizedParentId,
           created_time: now,
           updated_time: now,
+          sync_status: 'pending',
           is_deleted: false,
           order: folders.length + 1,
-        };
+        });
         await db.folders.put(newFolder);
         setFolders((prev) => [...prev, newFolder]);
         setSelectedFolderId(newFolder.id);
         setSelectedSpecialView(null);
         setSelectedTagId(null);
       }
-      requestAutoSync(1000);
+      requestAutoSync(5000);
     } catch (err) {
       console.error('Failed to save notebook to database:', err);
       throw err;
@@ -782,28 +794,30 @@ export default function App() {
       cancelLabel: isId ? 'Batal' : 'Cancel',
       isDanger: true,
       onConfirm: async () => {
-        // 1. Delete folders from IndexedDB
+        const now = Date.now();
+        // 1. Soft-delete folders in IndexedDB so sync can propagate deletion to cloud & record tombstones
         for (const fId of allFolderIdsToDelete) {
-          await db.folders.delete(fId);
+          await db.folders.update(fId, { is_deleted: true, updated_time: now, sync_status: 'pending' });
+          await addDeletedSyncId(fId);
         }
         setFolders((prev) => prev.filter((f) => !allFolderIdsToDelete.includes(f.id)));
 
-        // 2. Soft delete associated notes
-        const now = Date.now();
+        // 2. Soft delete associated notes with pending sync status & record tombstones
         for (const n of notesInside) {
-          await db.notes.update(n.id, { is_deleted: true, updated_time: now });
+          await db.notes.update(n.id, { is_deleted: true, updated_time: now, sync_status: 'pending' });
+          await addDeletedSyncId(n.id);
         }
         setNotes((prev) =>
           prev.map((n) =>
             allFolderIdsToDelete.includes(n.folder_id)
-              ? { ...n, is_deleted: true, updated_time: now }
+              ? { ...n, is_deleted: true, updated_time: now, sync_status: 'pending' }
               : n
           )
         );
 
         // 3. Switch selected folder if deleted
         if (selectedFolderId && allFolderIdsToDelete.includes(selectedFolderId)) {
-          const remainingFolders = folders.filter((f) => !allFolderIdsToDelete.includes(f.id));
+          const remainingFolders = folders.filter((f) => !allFolderIdsToDelete.includes(f.id) && !f.is_deleted);
           if (remainingFolders.length > 0) {
             setSelectedFolderId(remainingFolders[0].id);
           } else {
@@ -811,7 +825,7 @@ export default function App() {
             setSelectedSpecialView('all');
           }
         }
-        requestAutoSync(1000);
+        requestAutoSync(4000);
       },
     });
   };
@@ -822,15 +836,16 @@ export default function App() {
     if (!note || note.folder_id === targetFolderId) return;
 
     const updatedTime = Date.now();
-    const updatedNote: Note = {
+    const updatedNote: Note = cleanNoteForDb({
       ...note,
       folder_id: targetFolderId,
       updated_time: updatedTime,
       sync_status: 'pending',
-    };
+    });
 
     setNotes((prev) => prev.map((n) => (n.id === noteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
+    requestAutoSync(5000);
   };
 
   // Move Folder / Sub-folder (Drag and drop or context menu)
@@ -869,17 +884,20 @@ export default function App() {
 
     setFolders((prev) =>
       prev.map((f) =>
-        f.id === folderId ? { ...f, parent_id: sanitizedParentId, updated_time: updatedTime } : f
+        f.id === folderId ? { ...f, parent_id: sanitizedParentId, updated_time: updatedTime, sync_status: 'pending' } : f
       )
     );
 
     const folderToUpdate = folders.find((f) => f.id === folderId);
     if (folderToUpdate) {
-      await db.folders.put({
+      const updated = cleanFolderForDb({
         ...folderToUpdate,
         parent_id: sanitizedParentId,
         updated_time: updatedTime,
+        sync_status: 'pending',
       });
+      await db.folders.put(updated);
+      requestAutoSync(5000);
     }
   };
 
@@ -998,12 +1016,13 @@ export default function App() {
       }
 
       // Update last sync time
-      handleSaveSettings({
+      const updatedSettings = await saveSettings({
         sync: {
           ...activeSyncConfig,
           last_sync_time: status.lastSync,
         },
       });
+      setSettings(updatedSettings);
     } catch (e: any) {
       setSyncMessage(settings.language === 'id' ? `Sinkronisasi gagal: ${e.message}` : `Sync failed: ${e.message}`);
     } finally {

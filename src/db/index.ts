@@ -86,6 +86,207 @@ export async function deleteNoteRevision(id: string): Promise<void> {
   }
 }
 
+/**
+ * Tombstone / permanently deleted items management for cloud synchronization
+ */
+export async function getDeletedSyncIds(): Promise<string[]> {
+  try {
+    const row = await db.settings.get('sync_tombstones');
+    return Array.isArray(row?.value) ? row.value : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addDeletedSyncId(id: string): Promise<void> {
+  if (!id) return;
+  try {
+    const current = await getDeletedSyncIds();
+    const cleanId = id.trim();
+    if (!current.some((x) => x.toLowerCase() === cleanId.toLowerCase())) {
+      current.push(cleanId);
+      await db.settings.put({ key: 'sync_tombstones', value: current });
+    }
+  } catch (err) {
+    console.warn('Failed to add sync tombstone:', err);
+  }
+}
+
+export async function removeDeletedSyncId(id: string): Promise<void> {
+  if (!id) return;
+  try {
+    const current = await getDeletedSyncIds();
+    const cleanId = id.trim().toLowerCase();
+    const next = current.filter((x) => x.toLowerCase() !== cleanId);
+    await db.settings.put({ key: 'sync_tombstones', value: next });
+  } catch (err) {
+    console.warn('Failed to remove sync tombstone:', err);
+  }
+}
+
+/**
+ * Sanitizes note objects to guarantee safe insertion into IndexedDB without multi-entry index or key errors
+ */
+export function cleanNoteForDb(note: Partial<Note> & { id?: string }): Note {
+  const now = Date.now();
+  const rawId = note.id ? String(note.id).trim() : '';
+  const cleanId = rawId || `note-${now}-${Math.random().toString(36).substring(2, 8)}`;
+  const cleanFolderId = note.folder_id ? String(note.folder_id).trim() : 'folder-welcome-01';
+
+  // Safely extract tags: each element in *tags index must be a non-empty string
+  let safeTags: string[] = [];
+  if (Array.isArray(note.tags)) {
+    safeTags = note.tags
+      .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+      .map((t) => t.trim());
+  } else if (typeof note.tags === 'string' && (note.tags as string).trim().length > 0) {
+    safeTags = (note.tags as string)
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }
+
+  return {
+    id: cleanId,
+    folder_id: cleanFolderId || 'folder-welcome-01',
+    title: typeof note.title === 'string' ? note.title : '',
+    body: typeof note.body === 'string' ? note.body : '',
+    body_html: typeof note.body_html === 'string' ? note.body_html : '',
+    is_todo: Boolean(note.is_todo),
+    todo_completed:
+      typeof note.todo_completed === 'number' && !isNaN(note.todo_completed) ? note.todo_completed : 0,
+    todo_due: typeof note.todo_due === 'number' && !isNaN(note.todo_due) ? note.todo_due : 0,
+    tags: safeTags,
+    is_favorite: Boolean(note.is_favorite),
+    is_pinned: Boolean(note.is_pinned),
+    is_rtl: Boolean(note.is_rtl),
+    text_direction: note.text_direction === 'rtl' ? 'rtl' : 'ltr',
+    is_deleted: Boolean(note.is_deleted),
+    is_encrypted: Boolean(note.is_encrypted),
+    encrypted_data: note.encrypted_data || undefined,
+    published_info: note.published_info || undefined,
+    attachments: Array.isArray(note.attachments) ? note.attachments : [],
+    created_time:
+      typeof note.created_time === 'number' && !isNaN(note.created_time) && note.created_time > 0
+        ? note.created_time
+        : now,
+    updated_time:
+      typeof note.updated_time === 'number' && !isNaN(note.updated_time) && note.updated_time > 0
+        ? note.updated_time
+        : now,
+    sync_time:
+      typeof note.sync_time === 'number' && !isNaN(note.sync_time) && note.sync_time > 0
+        ? note.sync_time
+        : undefined,
+    sync_status: (note.sync_status as any) || 'pending',
+    order: typeof note.order === 'number' && !isNaN(note.order) ? note.order : 0,
+  };
+}
+
+/**
+ * Sanitizes folder objects to guarantee safe insertion into IndexedDB
+ */
+export function cleanFolderForDb(folder: Partial<Folder> & { id?: string }): Folder {
+  const now = Date.now();
+  const rawId = folder.id ? String(folder.id).trim() : '';
+  const cleanId = rawId || `folder-${now}-${Math.random().toString(36).substring(2, 8)}`;
+  const cleanTitle = typeof folder.title === 'string' && folder.title.trim() ? folder.title.trim() : 'Notebook';
+
+  return {
+    id: cleanId,
+    title: cleanTitle,
+    parent_id: typeof folder.parent_id === 'string' ? folder.parent_id.trim() : '',
+    created_time:
+      typeof folder.created_time === 'number' && !isNaN(folder.created_time) && folder.created_time > 0
+        ? folder.created_time
+        : now,
+    updated_time:
+      typeof folder.updated_time === 'number' && !isNaN(folder.updated_time) && folder.updated_time > 0
+        ? folder.updated_time
+        : now,
+    sync_time:
+      typeof folder.sync_time === 'number' && !isNaN(folder.sync_time) && folder.sync_time > 0
+        ? folder.sync_time
+        : undefined,
+    sync_status: (folder.sync_status as any) || 'pending',
+    is_deleted: Boolean(folder.is_deleted),
+    order: typeof folder.order === 'number' && !isNaN(folder.order) ? folder.order : 0,
+  };
+}
+
+/**
+ * Sanitizes tag objects to guarantee safe insertion into IndexedDB
+ */
+export function cleanTagForDb(tag: Partial<Tag> & { id?: string }): Tag {
+  const now = Date.now();
+  const rawId = tag.id ? String(tag.id).trim() : '';
+  const cleanId = rawId || `tag-${now}-${Math.random().toString(36).substring(2, 6)}`;
+  const cleanTitle = typeof tag.title === 'string' && tag.title.trim() ? tag.title.trim() : 'tag';
+
+  return {
+    id: cleanId,
+    title: cleanTitle,
+    created_time:
+      typeof tag.created_time === 'number' && !isNaN(tag.created_time) && tag.created_time > 0
+        ? tag.created_time
+        : now,
+    updated_time:
+      typeof tag.updated_time === 'number' && !isNaN(tag.updated_time) && tag.updated_time > 0
+        ? tag.updated_time
+        : now,
+  };
+}
+
+// Register Dexie hooks so ANY table mutation automatically passes through sanitizers
+db.notes.hook('creating', function (_primKey, obj) {
+  const cleaned = cleanNoteForDb(obj);
+  Object.assign(obj, cleaned);
+});
+
+db.notes.hook('updating', function (mods: any) {
+  if (mods.tags) {
+    mods.tags = Array.isArray(mods.tags)
+      ? mods.tags.filter((t: any): t is string => typeof t === 'string' && t.trim().length > 0).map((t: string) => t.trim())
+      : [];
+  }
+  if (mods.order !== undefined) {
+    mods.order = typeof mods.order === 'number' && !isNaN(mods.order) ? mods.order : 0;
+  }
+  if (mods.folder_id !== undefined) {
+    mods.folder_id = String(mods.folder_id || 'folder-welcome-01').trim();
+  }
+  if (mods.updated_time !== undefined) {
+    mods.updated_time = typeof mods.updated_time === 'number' && !isNaN(mods.updated_time) && mods.updated_time > 0 ? mods.updated_time : Date.now();
+  }
+});
+
+db.folders.hook('creating', function (_primKey, obj) {
+  const cleaned = cleanFolderForDb(obj);
+  Object.assign(obj, cleaned);
+});
+
+db.folders.hook('updating', function (mods: any) {
+  if (mods.order !== undefined) {
+    mods.order = typeof mods.order === 'number' && !isNaN(mods.order) ? mods.order : 0;
+  }
+  if (mods.parent_id !== undefined) {
+    mods.parent_id = typeof mods.parent_id === 'string' ? mods.parent_id.trim() : '';
+  }
+  if (mods.title !== undefined) {
+    mods.title = typeof mods.title === 'string' && mods.title.trim() ? mods.title.trim() : 'Notebook';
+  }
+  if (mods.updated_time !== undefined) {
+    mods.updated_time = typeof mods.updated_time === 'number' && !isNaN(mods.updated_time) && mods.updated_time > 0 ? mods.updated_time : Date.now();
+  }
+});
+
+db.tags.hook('creating', function (_primKey, obj) {
+  const cleaned = cleanTagForDb(obj);
+  Object.assign(obj, cleaned);
+});
+
+
+
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'qalam-dark',
   editor_mode: 'wysiwyg',
@@ -1052,8 +1253,8 @@ export async function alignAndDeduplicatePresetNotes(
         folder_id: keeper.folder_id || 'folder-welcome-01',
         title: isUntouchedSample ? sample.title : keeper.title,
         body: isUntouchedSample ? sample.body : keeper.body,
-        body_html: undefined, // Clear stale HTML cache
-        tags: keeper.tags?.length ? keeper.tags : sample.tags,
+        body_html: '', // Clean empty string (never undefined for IndexedDB structured clone safety)
+        tags: Array.isArray(keeper.tags) && keeper.tags.length ? keeper.tags.filter(Boolean) : sample.tags,
         is_todo: keeper.is_todo ?? sample.is_todo,
         todo_completed: keeper.todo_completed ?? sample.todo_completed,
         todo_due: keeper.todo_due ?? sample.todo_due,
@@ -1082,6 +1283,8 @@ export async function alignAndDeduplicatePresetNotes(
       await db.notes.put({
         ...sample,
         folder_id: 'folder-welcome-01',
+        body_html: '',
+        sync_status: 'synced',
       });
     }
   }
@@ -1100,21 +1303,16 @@ export async function alignAndDeduplicatePresetNotes(
     }
   }
 
-  // Ensure folder-welcome-01 exists, and DELETE folder-personal-02 & folder-work-03
+  // Ensure default notebook exists ONLY IF database has no folders at all
   const existingFolders = await db.folders.toArray();
   const welcomeFolder = defaultFolders[0];
 
   const hasWelcomeFolder = existingFolders.some((f) => f.id === welcomeFolder.id);
-  if (!hasWelcomeFolder) {
-    await db.folders.put(welcomeFolder);
-  } else {
-    await db.folders.update(welcomeFolder.id, {
-      title: welcomeFolder.title,
-      is_deleted: false,
-    });
+  if (!hasWelcomeFolder && existingFolders.length === 0) {
+    await db.folders.put({ ...welcomeFolder, sync_status: 'synced' });
   }
 
-  // Delete the 2 other pre-folders
+  // Delete legacy pre-folders
   await db.folders.delete('folder-personal-02');
   await db.folders.delete('folder-work-03');
 

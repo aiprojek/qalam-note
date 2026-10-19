@@ -864,10 +864,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={onSync}
           disabled={isSyncing}
+          title={`${t.synchronise} (Ctrl+S)`}
           className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-blue-600/90 hover:bg-blue-600 text-white font-medium text-xs shadow-xs transition disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
           <span>{isSyncing ? t.syncing : t.synchronise}</span>
+          <span className="text-[10px] opacity-75 font-mono ml-0.5 hidden sm:inline">(Ctrl+S)</span>
         </button>
 
         <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">

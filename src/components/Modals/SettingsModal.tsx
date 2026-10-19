@@ -34,6 +34,7 @@ import {
   Coffee,
   Send,
   Github,
+  Keyboard,
 } from 'lucide-react';
 import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage, SyncConfig } from '../../types';
 import {
@@ -1373,8 +1374,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
 
                       {pairingCodeOutput ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-1.5">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 flex-nowrap w-full">
                             <input
                               type="text"
                               readOnly
@@ -1411,6 +1412,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </button>
                             <button
                               type="button"
+                              onClick={handleGeneratePairing}
+                              title={formSettings.language === 'id' ? 'Buat Ulang Kode' : 'Regenerate Code'}
+                              className={`p-1.5 rounded-lg text-xs font-medium border shrink-0 transition ${
+                                isLight
+                                  ? 'border-slate-300 hover:bg-slate-100 text-slate-500 hover:text-slate-800'
+                                  : 'border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setPairingCodeOutput('')}
                               title={formSettings.language === 'id' ? 'Tutup / Reset' : 'Close / Reset'}
                               className={`p-1.5 rounded-lg text-xs font-medium border shrink-0 transition ${
@@ -1429,19 +1442,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </p>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={handleGeneratePairing}
-                          disabled={formSettings.sync.target === 'disabled'}
-                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
-                            isLight
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
-                              : 'bg-blue-600 hover:bg-blue-500 text-white'
-                          }`}
-                        >
-                          <Share2 className="w-3.5 h-3.5 shrink-0" />
-                          <span className="whitespace-nowrap">{t.pairing_generate_btn}</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 flex-nowrap w-full">
+                          <input
+                            type="text"
+                            readOnly
+                            disabled
+                            placeholder={formSettings.language === 'id' ? 'Klik tombol untuk membuat kode...' : 'Click button to generate code...'}
+                            className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none opacity-60 cursor-not-allowed truncate ${
+                              isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-500 border-slate-800'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGeneratePairing}
+                            disabled={formSettings.sync.target === 'disabled'}
+                            className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
+                              isLight
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                            }`}
+                          >
+                            <Share2 className="w-3.5 h-3.5 shrink-0" />
+                            <span className="whitespace-nowrap">{t.pairing_generate_btn}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -1461,13 +1485,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </p>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 flex-nowrap w-full">
                         <input
                           type="text"
                           value={pairingInputCode}
                           onChange={(e) => setPairingInputCode(e.target.value)}
                           placeholder={t.pairing_import_placeholder}
-                          className={`w-full text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none ${
+                          className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none select-all truncate ${
                             isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-purple-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-purple-500'
                           }`}
                         />
@@ -1475,14 +1499,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={handleApplyPairing}
                           disabled={!pairingInputCode.trim()}
-                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
+                          className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
                             isLight
                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-2xs'
                               : 'bg-purple-600 hover:bg-purple-500 text-white'
                           }`}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          <span className="whitespace-nowrap">{t.pairing_import_btn}</span>
+                          <span className="whitespace-nowrap">{formSettings.language === 'id' ? 'Terapkan' : 'Apply'}</span>
                         </button>
                       </div>
                     </div>
@@ -2003,6 +2027,82 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           ? 'Perangkat Lunak Bebas & Sumber Terbuka'
                           : 'Free & Open Source Software'}
                       </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Keyboard Shortcuts Quick Reference */}
+                <div className={`rounded-xl border p-3.5 space-y-2.5 transition-colors ${
+                  isLight ? 'bg-slate-50/60 border-slate-200/80' : 'bg-slate-900/30 border-slate-800/80'
+                }`}>
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    <Keyboard className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>{t.about_shortcuts_title}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Sinkronisasi Cloud (Joplin)' : 'Cloud Synchronise (Joplin)'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                        Ctrl+S
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Universal Command Palette' : 'Command Palette'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+K
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Catatan Baru' : 'New Note'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+N
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Tugas To-Do Baru' : 'New To-Do'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+T
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Grafik Pengetahuan' : 'Knowledge Graph'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+G
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Catatan Harian Hari Ini' : "Today's Daily Note"}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Alt+D
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Riwayat Versi Catatan' : 'Revision History'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+Shift+H
+                      </kbd>
+                    </div>
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                      <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
+                        {formSettings.language === 'id' ? 'Cetak & Ekspor Catatan' : 'Print & Export Note'}
+                      </span>
+                      <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-black/10 dark:bg-white/10 text-slate-400">
+                        Ctrl+P
+                      </kbd>
                     </div>
                   </div>
                 </div>

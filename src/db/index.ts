@@ -494,6 +494,7 @@ Qalam Note adheres to a strict **Local-First** philosophy: all your notes and at
 Open **Settings (\`Ctrl+,\`) > Synchronisation tab**:
 - **WebDAV**: Connect your private Nextcloud, ownCloud, Synology NAS, or any standard WebDAV server.
 - **Dropbox**: Connect directly using official Dropbox OAuth 2.0 PKCE. Your notes are stored in \`/Apps/QalamNote\`.
+- **Instant Keyboard Shortcut \`Ctrl+S\` (like Joplin)**: Press \`Ctrl+S\` (or \`Cmd+S\` on macOS) anytime to trigger instant bidirectional sync without having to navigate menus!
 
 ---
 
@@ -885,6 +886,7 @@ Qalam Note menerapkan arsitektur **Local-First**: catatan Anda disimpan terlebih
 Buka **Pengaturan (\`Ctrl+,\`) > Tab Sinkronisasi**:
 - **WebDAV**: Kompatibel dengan Nextcloud, ownCloud, Synology NAS, Koofr, atau server WebDAV pribadi. Cukup masukkan URL server, nama pengguna, dan kata sandi.
 - **Dropbox**: Terhubung langsung menggunakan alur otorisasi resmi Dropbox (OAuth 2.0 PKCE) atau token akses pribadi. Catatan Anda disimpan aman di folder \`/Apps/QalamNote\`.
+- **Pintasan Cepat \`Ctrl+S\` (seperti di Joplin)**: Tekan \`Ctrl+S\` (atau \`Cmd+S\` di Mac) kapan saja untuk langsung menyinkronkan catatan aktif Anda ke cloud secara instan tanpa perlu repot membuka menu!
 
 ---
 

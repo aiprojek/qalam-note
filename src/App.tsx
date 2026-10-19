@@ -1415,9 +1415,10 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
         e.preventDefault();
         handleCreateNote(true);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
+        // Joplin Standard: Synchronise (Ctrl+S / Cmd+S)
         e.preventDefault();
-        handleSync();
+        handleSyncRef.current();
       } else if (e.key === 'F10') {
         e.preventDefault();
         setIsSidebarOpen((prev) => !prev);

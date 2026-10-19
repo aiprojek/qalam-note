@@ -584,7 +584,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           <button
             onClick={onSync}
             disabled={isSyncing}
-            title={t.synchronise}
+            title={`${t.synchronise} (Ctrl+S)`}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-800 text-slate-300 transition text-xs border border-transparent hover:border-slate-700"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />

@@ -188,6 +188,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       title: isId ? 'Sinkronkan Sekarang (WebDAV / Dropbox)' : 'Sync Now (WebDAV / Dropbox)',
       category: isId ? 'Sinkronisasi' : 'Sync',
       icon: RefreshCw,
+      shortcut: 'Ctrl+S',
       action: () => { onClose(); onSync(); },
     },
     {

@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.0.2';
-export const APP_BUILD_DATE = '2026-10-14';
+export const APP_VERSION = '1.0.3';
+export const APP_BUILD_DATE = '2026-10-18';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,28 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.0.3',
+    date: '2026-10-18',
+    title: {
+      id: 'Pembaruan v1.0.3: UI Kode Pairing Ringkas 1 Baris, Pintasan Sinkronisasi Joplin (Ctrl+S) & Audit Sinkronisasi',
+      en: 'v1.0.3 Update: Compact 1-Row Pairing UI, Joplin-Style Sync Shortcut (Ctrl+S) & Sync Engine Audit',
+    },
+    highlights: {
+      id: [
+        'UI Kode Pairing Ringkas 1 Baris (Anti-Wrap): Menata tombol Buat Kode Pairing, Salin, Segarkan, dan Terapkan ke dalam layout horizontal 1 baris yang padat dan simetris, menjamin tidak ada pembungkusan baris (wrap) pada layar sempit.',
+        'Pintasan Keyboard Sinkronisasi Joplin (Ctrl+S / Cmd+S): Menjadikan Ctrl+S sebagai pintasan sinkronisasi cepat seperti di Joplin Desktop, mencegah munculnya jendela dialog unduh halaman peramban dan memberikan konfirmasi visual instan.',
+        'Referensi Pintasan Keyboard di Tab Tentang: Menampilkan daftar pintasan penting (Ctrl+S, Ctrl+K, Ctrl+N, Ctrl+T, Ctrl+G, Alt+D, Ctrl+Shift+H, Ctrl+P) secara jelas di menu Setelan.',
+        'Audit Rekonsiliasi Sinkronisasi & Joplin Tombstone: Penyelarasan siklus hidup item catatan dan buku catatan agar penghapusan lokal tidak memunculkan kembali (resurrect) folder dari penyimpanan cloud.',
+      ],
+      en: [
+        'Compact 1-Row Pairing Code UI (Anti-Wrap): Refactored generate, copy, refresh, and apply controls into a single streamlined horizontal row, eliminating awkward button wrapping across compact screens.',
+        'Joplin-Standard Sync Shortcut (Ctrl+S / Cmd+S): Configured Ctrl+S to trigger instant two-way cloud sync matching Joplin desktop, suppressing browser save dialogs and displaying live progress in the status bar.',
+        'Key Shortcuts Reference in About Tab: Added an elegant quick-reference table for essential keyboard shortcuts in Application Settings and Command Palette (Ctrl+K).',
+        'Sync Engine Audit & Tombstone Persistence: Reinforced deletion tombstones to strictly ensure locally deleted notebooks and notes are never resurrected during remote reconciliation.',
+      ],
+    },
+  },
   {
     version: '1.0.2',
     date: '2026-10-14',

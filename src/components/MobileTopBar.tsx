@@ -181,7 +181,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
               type="button"
               onClick={onSync}
               disabled={isSyncing}
-              title={isId ? 'Sinkronisasi Cloud' : 'Sync'}
+              title={isId ? 'Sinkronisasi Cloud (Ctrl+S)' : 'Cloud Sync (Ctrl+S)'}
               className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/80 active:scale-95 transition disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 text-slate-300 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />

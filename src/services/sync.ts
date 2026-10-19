@@ -8,6 +8,8 @@ import {
   cleanFolderForDb,
   cleanTagForDb,
   getDeletedSyncIds,
+  addDeletedSyncId,
+  addDeletedSyncIds,
   removeDeletedSyncId,
 } from '../db';
 import type { Note, Folder, SyncConfig, Tag } from '../types';
@@ -39,13 +41,20 @@ export function parseSyncTimestamp(val: any): number {
   return 0;
 }
 
+/**
+ * Formats timestamps as standard ISO 8601 strings (Joplin standard format)
+ */
+export function formatSyncTimestamp(timeMs?: number): string {
+  if (!timeMs || isNaN(timeMs) || timeMs <= 0) return new Date().toISOString();
+  return new Date(timeMs).toISOString();
+}
 
 export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', folderTitle?: string): string {
   const meta: Record<string, any> = {
     id: item.id,
     type_: type === 'note' ? 1 : 2,
-    created_time: item.created_time,
-    updated_time: item.updated_time,
+    created_time: formatSyncTimestamp(item.created_time),
+    updated_time: formatSyncTimestamp(item.updated_time),
     is_deleted: item.is_deleted ? 1 : 0,
   };
 
@@ -98,8 +107,8 @@ export function serializeTagItem(tag: Tag): string {
   const meta: Record<string, any> = {
     id: tag.id,
     type_: 5,
-    created_time: tag.created_time,
-    updated_time: tag.updated_time,
+    created_time: formatSyncTimestamp(tag.created_time),
+    updated_time: formatSyncTimestamp(tag.updated_time),
   };
   const metaString = Object.entries(meta)
     .map(([k, v]) => `${k}: ${v}`)
@@ -111,7 +120,7 @@ export function serializeTagItem(tag: Tag): string {
  * Robust parser for serialized sync items (compatible with Joplin/Qalam format)
  */
 export function parseSyncItem(rawContent: string): {
-  type: 'note' | 'folder' | 'tag' | 'unknown';
+  type: 'note' | 'folder' | 'tag' | 'notetag' | 'unknown';
   meta: Record<string, string>;
   title: string;
   body: string;
@@ -153,10 +162,11 @@ export function parseSyncItem(rawContent: string): {
   const rawBody = contentLines.join('\n').trim();
 
   const typeNum = parseInt(meta.type_ || '1', 10);
-  let type: 'note' | 'folder' | 'tag' | 'unknown' = 'unknown';
+  let type: 'note' | 'folder' | 'tag' | 'notetag' | 'unknown' = 'unknown';
   if (typeNum === 1) type = 'note';
   else if (typeNum === 2) type = 'folder';
   else if (typeNum === 5) type = 'tag';
+  else if (typeNum === 6) type = 'notetag';
   else type = 'unknown';
 
   if (type === 'note') {
@@ -176,6 +186,8 @@ export function parseSyncItem(rawContent: string): {
     return { type, meta, title: folderTitle, body: '' };
   } else if (type === 'tag') {
     return { type, meta, title: (rawBody || meta.title || 'tag').trim(), body: '' };
+  } else if (type === 'notetag') {
+    return { type, meta, title: '', body: '' };
   } else {
     return { type: 'unknown', meta, title: '', body: '' };
   }
@@ -625,6 +637,7 @@ async function uploadWebDAVFile(url: string, authHeader: string, content: string
  * Delete a file on Dropbox
  */
 async function deleteDropboxFile(token: string, path: string): Promise<void> {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
   try {
     const res = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
       method: 'POST',
@@ -632,14 +645,20 @@ async function deleteDropboxFile(token: string, path: string): Promise<void> {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path: cleanPath }),
     });
-    if (!res.ok && res.status !== 409) {
+    if (!res.ok) {
+      if (res.status === 409) {
+        const errData = await res.json().catch(() => ({}));
+        const summary = errData?.error_summary || '';
+        // If file is already deleted or not found, it is considered successfully gone
+        if (summary.includes('not_found')) {
+          return;
+        }
+      }
       const errData = await res.json().catch(() => ({}));
       const summary = errData?.error_summary || `Dropbox delete error (${res.status})`;
-      if (!summary.includes('not_found')) {
-        console.warn(`Dropbox delete warning for ${path}:`, summary);
-      }
+      console.warn(`Dropbox delete warning for ${cleanPath}:`, summary);
     }
   } catch (err) {
     console.warn('Dropbox delete network error:', err);
@@ -665,6 +684,8 @@ async function deleteWebDAVFile(url: string, authHeader: string): Promise<void> 
   }
 }
 
+let isGlobalSyncActive = false;
+
 /**
  * Main Two-Way Synchronisation Execution (Bi-directional Sync for Dropbox & WebDAV)
  * Implements strict Local-First reconciliation: pending local edits/renames are ALWAYS
@@ -685,9 +706,18 @@ export async function executeSync(
     itemsDownloaded: 0,
   };
 
+  if (isGlobalSyncActive) {
+    status.inProgress = false;
+    status.message = isId ? 'Sinkronisasi lain sedang berjalan...' : 'Another sync is already in progress...';
+    if (onProgress) onProgress(status);
+    return status;
+  }
+  isGlobalSyncActive = true;
+
   if (onProgress) onProgress(status);
 
   if (syncConfig.target === 'disabled') {
+    isGlobalSyncActive = false;
     status.inProgress = false;
     status.message = isId
       ? 'Sinkronisasi dinonaktifkan. Atur WebDAV atau Dropbox di Pengaturan.'
@@ -799,14 +829,24 @@ export async function executeSync(
     if (onProgress) onProgress(status);
     const remoteFiles = await listRemote();
 
-    // Step 2: Fetch all local items from Dexie
+    // Step 2: Fetch all local items from Dexie and index them case-insensitively
     const localNotes = await db.notes.toArray();
     const localFolders = await db.folders.toArray();
     const localTags = await db.tags.toArray();
 
-    const localNotesMap = new Map<string, Note>(localNotes.map((n) => [n.id, n]));
-    const localFoldersMap = new Map<string, Folder>(localFolders.map((f) => [f.id, f]));
-    const localTagsMap = new Map<string, Tag>(localTags.map((t) => [t.id, t]));
+    const localNotesMap = new Map<string, Note>();
+    for (const n of localNotes) {
+      localNotesMap.set(n.id.toLowerCase(), n);
+    }
+    const localFoldersMap = new Map<string, Folder>();
+    for (const f of localFolders) {
+      localFoldersMap.set(f.id.toLowerCase(), f);
+    }
+    const localTagsMap = new Map<string, Tag>();
+    for (const t of localTags) {
+      localTagsMap.set(t.id.toLowerCase(), t);
+      localTagsMap.set(t.title.toLowerCase(), t);
+    }
 
     const remoteIdMap = new Map<string, RemoteSyncFile>();
     for (const rf of remoteFiles) {
@@ -841,9 +881,9 @@ export async function executeSync(
     let uploadedCount = 0;
 
     // =========================================================================
-    // STEP 3: UPLOAD LOCAL ITEMS (LOCAL-FIRST PRESERVATION)
-    // Local modifications on the active device must be preserved and pushed to cloud.
-    // They MUST NEVER be overwritten by older cloud snapshots.
+    // STEP 3: UPLOAD LOCAL ITEMS & RECOGNIZE REMOTE DELETIONS (JOPLIN ARCHITECTURE)
+    // Local modifications on the active device are preserved and pushed to cloud.
+    // Items deleted on remote by another device are soft-deleted locally, never re-uploaded.
     // =========================================================================
 
     // 3.0 Propagate permanently deleted tombstones to cloud
@@ -863,18 +903,20 @@ export async function executeSync(
     // 3a. Upload Local Folders (New, Modified, Renamed, or Soft-Deleted)
     for (const folder of localFolders) {
       const lowerId = folder.id.trim().toLowerCase();
-      const isNewToRemote = !remoteIdMap.has(lowerId);
+      const hasBeenSynced = typeof folder.sync_time === 'number' && folder.sync_time > 0;
       const isLocallyModified =
         folder.sync_status === 'pending' ||
-        !folder.sync_time ||
+        !hasBeenSynced ||
         folder.updated_time > (folder.sync_time || 0);
+      const existsOnRemote = remoteIdMap.has(lowerId);
 
       if (folder.is_deleted) {
         // ALWAYS mark handled & deleted so Step 4 will NEVER resurrect or download this folder!
         handledLocalIds.add(lowerId);
         deletedIdsSet.add(lowerId);
+        await addDeletedSyncId(folder.id);
 
-        if (isLocallyModified || isNewToRemote || remoteIdMap.has(lowerId)) {
+        if (isLocallyModified || existsOnRemote) {
           try {
             await deleteRemote(folder.id);
             await db.folders.update(folder.id, { sync_time: Date.now(), sync_status: 'synced' });
@@ -882,8 +924,8 @@ export async function executeSync(
             console.warn(`Could not delete remote folder ${folder.id}:`, e);
           }
         }
-      } else if (isNewToRemote || isLocallyModified) {
-        // ALWAYS mark handled so Step 4 will NEVER overwrite this local folder with cloud data!
+      } else if (!hasBeenSynced || isLocallyModified) {
+        // Brand new local folder OR modified locally: upload to remote
         handledLocalIds.add(lowerId);
 
         status.message = isId
@@ -901,22 +943,30 @@ export async function executeSync(
           console.warn(`Could not upload folder ${folder.id}:`, errDetail);
           syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
         }
+      } else if (hasBeenSynced && !existsOnRemote && remoteFiles.length > 0) {
+        // JOPLIN PROTOCOL: Previously synced folder was deleted on the remote server by another device!
+        handledLocalIds.add(lowerId);
+        deletedIdsSet.add(lowerId);
+        await addDeletedSyncId(folder.id);
+        await db.folders.update(folder.id, { is_deleted: true, sync_time: Date.now(), sync_status: 'synced' });
       }
     }
 
     // 3b. Upload Local Notes (New, Pending Edits, Modified, or Trashed)
     for (const note of localNotes) {
       const lowerId = note.id.trim().toLowerCase();
-      const isNewToRemote = !remoteIdMap.has(lowerId);
+      const hasBeenSynced = typeof note.sync_time === 'number' && note.sync_time > 0;
       const hasLocalPendingEdits = note.sync_status === 'pending';
-      const isLocallyModified = !note.sync_time || note.updated_time > (note.sync_time || 0);
+      const isLocallyModified = !hasBeenSynced || note.updated_time > (note.sync_time || 0);
+      const existsOnRemote = remoteIdMap.has(lowerId);
 
       if (note.is_deleted) {
         // ALWAYS mark handled & deleted so Step 4 will NEVER download or resurrect this note!
         handledLocalIds.add(lowerId);
         deletedIdsSet.add(lowerId);
+        await addDeletedSyncId(note.id);
 
-        if (hasLocalPendingEdits || isLocallyModified || isNewToRemote || remoteIdMap.has(lowerId)) {
+        if (hasLocalPendingEdits || isLocallyModified || existsOnRemote) {
           try {
             await deleteRemote(note.id);
             await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
@@ -924,28 +974,32 @@ export async function executeSync(
             console.warn(`Could not delete remote note ${note.id}:`, e);
           }
         }
-      } else {
-        const needsUpload = isNewToRemote || hasLocalPendingEdits || isLocallyModified;
-        if (needsUpload) {
-          handledLocalIds.add(lowerId);
+      } else if (!hasBeenSynced || hasLocalPendingEdits || isLocallyModified) {
+        // Brand new local note OR modified locally: upload to remote
+        handledLocalIds.add(lowerId);
 
-          status.message = isId
-            ? `Mengunggah catatan "${(note.title || '').slice(0, 24)}"...`
-            : `Uploading note "${(note.title || '').slice(0, 24)}"...`;
-          if (onProgress) onProgress(status);
+        status.message = isId
+          ? `Mengunggah catatan "${(note.title || '').slice(0, 24)}"...`
+          : `Uploading note "${(note.title || '').slice(0, 24)}"...`;
+        if (onProgress) onProgress(status);
 
-          try {
-            const parentFolder = localFolders.find((f) => f.id === note.folder_id);
-            const content = serializeNoteItem(note, 'note', parentFolder?.title);
-            await uploadRemote(`${note.id}.md`, content);
-            uploadedCount++;
-            await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
-          } catch (e: any) {
-            const errDetail = e?.message || String(e);
-            console.warn(`Could not upload note ${note.id}:`, errDetail);
-            syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
-          }
+        try {
+          const parentFolder = localFolders.find((f) => f.id === note.folder_id);
+          const content = serializeNoteItem(note, 'note', parentFolder?.title);
+          await uploadRemote(`${note.id}.md`, content);
+          uploadedCount++;
+          await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
+        } catch (e: any) {
+          const errDetail = e?.message || String(e);
+          console.warn(`Could not upload note ${note.id}:`, errDetail);
+          syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
         }
+      } else if (hasBeenSynced && !existsOnRemote && remoteFiles.length > 0) {
+        // JOPLIN PROTOCOL: Previously synced note was deleted on the remote server by another device!
+        handledLocalIds.add(lowerId);
+        deletedIdsSet.add(lowerId);
+        await addDeletedSyncId(note.id);
+        await db.notes.update(note.id, { is_deleted: true, sync_time: Date.now(), sync_status: 'synced' });
       }
     }
 
@@ -991,6 +1045,11 @@ export async function executeSync(
 
         // Skip items already handled during upload or marked as deleted tombstones
         if (handledLocalIds.has(lowerId) || deletedIdsSet.has(lowerId)) {
+          if (deletedIdsSet.has(lowerId)) {
+            try {
+              await deleteRemote(itemId);
+            } catch {}
+          }
           continue;
         }
 
@@ -1005,6 +1064,11 @@ export async function executeSync(
 
           const parsedId = String(parsed.meta.id || itemId).trim().toLowerCase();
           if (handledLocalIds.has(parsedId) || deletedIdsSet.has(parsedId)) {
+            if (deletedIdsSet.has(parsedId)) {
+              try {
+                await deleteRemote(itemId);
+              } catch {}
+            }
             continue;
           }
 
@@ -1032,6 +1096,9 @@ export async function executeSync(
           deletedIdsSet.has(lowerId) ||
           deletedIdsSet.has(lowerFolderId)
         ) {
+          try {
+            await deleteRemote(itemId);
+          } catch {}
           continue;
         }
 
@@ -1049,8 +1116,8 @@ export async function executeSync(
 
         // Case-insensitive lookup of localFolder
         const localFolder =
-          localFoldersMap.get(folderId) ||
-          localFoldersMap.get(itemId) ||
+          localFoldersMap.get(lowerFolderId) ||
+          localFoldersMap.get(lowerId) ||
           Array.from(localFoldersMap.values()).find(
             (f) => f.id.toLowerCase() === lowerFolderId || f.id.toLowerCase() === lowerId
           );
@@ -1061,6 +1128,9 @@ export async function executeSync(
           deletedIdsSet.has(lowerFolderId)
         ) {
           // Local folder was deleted on this device or tombstoned: NEVER resurrect from cloud
+          try {
+            await deleteRemote(itemId);
+          } catch {}
           continue;
         }
 
@@ -1068,7 +1138,7 @@ export async function executeSync(
           // Brand new folder created on another device
           if (!remoteFolder.is_deleted) {
             await db.folders.put(remoteFolder);
-            localFoldersMap.set(remoteFolder.id, remoteFolder);
+            localFoldersMap.set(remoteFolder.id.toLowerCase(), remoteFolder);
             downloadedCount++;
           }
         } else {
@@ -1097,6 +1167,7 @@ export async function executeSync(
                 sync_time: Date.now(),
                 sync_status: 'synced',
               });
+              await addDeletedSyncId(localFolder.id);
             } else {
               const safeFolder = cleanFolderForDb({
                 ...localFolder,
@@ -1105,7 +1176,7 @@ export async function executeSync(
                 sync_status: 'synced',
               });
               await db.folders.put(safeFolder);
-              localFoldersMap.set(safeFolder.id, safeFolder);
+              localFoldersMap.set(safeFolder.id.toLowerCase(), safeFolder);
             }
             downloadedCount++;
           }
@@ -1151,6 +1222,11 @@ export async function executeSync(
           deletedIdsSet.has(lowerId) ||
           deletedIdsSet.has(lowerNoteId)
         ) {
+          if (deletedIdsSet.has(lowerId) || deletedIdsSet.has(lowerNoteId)) {
+            try {
+              await deleteRemote(itemId);
+            } catch {}
+          }
           continue;
         }
 
@@ -1167,48 +1243,34 @@ export async function executeSync(
           } catch {}
         }
 
-        const localNote = localNotesMap.get(noteId) || localNotesMap.get(itemId);
+        const localNote =
+          localNotesMap.get(lowerNoteId) ||
+          localNotesMap.get(lowerId) ||
+          Array.from(localNotesMap.values()).find(
+            (n) => n.id.toLowerCase() === lowerNoteId || n.id.toLowerCase() === lowerId
+          );
 
-        // Verify parent notebook
+        // Verify parent notebook strictly following Joplin specification:
+        // Joplin NEVER synthesizes or resurrects a notebook from note parent_id!
         let targetFolderId = String(parsed.meta.parent_id || localNote?.folder_id || '').trim();
         const lowerTarget = targetFolderId.toLowerCase();
         const parentFolder = targetFolderId
-          ? localFoldersMap.get(targetFolderId) ||
+          ? localFoldersMap.get(lowerTarget) ||
             Array.from(localFoldersMap.values()).find((f) => f.id.toLowerCase() === lowerTarget)
           : undefined;
 
-        const isParentDeleted =
-          (parentFolder && parentFolder.is_deleted) ||
+        // Is parent notebook invalid, deleted, tombstoned, or missing?
+        const isParentInvalidOrDeleted =
+          !parentFolder ||
+          parentFolder.is_deleted ||
           deletedIdsSet.has(lowerTarget) ||
           handledLocalIds.has(lowerTarget);
 
-        if (isParentDeleted) {
-          // Parent folder was deleted on this device or tombstoned: NEVER resurrect it!
-          // Reassign active note to an active notebook
+        if (isParentInvalidOrDeleted) {
+          // If the parent notebook does not exist or was deleted, NEVER recreate it.
+          // Assign note to the first active notebook
           const activeFolder = Array.from(localFoldersMap.values()).find((f) => !f.is_deleted);
           targetFolderId = activeFolder?.id || 'folder-welcome-01';
-        } else if (!parentFolder) {
-          // Folder does not exist at all and was never deleted on this device:
-          // Check if inferred title is available
-          const inferredFolderTitle = (parsed.meta.parent_title || parsed.meta.folder_title || '').trim();
-          if (targetFolderId && inferredFolderTitle) {
-            const inheritedFolder = cleanFolderForDb({
-              id: targetFolderId,
-              title: inferredFolderTitle,
-              parent_id: '',
-              created_time: parseSyncTimestamp(parsed.meta.created_time),
-              updated_time: parseSyncTimestamp(parsed.meta.updated_time),
-              sync_time: Date.now(),
-              sync_status: 'synced',
-              is_deleted: false,
-              order: (localFoldersMap.size || 0) + 1,
-            });
-            await db.folders.put(inheritedFolder);
-            localFoldersMap.set(inheritedFolder.id, inheritedFolder);
-          } else {
-            const activeFolder = Array.from(localFoldersMap.values()).find((f) => !f.is_deleted);
-            targetFolderId = activeFolder?.id || 'folder-welcome-01';
-          }
         }
 
         const remoteNote: Note = cleanNoteForDb({
@@ -1365,6 +1427,8 @@ export async function executeSync(
       : `Sync encountered an issue: ${err.message}`;
     if (onProgress) onProgress(status);
     return status;
+  } finally {
+    isGlobalSyncActive = false;
   }
 }
 

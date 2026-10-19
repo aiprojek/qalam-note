@@ -16,6 +16,7 @@ import {
   cleanFolderForDb,
   cleanTagForDb,
   addDeletedSyncId,
+  addDeletedSyncIds,
 } from './db';
 import type {
   Note,
@@ -797,16 +798,29 @@ export default function App() {
         const now = Date.now();
         // 1. Soft-delete folders in IndexedDB so sync can propagate deletion to cloud & record tombstones
         for (const fId of allFolderIdsToDelete) {
-          await db.folders.update(fId, { is_deleted: true, updated_time: now, sync_status: 'pending' });
-          await addDeletedSyncId(fId);
+          const updatedCount = await db.folders.update(fId, { is_deleted: true, updated_time: now, sync_status: 'pending' });
+          if (updatedCount === 0) {
+            // Guarantee row exists with is_deleted: true
+            await db.folders.put({
+              id: fId,
+              title: 'Deleted Notebook',
+              parent_id: '',
+              created_time: now,
+              updated_time: now,
+              sync_status: 'pending',
+              is_deleted: true,
+              order: 0,
+            });
+          }
         }
+        await addDeletedSyncIds(allFolderIdsToDelete);
         setFolders((prev) => prev.filter((f) => !allFolderIdsToDelete.includes(f.id)));
 
         // 2. Soft delete associated notes with pending sync status & record tombstones
         for (const n of notesInside) {
           await db.notes.update(n.id, { is_deleted: true, updated_time: now, sync_status: 'pending' });
-          await addDeletedSyncId(n.id);
         }
+        await addDeletedSyncIds(notesInside.map((n) => n.id));
         setNotes((prev) =>
           prev.map((n) =>
             allFolderIdsToDelete.includes(n.folder_id)
@@ -825,7 +839,7 @@ export default function App() {
             setSelectedSpecialView('all');
           }
         }
-        requestAutoSync(4000);
+        requestAutoSync(3000);
       },
     });
   };

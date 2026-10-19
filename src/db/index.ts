@@ -98,19 +98,32 @@ export async function getDeletedSyncIds(): Promise<string[]> {
   }
 }
 
-export async function addDeletedSyncId(id: string): Promise<void> {
-  if (!id) return;
+export async function addDeletedSyncIds(ids: string[]): Promise<void> {
+  const cleanList = ids.map((id) => (id || '').trim()).filter(Boolean);
+  if (cleanList.length === 0) return;
   try {
     const current = await getDeletedSyncIds();
-    const cleanId = id.trim();
-    if (!current.some((x) => x.toLowerCase() === cleanId.toLowerCase())) {
-      current.push(cleanId);
-      const bounded = current.length > 500 ? current.slice(-500) : current;
+    const existingSet = new Set(current.map((x) => x.toLowerCase()));
+    let changed = false;
+    for (const id of cleanList) {
+      if (!existingSet.has(id.toLowerCase())) {
+        current.push(id);
+        existingSet.add(id.toLowerCase());
+        changed = true;
+      }
+    }
+    if (changed) {
+      const bounded = current.length > 1000 ? current.slice(-1000) : current;
       await db.settings.put({ key: 'sync_tombstones', value: bounded });
     }
   } catch (err) {
-    console.warn('Failed to add sync tombstone:', err);
+    console.warn('Failed to add sync tombstones:', err);
   }
+}
+
+export async function addDeletedSyncId(id: string): Promise<void> {
+  if (!id) return;
+  return addDeletedSyncIds([id]);
 }
 
 export async function removeDeletedSyncId(id: string): Promise<void> {
@@ -1313,13 +1326,15 @@ export async function alignAndDeduplicatePresetNotes(
     await db.folders.put({ ...welcomeFolder, sync_status: 'synced' });
   }
 
-  // Delete legacy pre-folders
+  // Delete legacy pre-folders and register tombstones so they are purged from cloud and never resurrected
+  await addDeletedSyncIds(['folder-personal-02', 'folder-work-03']);
   await db.folders.delete('folder-personal-02');
   await db.folders.delete('folder-work-03');
 
   // Also clean up any legacy empty folders matching 'Pribadi'/'Personal' or 'Proyek & Tugas'/'Projects & Tasks'
   for (const f of existingFolders) {
     if (f.id === 'folder-personal-02' || f.id === 'folder-work-03') {
+      await addDeletedSyncId(f.id);
       await db.folders.delete(f.id);
     } else if (
       /^(?:personal|pribadi)$/i.test(f.title.trim()) ||
@@ -1327,6 +1342,7 @@ export async function alignAndDeduplicatePresetNotes(
     ) {
       const count = await db.notes.where('folder_id').equals(f.id).count();
       if (count === 0) {
+        await addDeletedSyncId(f.id);
         await db.folders.delete(f.id);
       }
     }

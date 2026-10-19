@@ -1373,18 +1373,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
 
                       {pairingCodeOutput ? (
-                        <div className="space-y-2.5">
-                          <div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               readOnly
                               value={pairingCodeOutput}
-                              className={`w-full text-[11px] font-mono px-3 py-2 rounded-lg border outline-none select-all truncate ${
+                              className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none select-all truncate ${
                                 isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
                               }`}
                             />
-                          </div>
-                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => {
@@ -1392,17 +1390,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 setPairingCodeCopied(true);
                                 setTimeout(() => setPairingCodeCopied(false), 2000);
                               }}
-                              className="flex-1 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95"
+                              title={formSettings.language === 'id' ? 'Salin Kode Pairing' : 'Copy Pairing Code'}
+                              className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 ${
+                                pairingCodeCopied
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                              }`}
                             >
                               {pairingCodeCopied ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-300" />
-                                  <span>{t.pairing_copied}</span>
+                                  <Check className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                                  <span className="whitespace-nowrap">{formSettings.language === 'id' ? 'Tersalin' : 'Copied'}</span>
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>{t.pairing_copy_btn}</span>
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="whitespace-nowrap">{formSettings.language === 'id' ? 'Salin' : 'Copy'}</span>
                                 </>
                               )}
                             </button>
@@ -1410,17 +1413,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               type="button"
                               onClick={() => setPairingCodeOutput('')}
                               title={formSettings.language === 'id' ? 'Tutup / Reset' : 'Close / Reset'}
-                              className={`px-3 py-2 rounded-lg text-xs font-medium border shrink-0 transition ${
-                                isLight ? 'border-slate-300 hover:bg-slate-100 text-slate-600' : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                              className={`p-1.5 rounded-lg text-xs font-medium border shrink-0 transition ${
+                                isLight
+                                  ? 'border-slate-300 hover:bg-slate-100 text-slate-500 hover:text-slate-800'
+                                  : 'border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
                               }`}
                             >
-                              {formSettings.language === 'id' ? 'Tutup' : 'Close'}
+                              <X className="w-3.5 h-3.5 shrink-0" />
                             </button>
                           </div>
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium leading-tight">
                             {formSettings.language === 'id'
-                              ? 'Kode siap disalin! Buka Qalam Note di perangkat kedua Anda lalu tempel di kolom "Sambungkan dari Perangkat Lain".'
-                              : 'Ready! Open Qalam Note on your second device and paste this code under "Connect via Pairing Code".'}
+                              ? '✓ Kode berhasil dibuat dan siap disalin ke perangkat lain.'
+                              : '✓ Pairing code generated and ready to copy to other device.'}
                           </p>
                         </div>
                       ) : (
@@ -1428,14 +1433,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={handleGeneratePairing}
                           disabled={formSettings.sync.target === 'disabled'}
-                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
                             isLight
                               ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
                               : 'bg-blue-600 hover:bg-blue-500 text-white'
                           }`}
                         >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>{t.pairing_generate_btn}</span>
+                          <Share2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="whitespace-nowrap">{t.pairing_generate_btn}</span>
                         </button>
                       )}
                     </div>
@@ -1470,14 +1475,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={handleApplyPairing}
                           disabled={!pairingInputCode.trim()}
-                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                          className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
                             isLight
                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-2xs'
                               : 'bg-purple-600 hover:bg-purple-500 text-white'
                           }`}
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{t.pairing_import_btn}</span>
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="whitespace-nowrap">{t.pairing_import_btn}</span>
                         </button>
                       </div>
                     </div>

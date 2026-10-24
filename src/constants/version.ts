@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.0.3';
-export const APP_BUILD_DATE = '2026-10-18';
+export const APP_VERSION = '1.0.4';
+export const APP_BUILD_DATE = '2026-10-23';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -24,22 +24,60 @@ export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
   {
+    version: '1.0.4',
+    date: '2026-10-23',
+    title: {
+      id: 'Pembaruan v1.0.4: Tombol Salin Markdown Sosmed, Sinkronisasi GAS, Split-Screen, OCR & Fitur Unggulan Rilis GitHub',
+      en: 'v1.0.4 Milestone Release: Social Markdown Copy, GAS Sync, Dual Editor, Client OCR & Pre-Push Audit',
+    },
+    highlights: {
+      id: [
+        'Perbaikan Sinkronisasi yang Menyertakan Google Apps Script (GAS): Konfigurasi URL skrip webapp dan nama penulis GAS kini otomatis disertakan dalam kode pairing cepat. Metadata status publikasi catatan (published_info) juga terserialisasi dan terbawa utuh saat sinkronisasi cloud antar-perangkat, sehingga pengguna tidak perlu menginput ulang skrip di perangkat lain dan perubahan catatan terpublikasi langsung tersinkronkan otomatis.',
+        'Dukungan Daftar Bertingkat (Multi-Level Ordered & Unordered List): Penambahan fitur indentasi bertingkat untuk daftar poin (bulleted) dan daftar bernomor (numbered) baik di editor WYSIWYG maupun Markdown dengan tombol toolbar serta pintasan keyboard Tab / Shift+Tab dan Ctrl+] / Ctrl+[, menciptakan tata letak outline dokumen yang rapi dan terstruktur.',
+        'Tombol Kode Pairing Kompak (1 Baris Rapi Anti-Wrap): Menata tombol Buat Kode Pairing, Salin, Segarkan, dan Terapkan ke dalam layout horizontal 1 baris yang padat dan simetris, menjamin tidak ada pembungkusan baris (wrap) pada layar sempit maupun perangkat ponsel.',
+        'Pintasan Keyboard Sinkronisasi Cepat (Ctrl+S / Cmd+S): Menjadikan Ctrl+S sebagai pintasan sinkronisasi dua arah instan, mencegah munculnya jendela dialog unduh halaman peramban dan memberikan konfirmasi visual langsung di bilah status.',
+        'Jurnal Harian Otomatis (Daily Notes & Mini Calendar): Pembuatan catatan jurnal harian instan dengan pintasan Alt+D dan navigasi riwayat harian melalui modal kalender mini interaktif.',
+        'Pencarian Lanjutan Beroperator (Advanced Search Syntax): Dukungan operator pencarian fleksibel seperti tag:, notebook:, is:todo, is:completed, is:starred, is:pinned, dan type: langsung dari kotak pencarian dan Command Palette (Ctrl+K).',
+        'Layar Belah Multi-Catatan (Side-by-Side Dual Editor): Mode editor ganda berdampingan (DualNoteEditor) yang memungkinkan membuka dan menyunting dua catatan yang berbeda secara bersamaan untuk membandingkan referensi atau menerjemahkan catatan.',
+        'Flashcard & Pengulangan Berjarak (Spaced Repetition / SRS): Sistem kartu belajar interaktif terintegrasi berbasis algoritma pengulangan bertahap (SuperMemo SM-2) langsung dari materi catatan untuk akselerasi belajar mandiri.',
+        'Ekstraksi Teks Gambar Lokal (Client-Side OCR via Tesseract.js): Pindai dan ekstrak teks dari gambar atau dokumen foto langsung di peramban secara 100% lokal dan offline tanpa mengirim gambar ke server luar demi privasi mutlak.',
+        'Tombol Salin Seluruh Catatan dalam Format Markdown untuk Media Sosial: Menambahkan tombol salin instan di bilah alat editor desktop, mobile ribbon, top bar seluler, dan menu opsi catatan. Catatan yang dibuat menggunakan editor Teks Kaya (WYSIWYG) otomatis dikonversi ke format Markdown bersih berawalkan judul (# Judul) sehingga langsung terformat rapi saat ditempel di WhatsApp, Telegram, Discord, X, LinkedIn, Facebook.',
+        'Tombol Sinkronisasi Kompak (Anti-Wrap): Label teks tombol sinkronisasi saat aktif dibuat ringkas ("Sinkron...") dengan perlindungan anti-wrap (whitespace-nowrap) dan penyembunyian sementara label pintasan keyboard saat proses sinkronisasi berlangsung agar tombol tidak pernah terpecah menjadi dua baris.',
+        'Indikator Umpan Balik Visual Cepat & Notifikasi Toast: Tombol salin menyajikan animasi umpan balik centang hijau "Tersalin!" serta notifikasi pop-up toast non-intrusif di layar.',
+      ],
+      en: [
+        'Sync Engine Enhanced with Google Apps Script (GAS) Persistence: Pairing codes now carry GAS Web App URLs and author credentials, and note publication metadata (published_info) is fully serialized and synchronized across devices, eliminating the need to re-enter scripts on secondary devices and keeping web notes automatically up-to-date.',
+        'Multi-Level Ordered & Unordered Lists: Full hierarchical indentation support for bulleted and numbered lists in both WYSIWYG and Markdown modes via toolbar buttons and Tab / Shift+Tab or Ctrl+] / Ctrl+[ shortcuts, enabling organized nested outlines.',
+        'Compact 1-Row Pairing Code UI (Anti-Wrap): Unified generate, copy, refresh, and apply controls into a single streamlined horizontal row, eliminating line breaks across tight screens and mobile viewports.',
+        'Fast Cloud Sync Keyboard Shortcut (Ctrl+S / Cmd+S): Pressing Ctrl+S instantly triggers two-way cloud sync, suppressing native browser save dialogs with immediate visual feedback in the status bar.',
+        'Automated Daily Notes & Mini Calendar: Instant daily journaling with Alt+D shortcut, structured date-based notes, and an interactive mini calendar modal for historical navigation.',
+        'Advanced Search Syntax & Query Operators: Powerful filtering with operators like tag:, notebook:, is:todo, is:completed, is:starred, is:pinned, and type: available in search bar and Command Palette (Ctrl+K).',
+        'Side-by-Side Dual Note Editor (Split Screen): Multi-tasking split view allowing simultaneous editing and cross-referencing of two independent notes on a single screen.',
+        'Interactive Flashcards & Spaced Repetition (SRS): Built-in study card system powered by the SM-2 spaced repetition algorithm directly within your knowledge base.',
+        'Client-Side Optical Character Recognition (OCR): Offline, private image-to-text extraction powered by Tesseract.js directly inside your browser without uploading data to external servers.',
+        'One-Click Copy Entire Note as Markdown for Social Media: Dedicated instant copy button across desktop editor toolbar, mobile ribbon, mobile top bar, and note dropdown menu. Automatically converts rich text (WYSIWYG) to clean Markdown prefixed with # Title, ensuring clean formatting when pasted into WhatsApp, Telegram, Discord, X, and LinkedIn.',
+        'Compact Anti-Wrap Sync Button: Streamlined active sync text label ("Syncing...") with strict whitespace-nowrap guarantees and temporary shortcut suppression during sync, preventing button text from wrapping into two lines across sidebars and toolbars.',
+        'Instant Visual Confirmation & Toast: Copy action triggers a snappy green checkmark "Copied!" feedback badge alongside a sleek floating toast notification.',
+      ],
+    },
+  },
+  {
     version: '1.0.3',
     date: '2026-10-18',
     title: {
-      id: 'Pembaruan v1.0.3: UI Kode Pairing Ringkas 1 Baris, Pintasan Sinkronisasi Joplin (Ctrl+S) & Audit Sinkronisasi',
-      en: 'v1.0.3 Update: Compact 1-Row Pairing UI, Joplin-Style Sync Shortcut (Ctrl+S) & Sync Engine Audit',
+      id: 'Pembaruan v1.0.3: UI Kode Pairing Ringkas 1 Baris, Pintasan Sinkronisasi Cepat (Ctrl+S) & Audit Sinkronisasi',
+      en: 'v1.0.3 Update: Compact 1-Row Pairing UI, Fast Sync Shortcut (Ctrl+S) & Sync Engine Audit',
     },
     highlights: {
       id: [
         'UI Kode Pairing Ringkas 1 Baris (Anti-Wrap): Menata tombol Buat Kode Pairing, Salin, Segarkan, dan Terapkan ke dalam layout horizontal 1 baris yang padat dan simetris, menjamin tidak ada pembungkusan baris (wrap) pada layar sempit.',
-        'Pintasan Keyboard Sinkronisasi Joplin (Ctrl+S / Cmd+S): Menjadikan Ctrl+S sebagai pintasan sinkronisasi cepat seperti di Joplin Desktop, mencegah munculnya jendela dialog unduh halaman peramban dan memberikan konfirmasi visual instan.',
+        'Pintasan Keyboard Sinkronisasi Cepat (Ctrl+S / Cmd+S): Menjadikan Ctrl+S sebagai pintasan sinkronisasi dua arah instan, mencegah munculnya jendela dialog unduh halaman peramban dan memberikan konfirmasi visual langsung di bilah status.',
         'Referensi Pintasan Keyboard di Tab Tentang: Menampilkan daftar pintasan penting (Ctrl+S, Ctrl+K, Ctrl+N, Ctrl+T, Ctrl+G, Alt+D, Ctrl+Shift+H, Ctrl+P) secara jelas di menu Setelan.',
-        'Audit Rekonsiliasi Sinkronisasi & Joplin Tombstone: Penyelarasan siklus hidup item catatan dan buku catatan agar penghapusan lokal tidak memunculkan kembali (resurrect) folder dari penyimpanan cloud.',
+        'Audit Rekonsiliasi Sinkronisasi & Penanganan Penghapusan: Penyelarasan siklus hidup item catatan dan buku catatan agar penghapusan lokal tidak memunculkan kembali (resurrect) folder dari penyimpanan cloud.',
       ],
       en: [
         'Compact 1-Row Pairing Code UI (Anti-Wrap): Refactored generate, copy, refresh, and apply controls into a single streamlined horizontal row, eliminating awkward button wrapping across compact screens.',
-        'Joplin-Standard Sync Shortcut (Ctrl+S / Cmd+S): Configured Ctrl+S to trigger instant two-way cloud sync matching Joplin desktop, suppressing browser save dialogs and displaying live progress in the status bar.',
+        'Fast Sync Shortcut (Ctrl+S / Cmd+S): Configured Ctrl+S to trigger instant two-way cloud sync, suppressing browser save dialogs and displaying live progress in the status bar.',
         'Key Shortcuts Reference in About Tab: Added an elegant quick-reference table for essential keyboard shortcuts in Application Settings and Command Palette (Ctrl+K).',
         'Sync Engine Audit & Tombstone Persistence: Reinforced deletion tombstones to strictly ensure locally deleted notebooks and notes are never resurrected during remote reconciliation.',
       ],
@@ -112,7 +150,7 @@ export const APP_CHANGELOG: ChangelogItem[] = [
         'Editor Teks Dua Arah (Bidi LTR & RTL): Format penulisan aksara Arab, Ibrani, dan Latin yang mulus dengan tombol arah per blok, rendering Markdown, matematika KaTeX ($E=mc^2$), dan diagram alur Mermaid.js.',
         'Privasi & Enkripsi End-to-End (E2EE): Proteksi data sisi klien dengan cipher Web Crypto AES-GCM 256-bit dan derivasi kunci PBKDF2 100.000 iterasi.',
         'Sinkronisasi Multi-Layanan & Pairing Code: Hubungkan WebDAV (Nextcloud, NAS), Dropbox (OAuth 2.0 PKCE & Token), serta sinkronisasi instan antar-perangkat via Kode Pairing.',
-        'Publikasi Web Tanpa Server: Terbitkan catatan ke web layaknya Simplenote menggunakan Google Apps Script (GAS) dan Google Sheets dengan URL ringkas terenkripsi.',
+        'Publikasi Web Tanpa Server: Terbitkan catatan ke web secara instan menggunakan Google Apps Script (GAS) dan Google Sheets dengan URL ringkas terenkripsi.',
         'Fitur Kreatif & Pengorganisasian: Perekam memo suara, kanvas sketsa coretan tangan, riwayat versi otomatis (Time Machine Snapshot), tag bersarang, serta visualisasi Grafik Pengetahuan 2D (WikiLinks [[...]]).',
         'Ekspor Multi-Format Komprehensif: Unduh catatan dalam format Markdown (.md), HTML, Microsoft Word (.docx), PDF berformat rapi, dan arsip ZIP.',
         '100% Siap Luring (PWA Offline-First): Dukungan Service Worker caching penuh dan kemampuan pasang ke layar utama desktop dan ponsel.',
@@ -123,7 +161,7 @@ export const APP_CHANGELOG: ChangelogItem[] = [
         'Bidirectional (Bidi LTR & RTL) Editor: Seamless writing for Arabic, Hebrew, and Latin scripts with block-level direction controls, Markdown rendering, KaTeX math ($E=mc^2$), and Mermaid.js diagrams.',
         'Privacy & End-to-End Encryption (E2EE): Robust client-side protection powered by Web Crypto AES-GCM 256-bit and PBKDF2 (100,000 iterations).',
         'Multi-Cloud Sync & Device Pairing Code: Connect WebDAV (Nextcloud, NAS), Dropbox (OAuth 2.0 PKCE & Token), plus instant cross-device pairing codes.',
-        'Serverless Web Publishing: Publish notes to the web like Simplenote using Google Apps Script (GAS) and Google Sheets with compact encrypted links.',
+        'Serverless Web Publishing: Publish notes directly to the web using Google Apps Script (GAS) and Google Sheets with compact encrypted links.',
         'Creative & Organisation Tools: Audio voice memos, freehand sketch canvas, automatic version history (Time Machine Snapshot), nested tags, and 2D Knowledge Graph (WikiLinks [[...]]).',
         'Comprehensive Multi-Format Export: Export notes to Markdown (.md), HTML, Microsoft Word (.docx), clean printable PDF, and folder ZIP archives.',
         '100% Offline-Ready (PWA Offline-First): Full Service Worker caching and installability to desktop and mobile home screens.',

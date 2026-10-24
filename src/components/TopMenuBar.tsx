@@ -23,6 +23,11 @@ import {
   Calendar,
   Sparkles,
   FileDown,
+  Columns2,
+  ScanText,
+  GraduationCap,
+  CalendarDays,
+  Copy,
 } from 'lucide-react';
 
 import type { AppLanguage } from '../types';
@@ -54,6 +59,12 @@ interface TopMenuBarProps {
   onOpenGraphView?: () => void;
   onOpenTemplates?: () => void;
   onOpenExportModal?: () => void;
+  onToggleSplitScreen?: () => void;
+  isSplitScreen?: boolean;
+  onOpenOCR?: () => void;
+  onOpenSRS?: () => void;
+  onOpenDailyCalendar?: () => void;
+  onCopyMarkdown?: () => void;
   language?: AppLanguage;
   theme?: string;
 }
@@ -84,6 +95,12 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onOpenGraphView,
   onOpenTemplates,
   onOpenExportModal,
+  onCopyMarkdown,
+  onToggleSplitScreen,
+  isSplitScreen = false,
+  onOpenOCR,
+  onOpenSRS,
+  onOpenDailyCalendar,
   language = 'id',
   theme = 'qalam-dark',
 }) => {
@@ -184,6 +201,20 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                       <span>{language === 'id' ? 'Ekspor Catatan...' : 'Export Note...'}</span>
                     </div>
                     <span className="text-[10px] text-slate-400">Ctrl+P</span>
+                  </button>
+                )}
+                {onCopyMarkdown && (
+                  <button
+                    onClick={() => {
+                      onCopyMarkdown();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center justify-between text-cyan-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{language === 'id' ? 'Salin Catatan (Markdown)' : 'Copy Note (Markdown)'}</span>
+                    </div>
                   </button>
                 )}
                 <div className="border-t border-slate-700 my-1" />
@@ -299,6 +330,24 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                     </button>
                   </>
                 )}
+                {onToggleSplitScreen && (
+                  <>
+                    <div className="border-t border-slate-700 my-1" />
+                    <button
+                      onClick={() => {
+                        onToggleSplitScreen();
+                        setActiveMenu(null);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-purple-600 hover:text-white flex items-center justify-between text-purple-300"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Columns2 className="w-3.5 h-3.5 text-purple-400" />
+                        <span>{language === 'id' ? 'Layar Ganda Multi-Catatan' : 'Dual Note Split View'}</span>
+                      </div>
+                      {isSplitScreen && <span className="text-purple-400 font-bold">✓</span>}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -362,6 +411,42 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                       <span>{language === 'id' ? 'Grafik Pengetahuan' : 'Knowledge Graph'}</span>
                     </div>
                     <span className="text-[10px] text-slate-400 font-mono">Ctrl+G</span>
+                  </button>
+                )}
+                {onOpenOCR && (
+                  <button
+                    onClick={() => {
+                      onOpenOCR();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center gap-2 text-cyan-300"
+                  >
+                    <ScanText className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{language === 'id' ? 'Pindai Teks Gambar (OCR Lokal)' : 'Scan Image Text (Local OCR)'}</span>
+                  </button>
+                )}
+                {onOpenSRS && (
+                  <button
+                    onClick={() => {
+                      onOpenSRS();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center gap-2 text-emerald-300"
+                  >
+                    <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{language === 'id' ? 'Latihan Flashcard (SRS)' : 'Review Flashcards (SRS)'}</span>
+                  </button>
+                )}
+                {onOpenDailyCalendar && (
+                  <button
+                    onClick={() => {
+                      onOpenDailyCalendar();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center gap-2 text-blue-300"
+                  >
+                    <CalendarDays className="w-3.5 h-3.5 text-blue-400" />
+                    <span>{language === 'id' ? 'Kalender Jurnal Harian' : 'Daily Notes Calendar'}</span>
                   </button>
                 )}
                 <div className="border-t border-slate-700 my-1" />
@@ -585,10 +670,12 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             onClick={onSync}
             disabled={isSyncing}
             title={`${t.synchronise} (Ctrl+S)`}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-800 text-slate-300 transition text-xs border border-transparent hover:border-slate-700"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-800 text-slate-300 transition text-xs border border-transparent hover:border-slate-700 whitespace-nowrap shrink-0 select-none"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />
-            <span>{isSyncing ? t.syncing : t.synchronise}</span>
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />
+            <span className="whitespace-nowrap font-medium">
+              {isSyncing ? (t.syncing || (language === 'id' ? 'Sinkron...' : 'Syncing...')) : t.synchronise}
+            </span>
           </button>
         </div>
       </div>

@@ -142,3 +142,18 @@ export interface NoteTemplate {
   icon?: string;
   category?: 'journal' | 'meeting' | 'study' | 'project' | 'general';
 }
+
+export type SRSRating = 'again' | 'hard' | 'good' | 'easy';
+
+export interface SRSCard {
+  id: string;
+  note_id: string;
+  note_title?: string;
+  front: string;
+  back: string;
+  repetition: number;
+  interval: number; // in days
+  ease_factor: number; // SM-2 ease factor (default 2.5)
+  due_date: number; // timestamp ms
+  last_reviewed?: number;
+}

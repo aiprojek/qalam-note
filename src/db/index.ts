@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Note, Folder, Tag, Attachment, AppSettings, AppLanguage, NoteRevision } from '../types';
+import type { Note, Folder, Tag, Attachment, AppSettings, AppLanguage, NoteRevision, SRSCard } from '../types';
 
 export class QalamDB extends Dexie {
   notes!: Table<Note, string>;
@@ -9,6 +9,7 @@ export class QalamDB extends Dexie {
   settings!: Table<{ key: string; value: any }, string>;
   sync_logs!: Table<{ id: string; timestamp: number; type: string; message: string; details?: any }, string>;
   revisions!: Table<NoteRevision, string>;
+  srs_cards!: Table<SRSCard, string>;
 
   constructor() {
     super('QalamNotesDB');
@@ -25,6 +26,9 @@ export class QalamDB extends Dexie {
     });
     this.version(3).stores({
       attachments: 'id, name, note_id, created_time',
+    });
+    this.version(4).stores({
+      srs_cards: 'id, note_id, due_date, interval',
     });
   }
 }
@@ -364,6 +368,14 @@ export function sanitizeJoplinText(text: string): string {
     .replace(/Joplin\s*Note/gi, 'Qalam Note')
     .replace(/Joplin's/gi, "Qalam Note's")
     .replace(/joplin's/gi, "qalam's")
+    .replace(/\s*\(seperti di Joplin\)/gi, '')
+    .replace(/\s*\(like Joplin\)/gi, '')
+    .replace(/\s*\(Gaya Simplenote\)/gi, '')
+    .replace(/\s*\(Simplenote Style\)/gi, '')
+    .replace(/layaknya Simplenote/gi, 'secara instan')
+    .replace(/like Simplenote/gi, 'directly')
+    .replace(/mirip Simplenote/gi, 'secara instan')
+    .replace(/Simplenote/gi, 'Qalam Web')
     .replace(/Joplin/gi, 'Qalam Note')
     .replace(/joplin/g, 'qalam')
     .replace(/JOPLIN/g, 'QALAM NOTE');
@@ -451,7 +463,7 @@ export function getSampleNotes(lang: AppLanguage = 'id'): Note[] {
 ### 📚 Getting Started Guides (Click Links to Open):
 1. [[☁️ Cloud Sync & Cross-Device Pairing Code]] — Connect WebDAV/Dropbox & pair a 2nd phone with 1 click.
 2. [[🔐 End-to-End Encryption (E2EE) & Vault Security]] — Protect confidential notes with AES-GCM 256-bit encryption.
-3. [[🌐 Publish Notes to the Web via Google Sheets (GAS)]] — Publish articles to the web like Simplenote using free Google Sheets.
+3. [[🌐 Publish Notes to the Web via Google Sheets (GAS)]] — Publish articles to the web directly using free Google Sheets.
 4. [[📊 Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL]] — Interactive tables, formulas, Mermaid diagrams, and Arabic script.
 5. [[🎙️ Voice Memos, Freehand Sketches & Version History]] — Audio recording, drawing canvas, templates & time machine.
 6. [[📜 GNU GPL v3 License, Privacy & Data Sovereignty]] — FOSS software freedoms, zero-telemetry & local-first pledge.
@@ -494,7 +506,7 @@ Qalam Note adheres to a strict **Local-First** philosophy: all your notes and at
 Open **Settings (\`Ctrl+,\`) > Synchronisation tab**:
 - **WebDAV**: Connect your private Nextcloud, ownCloud, Synology NAS, or any standard WebDAV server.
 - **Dropbox**: Connect directly using official Dropbox OAuth 2.0 PKCE. Your notes are stored in \`/Apps/QalamNote\`.
-- **Instant Keyboard Shortcut \`Ctrl+S\` (like Joplin)**: Press \`Ctrl+S\` (or \`Cmd+S\` on macOS) anytime to trigger instant bidirectional sync without having to navigate menus!
+- **Instant Keyboard Shortcut \`Ctrl+S\`**: Press \`Ctrl+S\` (or \`Cmd+S\` on macOS) anytime to trigger instant bidirectional sync without having to navigate menus!
 
 ---
 
@@ -569,7 +581,7 @@ Your privacy is our highest priority. Qalam Note provides client-side **AES-GCM 
         id: 'note-04-publish-gas',
         folder_id: 'folder-welcome-01',
         title: '🌐 Publish Notes to the Web via Google Sheets (GAS)',
-        body: `# Publishing Notes to the Web (Simplenote Style)
+        body: `# Publishing Notes to the Web
 
 Want to share an article, technical guide, meeting minutes, or public documentation without expensive hosting servers?
 
@@ -843,7 +855,7 @@ You can export this note or your entire library anytime:
 ### 📚 Panduan Lengkap Memulai (Klik Tautan untuk Membuka):
 1. [[☁️ Sinkronisasi Cloud & Kode Pairing Antar-Perangkat]] — Hubungkan WebDAV/Dropbox & sambungkan HP kedua dengan 1 klik.
 2. [[🔐 Enkripsi End-to-End (E2EE) & Keamanan Brankas]] — Amankan catatan rahasia dengan AES-GCM 256-bit berbasis Web Crypto.
-3. [[🌐 Publikasi Catatan ke Web via Google Sheets (GAS)]] — Terbitkan artikel ke web gratis layaknya Simplenote.
+3. [[🌐 Publikasi Catatan ke Web via Google Sheets (GAS)]] — Terbitkan artikel ke web gratis secara instan.
 4. [[📊 Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL]] — Contoh tabel interaktif, matematika, Mermaid, dan Arab.
 5. [[🎙️ Memo Suara, Sketsa Gambar & Riwayat Versi]] — Panduan audio memo, kanvas coretan, templat & time machine.
 6. [[📜 Lisensi GNU GPL v3, Privasi & Kedaulatan Data]] — Panduan lisensi FOSS, 4 kebebasan software & zero-telemetry.
@@ -886,7 +898,7 @@ Qalam Note menerapkan arsitektur **Local-First**: catatan Anda disimpan terlebih
 Buka **Pengaturan (\`Ctrl+,\`) > Tab Sinkronisasi**:
 - **WebDAV**: Kompatibel dengan Nextcloud, ownCloud, Synology NAS, Koofr, atau server WebDAV pribadi. Cukup masukkan URL server, nama pengguna, dan kata sandi.
 - **Dropbox**: Terhubung langsung menggunakan alur otorisasi resmi Dropbox (OAuth 2.0 PKCE) atau token akses pribadi. Catatan Anda disimpan aman di folder \`/Apps/QalamNote\`.
-- **Pintasan Cepat \`Ctrl+S\` (seperti di Joplin)**: Tekan \`Ctrl+S\` (atau \`Cmd+S\` di Mac) kapan saja untuk langsung menyinkronkan catatan aktif Anda ke cloud secara instan tanpa perlu repot membuka menu!
+- **Pintasan Cepat \`Ctrl+S\`**: Tekan \`Ctrl+S\` (atau \`Cmd+S\` di Mac) kapan saja untuk langsung menyinkronkan catatan aktif Anda ke cloud secara instan tanpa perlu repot membuka menu!
 
 ---
 
@@ -961,7 +973,7 @@ Privasi Anda adalah prioritas utama kami. Qalam Note menghadirkan enkripsi sisi-
       id: 'note-04-publish-gas',
       folder_id: 'folder-welcome-01',
       title: '🌐 Publikasi Catatan ke Web via Google Sheets (GAS)',
-      body: `# Publikasi Catatan ke Web (Gaya Simplenote)
+      body: `# Publikasi Catatan ke Web
 
 Ingin membagikan artikel, materi presentasi, risalah rapat, atau dokumentasi publik kepada rekan atau audiens tanpa biaya sewa server?
 
@@ -1459,7 +1471,7 @@ export async function initDatabase(): Promise<void> {
       await db.settings.put({ key: 'db_seeded_v1', value: true });
     }
 
-    // Sanitize any residual "Joplin" occurrences in general user notes
+    // Sanitize any residual third-party app occurrences in user notes
     const allNotes = await db.notes.toArray();
     for (const note of allNotes) {
       let needsUpdate = false;
@@ -1467,15 +1479,15 @@ export async function initDatabase(): Promise<void> {
       let newBody = note.body;
       let clearBodyHtml = false;
 
-      if (/joplin/i.test(note.title)) {
+      if (/joplin|simplenote/i.test(note.title)) {
         newTitle = sanitizeJoplinText(note.title);
         needsUpdate = true;
       }
-      if (/joplin/i.test(note.body)) {
+      if (/joplin|simplenote/i.test(note.body)) {
         newBody = sanitizeJoplinText(note.body);
         needsUpdate = true;
       }
-      if (note.body_html && /joplin/i.test(note.body_html)) {
+      if (note.body_html && /joplin|simplenote/i.test(note.body_html)) {
         clearBodyHtml = true;
         needsUpdate = true;
       }

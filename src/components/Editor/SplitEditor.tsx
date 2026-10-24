@@ -50,10 +50,11 @@ export const SplitEditor: React.FC<SplitEditorProps> = ({
       const index = checkboxes.indexOf(target as HTMLInputElement);
       if (index >= 0) {
         let matchIndex = -1;
-        const updated = content.replace(/^(-\s*\[[ x]\])/gim, (fullMatch) => {
+        const updated = content.replace(/^([ \t]*-\s*\[[ xX]\])/gim, (fullMatch) => {
           matchIndex++;
           if (matchIndex === index) {
-            return fullMatch.includes('x') ? '- [ ]' : '- [x]';
+            const hasX = /\[[xX]\]/.test(fullMatch);
+            return hasX ? fullMatch.replace(/\[[xX]\]/, '[ ]') : fullMatch.replace(/\[ \]/, '[x]');
           }
           return fullMatch;
         });

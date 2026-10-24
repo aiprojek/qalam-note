@@ -72,6 +72,7 @@ interface MobileTopBarProps {
   onOpenCheatSheet: () => void;
   onDuplicateNote: (note: Note) => void;
   onDeleteNote: (noteId: string) => void;
+  onCopyMarkdown?: () => void;
   language?: AppLanguage;
 }
 
@@ -111,6 +112,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   onOpenCheatSheet,
   onDuplicateNote,
   onDeleteNote,
+  onCopyMarkdown,
   language = 'id',
 }) => {
   const t = getT(language);
@@ -420,7 +422,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
           </div>
 
           <div ref={menuRef} className="flex items-center gap-0.5 shrink-0 relative">
-            {/* Obsidian/Joplin Mode Toggle: Preview (Reading) vs Edit */}
+            {/* Mode Toggle: Preview (Reading) vs Edit */}
             <button
               type="button"
               onClick={onToggleReadingMode}
@@ -441,6 +443,18 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 <Eye className="w-4 h-4" />
               )}
             </button>
+
+            {/* Quick Copy Note as Markdown */}
+            {onCopyMarkdown && (
+              <button
+                type="button"
+                onClick={onCopyMarkdown}
+                title={isId ? 'Salin Catatan (Format Markdown)' : 'Copy Note (Markdown Format)'}
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cyan-400 hover:text-cyan-300 hover:bg-slate-800/80 active:scale-95 transition"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Ellipsis / More Actions Menu */}
             <button
@@ -524,6 +538,20 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                   <Calculator className="w-4 h-4 text-purple-400" />
                   <span>{isId ? 'Rumus Matematika & Hint' : 'Math Formulas & Hints'}</span>
                 </button>
+
+                {onCopyMarkdown && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCopyMarkdown();
+                      setShowEditorMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5 text-cyan-300"
+                  >
+                    <Copy className="w-4 h-4 text-cyan-400" />
+                    <span>{isId ? 'Salin Teks (Markdown)' : 'Copy Text (Markdown)'}</span>
+                  </button>
+                )}
 
                 {activeNote && (
                   <button

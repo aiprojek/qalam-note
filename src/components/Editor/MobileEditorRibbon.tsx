@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { ListStyleMenu } from './ListStyleMenu';
 import {
   Undo2,
   Redo2,
@@ -42,6 +43,10 @@ import {
   AlignRight,
   Paperclip,
   FileDown,
+  IndentIncrease,
+  IndentDecrease,
+  Copy,
+  Check,
 } from 'lucide-react';
 import type { AppLanguage, Note } from '../../types';
 
@@ -65,6 +70,7 @@ interface MobileEditorRibbonProps {
   onExportPdf?: () => void;
   onExportMarkdown?: () => void;
   onOpenExportModal?: () => void;
+  onCopyMarkdown?: () => void;
   settingsEditorMode?: 'wysiwyg' | 'markdown';
   markdownViewMode?: 'raw' | 'split';
   onMarkdownViewModeChange?: (view: 'raw' | 'split') => void;
@@ -90,12 +96,27 @@ export const MobileEditorRibbon: React.FC<MobileEditorRibbonProps> = ({
   onExportPdf,
   onExportMarkdown,
   onOpenExportModal,
+  onCopyMarkdown,
   settingsEditorMode,
   markdownViewMode,
   onMarkdownViewModeChange,
 }) => {
   const isId = language === 'id';
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+  const [listMenuAnchor, setListMenuAnchor] = useState<{
+    mode: 'bullet' | 'ordered';
+    bottom: number;
+    left: number;
+  } | null>(null);
+
+  const handleCopyMarkdown = () => {
+    if (onCopyMarkdown) {
+      onCopyMarkdown();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && onInsertImage) {
@@ -235,24 +256,100 @@ export const MobileEditorRibbon: React.FC<MobileEditorRibbonProps> = ({
         <CheckSquare className="w-4 h-4" />
       </button>
 
+      {/* Bullet List with Mobile Gallery */}
+      <div className="relative inline-flex items-center shrink-0">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onCommand('bullet')}
+          title={isId ? 'Daftar Poin (Bullet List)' : 'Bullet List'}
+          className="h-[34px] px-2 flex items-center justify-center rounded-l-lg hover:bg-slate-700/70 active:bg-blue-600 active:text-white transition text-slate-300"
+        >
+          <List className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (listMenuAnchor?.mode === 'bullet') {
+              setListMenuAnchor(null);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setListMenuAnchor({
+                mode: 'bullet',
+                bottom: Math.max(8, window.innerHeight - rect.top + 6),
+                left: Math.max(8, Math.min(rect.left - 40, window.innerWidth - 336)),
+              });
+            }
+          }}
+          title={isId ? 'Pilihan Simbol Poin' : 'Bullet Library'}
+          className={`h-[34px] px-1.5 -ml-0.5 flex items-center justify-center rounded-r-lg transition cursor-pointer ${
+            listMenuAnchor?.mode === 'bullet'
+              ? 'bg-blue-600/30 text-blue-400'
+              : 'hover:bg-slate-700/70 text-slate-400 hover:text-white'
+          }`}
+        >
+          <ChevronDown className="w-2.5 h-2.5" />
+        </button>
+      </div>
+
+      {/* Numbered List with Mobile Gallery */}
+      <div className="relative inline-flex items-center shrink-0">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onCommand('numbered')}
+          title={isId ? 'Daftar Angka (Numbered List)' : 'Numbered List'}
+          className="h-[34px] px-2 flex items-center justify-center rounded-l-lg hover:bg-slate-700/70 active:bg-blue-600 active:text-white transition text-slate-300"
+        >
+          <ListOrdered className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (listMenuAnchor?.mode === 'ordered') {
+              setListMenuAnchor(null);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setListMenuAnchor({
+                mode: 'ordered',
+                bottom: Math.max(8, window.innerHeight - rect.top + 6),
+                left: Math.max(8, Math.min(rect.left - 40, window.innerWidth - 336)),
+              });
+            }
+          }}
+          title={isId ? 'Pilihan Penomoran & Abjad' : 'Numbering Library'}
+          className={`h-[34px] px-1.5 -ml-0.5 flex items-center justify-center rounded-r-lg transition cursor-pointer ${
+            listMenuAnchor?.mode === 'ordered'
+              ? 'bg-blue-600/30 text-blue-400'
+              : 'hover:bg-slate-700/70 text-slate-400 hover:text-white'
+          }`}
+        >
+          <ChevronDown className="w-2.5 h-2.5" />
+        </button>
+      </div>
+
       <button
         type="button"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => onCommand('bullet')}
-        title={isId ? 'Daftar Poin (Bullet List)' : 'Bullet List'}
+        onClick={() => onCommand('outdent')}
+        title={isId ? 'Kurangi Indentasi (Shift+Tab / Ctrl+[)' : 'Decrease Indent (Shift+Tab / Ctrl+[)'}
         className="min-w-[34px] h-[34px] flex items-center justify-center rounded-lg hover:bg-slate-700/70 active:bg-blue-600 active:text-white transition text-slate-300 shrink-0"
       >
-        <List className="w-4 h-4" />
+        <IndentDecrease className="w-4 h-4" />
       </button>
 
       <button
         type="button"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => onCommand('numbered')}
-        title={isId ? 'Daftar Angka (Numbered List)' : 'Numbered List'}
+        onClick={() => onCommand('indent')}
+        title={isId ? 'Tambah Indentasi (Tab / Ctrl+]) - Sub-Daftar Bertingkat' : 'Increase Indent (Tab / Ctrl+]) - Multilevel List'}
         className="min-w-[34px] h-[34px] flex items-center justify-center rounded-lg hover:bg-slate-700/70 active:bg-blue-600 active:text-white transition text-slate-300 shrink-0"
       >
-        <ListOrdered className="w-4 h-4" />
+        <IndentIncrease className="w-4 h-4" />
       </button>
 
       <button
@@ -600,6 +697,22 @@ export const MobileEditorRibbon: React.FC<MobileEditorRibbonProps> = ({
         </>
       )}
 
+      {/* Copy Note as Markdown for Social Media */}
+      {onCopyMarkdown && (
+        <button
+          type="button"
+          onClick={handleCopyMarkdown}
+          title={isId ? 'Salin Seluruh Catatan (Format Markdown)' : 'Copy Entire Note as Markdown'}
+          className={`min-w-[34px] h-[34px] flex items-center justify-center rounded-lg border transition shrink-0 active:scale-95 ${
+            copied
+              ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50'
+              : 'bg-cyan-600/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-600 hover:text-white'
+          }`}
+        >
+          {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+        </button>
+      )}
+
       {/* Note Info & Stats */}
       {onOpenInfo && (
         <button
@@ -626,6 +739,20 @@ export const MobileEditorRibbon: React.FC<MobileEditorRibbonProps> = ({
         >
           <HelpCircle className="w-4 h-4" />
         </button>
+      )}
+
+      {listMenuAnchor && (
+        <ListStyleMenu
+          isOpen={true}
+          mode={listMenuAnchor.mode}
+          position={{ bottom: listMenuAnchor.bottom, left: listMenuAnchor.left }}
+          language={language}
+          onClose={() => setListMenuAnchor(null)}
+          onSelectStyle={(payload) => {
+            onCommand('apply-list-style', JSON.stringify(payload));
+            setListMenuAnchor(null);
+          }}
+        />
       )}
     </div>
   );

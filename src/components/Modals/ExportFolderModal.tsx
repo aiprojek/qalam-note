@@ -94,11 +94,11 @@ export const ExportFolderModal: React.FC<ExportFolderModalProps> = ({
     {
       id: 'markdown' as const,
       title: isId ? 'Hanya Berkas Markdown (.md)' : 'Markdown Files (.md) Only',
-      badge: 'Obsidian / Standar',
+      badge: isId ? 'Standar Universal' : 'Universal Standard',
       badgeColor: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
       desc: isId
-        ? 'Format teks Markdown murni yang siap diimpor ke Obsidian, editor Markdown lain, atau disimpan di GitHub'
-        : 'Pure Markdown files ready to import into Obsidian, Markdown editors, or store in Git',
+        ? 'Format teks Markdown murni yang portabel dan siap digunakan di berbagai editor teks atau disimpan di Git'
+        : 'Pure Markdown files ready to use across any text editor or version control repository',
       icon: FileCode,
       iconColor: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-500/10',
     },

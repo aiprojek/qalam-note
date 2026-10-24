@@ -324,7 +324,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
         return;
       }
-      const code = generateSyncPairingCode(formSettings.sync);
+      const code = generateSyncPairingCode(formSettings.sync, formSettings.gas);
       setPairingCodeOutput(code);
       navigator.clipboard.writeText(code);
       setPairingCodeCopied(true);
@@ -363,11 +363,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    setFormSettings((prev) => ({
-      ...prev,
+    const updatedSettings: Partial<AppSettings> = {
       sync: parsedConfig,
-    }));
-    onSaveSettings({ sync: parsedConfig });
+    };
+    if (parsedConfig.gas && parsedConfig.gas.web_app_url) {
+      updatedSettings.gas = parsedConfig.gas;
+      setFormSettings((prev) => ({
+        ...prev,
+        sync: parsedConfig,
+        gas: { ...prev.gas, ...parsedConfig.gas },
+      }));
+    } else {
+      setFormSettings((prev) => ({
+        ...prev,
+        sync: parsedConfig,
+      }));
+    }
+    onSaveSettings(updatedSettings);
     setPairingInputCode('');
 
     // Test connection automatically for the newly imported sync target
@@ -790,16 +802,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="button"
                         onClick={() => onSync(formSettings.sync)}
                         disabled={isSyncing}
-                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 whitespace-nowrap shrink-0 select-none ${
                           isLight
                             ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
                             : 'bg-blue-600 hover:bg-blue-500 text-white'
                         }`}
                       >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                        <span>
+                        <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span className="whitespace-nowrap font-medium">
                           {isSyncing
-                            ? formSettings.language === 'id' ? 'Menyinkronkan...' : 'Syncing...'
+                            ? formSettings.language === 'id' ? 'Sinkron...' : 'Syncing...'
                             : formSettings.language === 'id' ? 'Sinkronkan Sekarang' : 'Sync Now'}
                         </span>
                       </button>
@@ -1374,13 +1386,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
 
                       {pairingCodeOutput ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5 flex-nowrap w-full">
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-1 flex-nowrap w-full min-w-0">
                             <input
                               type="text"
                               readOnly
                               value={pairingCodeOutput}
-                              className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none select-all truncate ${
+                              className={`flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 rounded-lg border outline-none select-all truncate ${
                                 isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-900 text-slate-200 border-slate-700'
                               }`}
                             />
@@ -1392,7 +1404,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 setTimeout(() => setPairingCodeCopied(false), 2000);
                               }}
                               title={formSettings.language === 'id' ? 'Salin Kode Pairing' : 'Copy Pairing Code'}
-                              className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 ${
+                              className={`shrink-0 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 ${
                                 pairingCodeCopied
                                   ? 'bg-emerald-600 text-white shadow-2xs'
                                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
@@ -1442,13 +1454,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </p>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5 flex-nowrap w-full">
+                        <div className="flex items-center gap-1.5 flex-nowrap w-full min-w-0">
                           <input
                             type="text"
                             readOnly
                             disabled
-                            placeholder={formSettings.language === 'id' ? 'Klik tombol untuk membuat kode...' : 'Click button to generate code...'}
-                            className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none opacity-60 cursor-not-allowed truncate ${
+                            placeholder={formSettings.language === 'id' ? 'Klik tombol untuk membuat...' : 'Click button to generate...'}
+                            className={`flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 rounded-lg border outline-none opacity-60 cursor-not-allowed truncate ${
                               isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-500 border-slate-800'
                             }`}
                           />
@@ -1456,7 +1468,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             type="button"
                             onClick={handleGeneratePairing}
                             disabled={formSettings.sync.target === 'disabled'}
-                            className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
+                            className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
                               isLight
                                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
                                 : 'bg-blue-600 hover:bg-blue-500 text-white'
@@ -1485,13 +1497,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 flex-nowrap w-full">
+                      <div className="flex items-center gap-1.5 flex-nowrap w-full min-w-0">
                         <input
                           type="text"
                           value={pairingInputCode}
                           onChange={(e) => setPairingInputCode(e.target.value)}
                           placeholder={t.pairing_import_placeholder}
-                          className={`flex-1 min-w-0 text-[11px] font-mono px-2.5 py-1.5 rounded-lg border outline-none select-all truncate ${
+                          className={`flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 rounded-lg border outline-none select-all truncate ${
                             isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-purple-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-purple-500'
                           }`}
                         />
@@ -1499,7 +1511,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={handleApplyPairing}
                           disabled={!pairingInputCode.trim()}
-                          className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
+                          className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
                             isLight
                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-2xs'
                               : 'bg-purple-600 hover:bg-purple-500 text-white'
@@ -2042,7 +2054,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                     <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
                       <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
-                        {formSettings.language === 'id' ? 'Sinkronisasi Cloud (Joplin)' : 'Cloud Synchronise (Joplin)'}
+                        {formSettings.language === 'id' ? 'Sinkronisasi Cloud' : 'Cloud Synchronize'}
                       </span>
                       <kbd className="px-1.5 py-0.5 rounded font-mono font-semibold text-[10px] bg-blue-500/10 text-blue-500 border border-blue-500/20">
                         Ctrl+S

@@ -7,6 +7,7 @@
 import DOMPurify from 'dompurify';
 import { isBlockRTL } from './rtl';
 import { getSyncAttachmentUrl } from './attachments';
+import { toRoman, toAlpha } from './listStyles';
 
 export interface MarkdownOptions {
   theme?: 'dark' | 'light';
@@ -96,6 +97,180 @@ export function convertEmoticonsAndShortcodes(text: string): string {
   });
 
   return tokenized;
+}
+
+/**
+ * Parses single and multilevel ordered and unordered lists and checklists into proper nested HTML
+ */
+export function renderMultilevelLists(content: string, isLight: boolean): string {
+  const lines = content.split('\n');
+  const out: string[] = [];
+  const stack: { type: 'ul' | 'ol'; level: number }[] = [];
+
+  const closeDownTo = (targetLevel: number) => {
+    while (stack.length > 0 && stack[stack.length - 1].level > targetLevel) {
+      const top = stack.pop()!;
+      out.push(`</li></${top.type}>`);
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Checkbox / Todo item
+    const todoMatch = line.match(/^([ \t]*)(-\s*\[[ xX]\])\s+(.*)$/);
+    if (todoMatch) {
+      closeDownTo(-1);
+      const isDone = todoMatch[2].toLowerCase().includes('x');
+      const spaces = todoMatch[1].replace(/\t/g, '  ').length;
+      const level = Math.floor(spaces / 2);
+      const itemText = todoMatch[3];
+      const isItemRtl = isBlockRTL(itemText);
+      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
+      const flexDir = isItemRtl ? 'flex-row-reverse text-right font-arabic' : 'flex-row text-left';
+      const textStyle = isDone
+        ? (isLight ? 'line-through text-slate-500' : 'line-through text-slate-400')
+        : (isLight ? 'text-slate-900 font-medium' : 'text-slate-200');
+      const indentRem = level * 1.5;
+      const indentStyle = indentRem > 0 ? ` style="margin-left: ${indentRem}rem;"` : '';
+      out.push(
+        `<div${dirAttr} data-indent="${level}" class="qalam-todo-item flex items-start gap-2.5 my-1.5 ${flexDir}"${indentStyle}><input type="checkbox" ${isDone ? 'checked ' : ''}class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="${textStyle}">${itemText}</span></div>`
+      );
+      continue;
+    }
+
+    let isOrdered = false;
+    let listTypeAttr = '1';
+    let bulletSymbol: string | null = null;
+    let itemText = '';
+    let spaces = 0;
+
+    // 1. Numbered: Decimals e.g. 1. or 1)
+    const decMatch = line.match(/^([ \t]*)(\d+)([\.\)])\s+(.*)$/);
+    if (decMatch) {
+      isOrdered = true;
+      spaces = decMatch[1].replace(/\t/g, '  ').length;
+      listTypeAttr = '1';
+      itemText = decMatch[4];
+    } else {
+      // 2. Numbered: Roman Uppercase e.g. I. or II.
+      const romanUpper = line.match(/^([ \t]*)([IVXLCDM]+)([\.\)])\s+(.*)$/);
+      if (romanUpper && /^[IVXLCDM]+$/.test(romanUpper[2])) {
+        isOrdered = true;
+        spaces = romanUpper[1].replace(/\t/g, '  ').length;
+        listTypeAttr = 'I';
+        itemText = romanUpper[4];
+      } else {
+        // 3. Numbered: Roman Lowercase e.g. i. or ii.
+        const romanLower = line.match(/^([ \t]*)(i{1,3}|iv|v|vi{0,3}|ix|x)([\.\)])\s+(.*)$/i);
+        if (romanLower && /^[ivx]+$/.test(romanLower[2].toLowerCase())) {
+          isOrdered = true;
+          spaces = romanLower[1].replace(/\t/g, '  ').length;
+          listTypeAttr = 'i';
+          itemText = romanLower[4];
+        } else {
+          // 4. Numbered: Alpha Uppercase e.g. A. or B.
+          const alphaUpper = line.match(/^([ \t]*)([A-Z])([\.\)])\s+(.*)$/);
+          if (alphaUpper) {
+            isOrdered = true;
+            spaces = alphaUpper[1].replace(/\t/g, '  ').length;
+            listTypeAttr = 'A';
+            itemText = alphaUpper[4];
+          } else {
+            // 5. Numbered: Alpha Lowercase e.g. a. or b.
+            const alphaLower = line.match(/^([ \t]*)([a-z])([\.\)])\s+(.*)$/);
+            if (alphaLower) {
+              isOrdered = true;
+              spaces = alphaLower[1].replace(/\t/g, '  ').length;
+              listTypeAttr = 'a';
+              itemText = alphaLower[4];
+            } else {
+              // 6. Bullet: symbols, icons, emojis e.g. -, *, +, •, ○, ■, ◆, ➔, ✔, ★, —, 📌
+              const bulletMatch = line.match(/^([ \t]*)([-*+•○■◆➔✔★—]|\p{Extended_Pictographic})\s+(.*)$/u);
+              if (bulletMatch) {
+                isOrdered = false;
+                spaces = bulletMatch[1].replace(/\t/g, '  ').length;
+                bulletSymbol = bulletMatch[2];
+                itemText = bulletMatch[3];
+              } else {
+                closeDownTo(-1);
+                out.push(line);
+                continue;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const level = Math.floor(spaces / 2);
+    const listTag: 'ul' | 'ol' = isOrdered ? 'ol' : 'ul';
+    const isItemRtl = isBlockRTL(itemText);
+    const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
+    const alignClass = isItemRtl ? ' text-right font-arabic' : ' text-left';
+    const textColor = isLight ? 'text-slate-900' : 'text-slate-200';
+
+    let tagBase = '';
+    if (isOrdered) {
+      const typeClass =
+        listTypeAttr === 'A'
+          ? 'list-[upper-alpha]'
+          : listTypeAttr === 'a'
+          ? 'list-[lower-alpha]'
+          : listTypeAttr === 'I'
+          ? 'list-[upper-roman]'
+          : listTypeAttr === 'i'
+          ? 'list-[lower-roman]'
+          : 'list-decimal';
+      tagBase = `ol type="${listTypeAttr}" class="${typeClass} pl-5 my-1.5 space-y-1"`;
+    } else {
+      if (bulletSymbol === '○') {
+        tagBase = `ul class="pl-5 my-1.5 space-y-1" style="list-style-type: circle;"`;
+      } else if (bulletSymbol === '■') {
+        tagBase = `ul class="pl-5 my-1.5 space-y-1" style="list-style-type: square;"`;
+      } else if (bulletSymbol && !['-', '*', '+', '•'].includes(bulletSymbol)) {
+        tagBase = `ul class="pl-5 my-1.5 space-y-1" style="list-style-type: '${bulletSymbol} ';"`;
+      } else {
+        tagBase = `ul class="list-disc pl-5 my-1.5 space-y-1"`;
+      }
+    }
+
+    if (stack.length === 0) {
+      stack.push({ type: listTag, level });
+      out.push(`<${tagBase}><li${dirAttr} class="my-0.5 ${textColor}${alignClass}">${itemText}`);
+    } else {
+      const current = stack[stack.length - 1];
+      if (level > current.level) {
+        stack.push({ type: listTag, level });
+        out.push(`<${tagBase}><li${dirAttr} class="my-0.5 ${textColor}${alignClass}">${itemText}`);
+      } else if (level < current.level) {
+        closeDownTo(level);
+        if (stack.length > 0 && stack[stack.length - 1].type !== listTag) {
+          const top = stack.pop()!;
+          out.push(`</li></${top.type}><${tagBase}>`);
+          stack.push({ type: listTag, level });
+        } else if (stack.length > 0) {
+          out.push('</li>');
+        } else {
+          stack.push({ type: listTag, level });
+          out.push(`<${tagBase}>`);
+        }
+        out.push(`<li${dirAttr} class="my-0.5 ${textColor}${alignClass}">${itemText}`);
+      } else {
+        if (current.type !== listTag) {
+          stack.pop();
+          out.push(`</li></${current.type}><${tagBase}>`);
+          stack.push({ type: listTag, level });
+        } else {
+          out.push('</li>');
+        }
+        out.push(`<li${dirAttr} class="my-0.5 ${textColor}${alignClass}">${itemText}`);
+      }
+    }
+  }
+
+  closeDownTo(-1);
+  return out.join('\n');
 }
 
 export function markdownToHtml(
@@ -316,46 +491,8 @@ export function markdownToHtml(
       : '<kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-xs border border-slate-600 shadow-xs">$1</kbd>'
   );
 
-  // Checklists (interactive with RTL flex reversal, NO disabled attribute)
-  html = html.replace(
-    /^-\s*\[([ xX])\]\s+(.*$)/gim,
-    (_match, checkChar, itemText) => {
-      const isDone = checkChar.toLowerCase() === 'x';
-      const isItemRtl = isBlockRTL(itemText);
-      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
-      const flexDir = isItemRtl ? 'flex-row-reverse text-right font-arabic' : 'flex-row text-left';
-      const textStyle = isDone
-        ? (isLight ? 'line-through text-slate-500' : 'line-through text-slate-400')
-        : (isLight ? 'text-slate-900 font-medium' : 'text-slate-200');
-      return `<div${dirAttr} class="qalam-todo-item flex items-start gap-2.5 my-1.5 ${flexDir}"><input type="checkbox" ${isDone ? 'checked ' : ''}class="qalam-todo-checkbox mt-1 accent-blue-600 rounded cursor-pointer" /><span class="${textStyle}">${itemText}</span></div>`;
-    }
-  );
-
-  // Bullet Lists: Convert consecutive items and wrap into a real <ul>
-  html = html.replace(
-    /^[\*\-]\s+(?!\[[ xX]\])(.*$)/gim,
-    (_match, itemText) => {
-      const isItemRtl = isBlockRTL(itemText);
-      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
-      const alignClass = isItemRtl ? ' text-right font-arabic' : ' text-left';
-      return `<!--QLM_UL--><li${dirAttr} class="ml-5 list-disc my-1 ${isLight ? 'text-slate-900' : 'text-slate-200'}${alignClass}">${itemText}</li>`;
-    }
-  );
-  html = html.replace(/((?:<!--QLM_UL--><li[\s\S]*?<\/li>\n?)+)/g, '<ul class="list-disc pl-5 my-2 space-y-1">$1</ul>');
-  html = html.replace(/<!--QLM_UL-->/g, '');
-
-  // Numbered Lists: Convert consecutive items and wrap into a real <ol>
-  html = html.replace(
-    /^\d+\.\s+(.*$)/gim,
-    (_match, itemText) => {
-      const isItemRtl = isBlockRTL(itemText);
-      const dirAttr = isItemRtl ? ' dir="rtl"' : ' dir="ltr"';
-      const alignClass = isItemRtl ? ' text-right font-arabic' : ' text-left';
-      return `<!--QLM_OL--><li${dirAttr} class="ml-5 list-decimal my-1 ${isLight ? 'text-slate-900' : 'text-slate-200'}${alignClass}">${itemText}</li>`;
-    }
-  );
-  html = html.replace(/((?:<!--QLM_OL--><li[\s\S]*?<\/li>\n?)+)/g, '<ol class="list-decimal pl-5 my-2 space-y-1">$1</ol>');
-  html = html.replace(/<!--QLM_OL-->/g, '');
+  // Multilevel Lists & Checklists (supports unlimited indent levels, ordered and unordered lists)
+  html = renderMultilevelLists(html, isLight);
 
   // Footnote references: [^1]
   html = html.replace(/\[\^([a-zA-Z0-9_-]+)\](?!:)/g, '<sup class="qalam-footnote-ref font-mono text-[11px]"><a href="#fn-$1" class="text-blue-400 hover:underline">[$1]</a></sup>');
@@ -417,7 +554,7 @@ export function markdownToHtml(
     }
   );
 
-  // WikiLinks: [[Target Note]] or [[Target Note|Display Alias]] (Obsidian/Roam style)
+  // WikiLinks: [[Target Note]] or [[Target Note|Display Alias]]
   html = html.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_match, target, alias) => {
     const targetTitle = target.trim();
     const displayText = (alias || target).trim();
@@ -629,25 +766,84 @@ export function htmlToMarkdown(html: string): string {
         return `${tableMd}\n`;
       }
       case 'li': {
-        const isCheckbox = el.querySelector('input[type="checkbox"]');
+        let depth = 0;
+        let ancestor = el.parentElement;
+        while (ancestor && ancestor !== div) {
+          if (ancestor.tagName.toLowerCase() === 'ul' || ancestor.tagName.toLowerCase() === 'ol') {
+            depth++;
+          }
+          ancestor = ancestor.parentElement;
+        }
+        const indent = '  '.repeat(Math.max(0, depth - 1));
+
+        const subListNodes: HTMLElement[] = [];
+        const inlineNodes: Node[] = [];
+        Array.from(el.childNodes).forEach((child) => {
+          if (
+            child.nodeType === Node.ELEMENT_NODE &&
+            ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
+          ) {
+            subListNodes.push(child as HTMLElement);
+          } else {
+            inlineNodes.push(child);
+          }
+        });
+
+        const inlineText = inlineNodes.map(traverse).join('').trim();
+        const subListsText = subListNodes.map(traverse).join('');
+
+        const isCheckbox = el.querySelector(':scope > input[type="checkbox"]');
+        let itemHeader = '';
         if (isCheckbox) {
           const checked = (isCheckbox as HTMLInputElement).checked;
-          const text = children.replace(/<input[^>]*>/, '').trim();
-          return `- [${checked ? 'x' : ' '}] ${text}\n`;
+          const cleanText = inlineText.replace(/<input[^>]*>/, '').trim();
+          itemHeader = `${indent}- [${checked ? 'x' : ' '}] ${cleanText}\n`;
+        } else {
+          const parentTag = el.parentElement?.tagName.toLowerCase();
+          if (parentTag === 'ol') {
+            const siblings = Array.from(el.parentElement?.children || []).filter(
+              (s) => s.tagName.toLowerCase() === 'li'
+            );
+            const parentOl = el.parentElement as HTMLOListElement;
+            const startVal = parseInt(parentOl?.getAttribute('start') || '1', 10) || 1;
+            const index = siblings.indexOf(el) + startVal;
+            const olType = parentOl?.getAttribute('type') || '';
+            const listStyle = parentOl?.style?.listStyleType || '';
+
+            if (olType === 'A' || listStyle.includes('upper-alpha')) {
+              itemHeader = `${indent}${toAlpha(index, true)}. ${inlineText}\n`;
+            } else if (olType === 'a' || listStyle.includes('lower-alpha')) {
+              itemHeader = `${indent}${toAlpha(index, false)}. ${inlineText}\n`;
+            } else if (olType === 'I' || listStyle.includes('upper-roman')) {
+              itemHeader = `${indent}${toRoman(index, true)}. ${inlineText}\n`;
+            } else if (olType === 'i' || listStyle.includes('lower-roman')) {
+              itemHeader = `${indent}${toRoman(index, false)}. ${inlineText}\n`;
+            } else {
+              itemHeader = `${indent}${index > 0 ? index : 1}. ${inlineText}\n`;
+            }
+          } else {
+            const parentUl = el.parentElement as HTMLUListElement;
+            const listStyle = parentUl?.style?.listStyleType || '';
+            let marker = '-';
+            if (listStyle === 'circle') marker = '○';
+            else if (listStyle === 'square') marker = '■';
+            else if (listStyle.includes("'") || listStyle.includes('"')) {
+              const cleaned = listStyle.replace(/['"]/g, '').trim();
+              if (cleaned) marker = cleaned;
+            }
+            itemHeader = `${indent}${marker} ${inlineText}\n`;
+          }
         }
-        const parentTag = el.parentElement?.tagName.toLowerCase();
-        if (parentTag === 'ol') {
-          const siblings = Array.from(el.parentElement?.children || []).filter(
-            (s) => s.tagName.toLowerCase() === 'li'
-          );
-          const index = siblings.indexOf(el) + 1;
-          return `${index > 0 ? index : 1}. ${children.trim()}\n`;
-        }
-        return `- ${children.trim()}\n`;
+
+        return itemHeader + subListsText;
       }
       case 'ul':
-      case 'ol':
+      case 'ol': {
+        if (el.parentElement?.tagName.toLowerCase() === 'li') {
+          return children;
+        }
         return `\n${children}\n`;
+      }
       case 'details': {
         const summary = el.querySelector('summary')?.textContent || 'Details';
         const innerClone = el.cloneNode(true) as HTMLElement;
@@ -714,7 +910,9 @@ export function htmlToMarkdown(html: string): string {
         if (isCheckbox) {
           const checked = (isCheckbox as HTMLInputElement).checked;
           const text = children.replace(/<input[^>]*>/, '').trim();
-          return `\n- [${checked ? 'x' : ' '}] ${text}\n`;
+          const dataIndent = parseInt(el.getAttribute('data-indent') || '0', 10);
+          const indent = '  '.repeat(Math.max(0, dataIndent));
+          return `\n${indent}- [${checked ? 'x' : ' '}] ${text}\n`;
         }
         const isFootnoteDef = el.classList.contains('qalam-footnote-def') || el.id?.startsWith('fn-');
         if (isFootnoteDef && el.id) {

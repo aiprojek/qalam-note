@@ -173,6 +173,30 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
       preview: '<ol class="list-decimal ml-5 space-y-0.5 text-xs"><li>Langkah pertama</li><li>Langkah kedua</li></ol>',
       description: isId ? 'Ketik angka diikuti titik dan spasi.' : 'Type number followed by dot and space.',
     },
+    {
+      id: 'list-multilevel',
+      category: 'lists',
+      title: isId ? 'Daftar Bertingkat (Multilevel & Indent)' : 'Multilevel List (Indent / Outdent)',
+      syntax: '- Kategori Utama\n  - Sub-kategori 1\n  - Sub-kategori 2\n    1. Poin bernomor A\n    2. Poin bernomor B',
+      preview: '<ul class="list-disc ml-5 space-y-0.5 text-xs"><li>Kategori Utama<ul class="list-disc ml-4"><li>Sub-kategori 1</li><li>Sub-kategori 2<ol class="list-decimal ml-4"><li>Poin bernomor A</li><li>Poin bernomor B</li></ol></li></ul></li></ul>',
+      description: isId ? 'Gunakan tombol Tambah/Kurangi Indentasi di toolbar, tombol Tab / Shift+Tab, Ctrl+] / Ctrl+[, atau 2 spasi.' : 'Use Increase/Decrease Indent toolbar buttons, Tab / Shift+Tab, Ctrl+] / Ctrl+[, or 2 leading spaces.',
+    },
+    {
+      id: 'list-alpha-roman',
+      category: 'lists',
+      title: isId ? 'Daftar Abjad & Romawi (A. B. C. / i. ii. iii.)' : 'Alphabet & Roman Lists (A. B. C. / i. ii. iii.)',
+      syntax: 'A. Poin abjad besar\nB. Poin kedua\n   a. Sub-abjad kecil\n   b. Sub-abjad berikutnya\nI. Bab Romawi satu\nII. Bab Romawi dua',
+      preview: '<div class="space-y-1 text-xs"><div class="font-mono text-amber-300">A. Poin abjad besar</div><div class="font-mono text-amber-300 pl-4">a. Sub-abjad kecil</div><div class="font-mono text-amber-400">I. Bab Romawi satu</div></div>',
+      description: isId ? 'Ketik huruf abjad (A., a., a)) atau angka Romawi (I., i.) diikuti titik/kurung dan spasi. Tekan Enter untuk melanjutkan otomatis.' : 'Type alphabet (A., a., a)) or Roman numerals (I., i.) followed by dot/paren and space. Press Enter to auto-continue.',
+    },
+    {
+      id: 'list-icons',
+      category: 'lists',
+      title: isId ? 'Daftar Ikon & Simbol Kustom (✔, ★, ◆, ➔, 📌)' : 'Custom Icon & Symbol Lists (✔, ★, ◆, ➔, 📌)',
+      syntax: '✔ Verifikasi data sukses\n★ Poin penting unggulan\n◆ Analisis konsep\n➔ Arah tindakan lanjut\n📌 Catatan pengingat',
+      preview: '<div class="space-y-0.5 text-xs text-slate-200"><div>✔ Verifikasi data sukses</div><div>★ Poin penting unggulan</div><div>◆ Analisis konsep</div><div>➔ Arah tindakan lanjut</div><div>📌 Catatan pengingat</div></div>',
+      description: isId ? 'Pilih dari Pustaka Poin (Word) di toolbar atau ketik langsung simbol / emoji di awal baris.' : 'Pick from the Bullet Library (Word) on the toolbar or type any symbol/emoji directly at line start.',
+    },
 
     // Tables
     {
@@ -199,7 +223,7 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
       title: isId ? 'Catatan Admonisi (> [!NOTE])' : 'Note Callout (> [!NOTE])',
       syntax: '> [!NOTE] Perhatian\n> Pastikan Anda telah menyimpan kunci pemulihan E2EE.',
       preview: '<div class="p-2.5 rounded border-l-4 border-blue-500 bg-blue-950/30 text-blue-300 text-xs font-medium"><div class="font-bold mb-1">ℹ️ Perhatian</div>Pastikan Anda telah menyimpan kunci pemulihan E2EE.</div>',
-      description: isId ? 'Kotak informasi beraksen biru gaya GitHub/Obsidian.' : 'Blue informational callout box.',
+      description: isId ? 'Kotak informasi beraksen biru untuk catatan penting.' : 'Blue informational callout box.',
     },
     {
       id: 'quote-callout-tip',

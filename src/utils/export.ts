@@ -2168,7 +2168,7 @@ export function exportNoteToPrint(note: Note, folderTitle: string = 'Qalam Note'
 }
 
 /**
- * Exports an entire folder of notes into a ZIP archive (Joplin style)
+ * Exports an entire folder of notes into a ZIP archive
  */
 export async function exportFolderToZip(
   folderTitle: string,

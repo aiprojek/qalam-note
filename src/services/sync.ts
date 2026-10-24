@@ -12,7 +12,7 @@ import {
   addDeletedSyncIds,
   removeDeletedSyncId,
 } from '../db';
-import type { Note, Folder, SyncConfig, Tag } from '../types';
+import type { Note, Folder, SyncConfig, Tag, GASConfig } from '../types';
 
 export interface SyncStatus {
   inProgress: boolean;
@@ -42,7 +42,7 @@ export function parseSyncTimestamp(val: any): number {
 }
 
 /**
- * Formats timestamps as standard ISO 8601 strings (Joplin standard format)
+ * Formats timestamps as standard ISO 8601 strings
  */
 export function formatSyncTimestamp(timeMs?: number): string {
   if (!timeMs || isNaN(timeMs) || timeMs <= 0) return new Date().toISOString();
@@ -81,6 +81,10 @@ export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', 
     if (note.attachments && note.attachments.length > 0) {
       meta.attachments = JSON.stringify(note.attachments);
     }
+    if (note.published_info && note.published_info.is_published) {
+      meta.published_info = JSON.stringify(note.published_info);
+      meta.is_published = 1;
+    }
     body = `${note.title}\n\n${note.body}`;
   } else {
     const folder = item as Folder;
@@ -117,7 +121,7 @@ export function serializeTagItem(tag: Tag): string {
 }
 
 /**
- * Robust parser for serialized sync items (compatible with Joplin/Qalam format)
+ * Robust parser for serialized sync items
  */
 export function parseSyncItem(rawContent: string): {
   type: 'note' | 'folder' | 'tag' | 'notetag' | 'unknown';
@@ -881,7 +885,7 @@ export async function executeSync(
     let uploadedCount = 0;
 
     // =========================================================================
-    // STEP 3: UPLOAD LOCAL ITEMS & RECOGNIZE REMOTE DELETIONS (JOPLIN ARCHITECTURE)
+    // STEP 3: UPLOAD LOCAL ITEMS & RECOGNIZE REMOTE DELETIONS (SYNC PROTOCOL)
     // Local modifications on the active device are preserved and pushed to cloud.
     // Items deleted on remote by another device are soft-deleted locally, never re-uploaded.
     // =========================================================================
@@ -944,7 +948,7 @@ export async function executeSync(
           syncErrors.push(`Folder "${folder.title}": ${errDetail}`);
         }
       } else if (hasBeenSynced && !existsOnRemote && remoteFiles.length > 0) {
-        // JOPLIN PROTOCOL: Previously synced folder was deleted on the remote server by another device!
+        // REMOTE DELETION: Previously synced folder was deleted on the remote server by another device!
         handledLocalIds.add(lowerId);
         deletedIdsSet.add(lowerId);
         await addDeletedSyncId(folder.id);
@@ -995,7 +999,7 @@ export async function executeSync(
           syncErrors.push(`Catatan "${(note.title || note.id).slice(0, 24)}": ${errDetail}`);
         }
       } else if (hasBeenSynced && !existsOnRemote && remoteFiles.length > 0) {
-        // JOPLIN PROTOCOL: Previously synced note was deleted on the remote server by another device!
+        // REMOTE DELETION: Previously synced note was deleted on the remote server by another device!
         handledLocalIds.add(lowerId);
         deletedIdsSet.add(lowerId);
         await addDeletedSyncId(note.id);
@@ -1057,7 +1061,7 @@ export async function executeSync(
           const rawContent = await downloadRemote(rf);
           const parsed = parseSyncItem(rawContent);
 
-          // Skip unknown types (Joplin resource metadata type 4, note-tags type 6, revisions type 13, etc.)
+          // Skip unknown/auxiliary types (resource metadata, note-tags, revisions, etc.)
           if (parsed.type === 'unknown') {
             continue;
           }
@@ -1243,6 +1247,31 @@ export async function executeSync(
           } catch {}
         }
 
+        let publishedInfoParsed: any = undefined;
+        if (parsed.meta.published_info) {
+          try {
+            publishedInfoParsed = JSON.parse(parsed.meta.published_info);
+          } catch {}
+        } else if (parsed.meta.is_published === '1') {
+          publishedInfoParsed = {
+            is_published: true,
+            published_at: parseSyncTimestamp(parsed.meta.published_at) || Date.now(),
+            public_url: parsed.meta.public_url || '',
+            gas_url: parsed.meta.gas_url || '',
+          };
+        }
+
+        // If remote published note contains a valid GAS URL and current local setting is empty, auto-populate it
+        if (publishedInfoParsed && typeof publishedInfoParsed.gas_url === 'string' && publishedInfoParsed.gas_url.trim()) {
+          try {
+            const currentSettingRow = await db.settings.get('app_settings');
+            if (currentSettingRow?.value?.gas && !currentSettingRow.value.gas.web_app_url) {
+              currentSettingRow.value.gas.web_app_url = publishedInfoParsed.gas_url.trim();
+              await db.settings.put(currentSettingRow);
+            }
+          } catch {}
+        }
+
         const localNote =
           localNotesMap.get(lowerNoteId) ||
           localNotesMap.get(lowerId) ||
@@ -1250,8 +1279,8 @@ export async function executeSync(
             (n) => n.id.toLowerCase() === lowerNoteId || n.id.toLowerCase() === lowerId
           );
 
-        // Verify parent notebook strictly following Joplin specification:
-        // Joplin NEVER synthesizes or resurrects a notebook from note parent_id!
+        // Verify parent notebook strictly:
+        // Never synthesize or resurrect a notebook from note parent_id!
         let targetFolderId = String(parsed.meta.parent_id || localNote?.folder_id || '').trim();
         const lowerTarget = targetFolderId.toLowerCase();
         const parentFolder = targetFolderId
@@ -1296,6 +1325,7 @@ export async function executeSync(
           is_deleted: parsed.meta.is_deleted === '1',
           is_encrypted: parsed.meta.is_encrypted === '1',
           encrypted_data: encryptedDataParsed || localNote?.encrypted_data,
+          published_info: publishedInfoParsed || localNote?.published_info,
           attachments: Array.isArray(attachmentsParsed) ? attachmentsParsed : (localNote?.attachments || []),
           created_time: parseSyncTimestamp(parsed.meta.created_time),
           updated_time: parseSyncTimestamp(parsed.meta.updated_time),
@@ -1518,9 +1548,16 @@ export interface SyncPairingPayload {
     path: string;
   };
   auto_sync_interval?: number;
+  gas?: {
+    web_app_url: string;
+    author_name?: string;
+    auto_update_on_edit?: boolean;
+  };
 }
 
-export function generateSyncPairingCode(syncConfig: SyncConfig): string {
+export type ParsedPairingResult = SyncConfig & { gas?: GASConfig };
+
+export function generateSyncPairingCode(syncConfig: SyncConfig, gasConfig?: GASConfig): string {
   if (syncConfig.target === 'disabled') {
     throw new Error('Target sinkronisasi belum dipilih (masih Nonaktif).');
   }
@@ -1531,6 +1568,14 @@ export function generateSyncPairingCode(syncConfig: SyncConfig): string {
     ts: Date.now(),
     auto_sync_interval: syncConfig.auto_sync_interval || 15,
   };
+
+  if (gasConfig && gasConfig.web_app_url && gasConfig.web_app_url.trim()) {
+    payload.gas = {
+      web_app_url: gasConfig.web_app_url.trim(),
+      author_name: gasConfig.author_name || 'Anonymous',
+      auto_update_on_edit: gasConfig.auto_update_on_edit !== false,
+    };
+  }
 
   if (syncConfig.target === 'webdav') {
     if (!syncConfig.webdav.url) {
@@ -1571,7 +1616,7 @@ export function generateSyncPairingCode(syncConfig: SyncConfig): string {
   return `QLMSYNC1_${base64}`;
 }
 
-export function parseSyncPairingCode(code: string): SyncConfig | null {
+export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
   try {
     const clean = code.trim();
     if (!clean.startsWith('QLMSYNC1_')) {
@@ -1593,11 +1638,20 @@ export function parseSyncPairingCode(code: string): SyncConfig | null {
 
     if (payload.v !== 1) return null;
 
+    const gasConfig: GASConfig | undefined = payload.gas && payload.gas.web_app_url
+      ? {
+          web_app_url: payload.gas.web_app_url,
+          author_name: payload.gas.author_name || 'Anonymous',
+          auto_update_on_edit: payload.gas.auto_update_on_edit !== false,
+        }
+      : undefined;
+
     if (payload.target === 'webdav' && payload.webdav) {
       return {
         target: 'webdav',
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
+        gas: gasConfig,
         webdav: {
           url: payload.webdav.url,
           username: payload.webdav.username || '',
@@ -1617,6 +1671,7 @@ export function parseSyncPairingCode(code: string): SyncConfig | null {
         target: 'dropbox',
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
+        gas: gasConfig,
         webdav: {
           url: 'https://webdav.nextcloud.com/remote.php/webdav/qalam/',
           username: '',

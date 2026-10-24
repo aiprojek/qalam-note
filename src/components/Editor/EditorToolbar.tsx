@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Undo2,
   Redo2,
@@ -44,9 +44,18 @@ import {
   Download,
   Paperclip,
   FileDown,
+  ScanText,
+  GraduationCap,
+  Columns2,
+  IndentIncrease,
+  IndentDecrease,
+  ChevronDown,
+  Copy,
+  Check,
 } from 'lucide-react';
 import type { Note, AppLanguage } from '../../types';
 import { getT } from '../../utils/i18n';
+import { ListStyleMenu } from './ListStyleMenu';
 
 interface EditorToolbarProps {
   settingsEditorMode: 'wysiwyg' | 'markdown';
@@ -59,6 +68,7 @@ interface EditorToolbarProps {
   onToggleEncrypt: () => void;
   onOpenPublish: () => void;
   onOpenInfo: () => void;
+  onCopyMarkdown?: () => void;
   onOpenCheatSheet?: (mathOnly?: boolean) => void;
   onInsertImage: (file: File) => void;
   onOpenImageModal?: () => void;
@@ -70,6 +80,10 @@ interface EditorToolbarProps {
   onExportPdf?: () => void;
   onExportMarkdown?: () => void;
   onOpenExportModal?: () => void;
+  onOpenOCR?: () => void;
+  onOpenSRS?: () => void;
+  onToggleSplitScreen?: () => void;
+  isSplitScreen?: boolean;
   language?: AppLanguage;
 }
 
@@ -84,6 +98,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onToggleEncrypt,
   onOpenPublish,
   onOpenInfo,
+  onCopyMarkdown,
   onOpenCheatSheet,
   onInsertImage,
   onOpenImageModal,
@@ -95,11 +110,29 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onExportPdf,
   onExportMarkdown,
   onOpenExportModal,
+  onOpenOCR,
+  onOpenSRS,
+  onToggleSplitScreen,
+  isSplitScreen = false,
   language = 'id',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+  const [listMenuAnchor, setListMenuAnchor] = useState<{
+    mode: 'bullet' | 'ordered';
+    top: number;
+    left: number;
+  } | null>(null);
   const t = getT(language);
   const isId = language === 'id';
+
+  const handleCopyMarkdown = () => {
+    if (onCopyMarkdown) {
+      onCopyMarkdown();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -221,24 +254,81 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
         <span className="w-px h-4 bg-slate-700 mx-1" />
 
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onCommand('bullet')}
-          title={t.tb_bullet}
-          className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition"
-        >
-          <List className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onCommand('numbered')}
-          title={t.tb_numbered}
-          className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition"
-        >
-          <ListOrdered className="w-3.5 h-3.5" />
-        </button>
+        {/* Bullet List Group with Word-like Dropdown Gallery */}
+        <div className="relative inline-flex items-center">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onCommand('bullet')}
+            title={t.tb_bullet}
+            className="p-1.5 rounded-l hover:bg-slate-700/70 hover:text-white transition"
+          >
+            <List className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (listMenuAnchor?.mode === 'bullet') {
+                setListMenuAnchor(null);
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setListMenuAnchor({
+                  mode: 'bullet',
+                  top: rect.bottom + 6,
+                  left: Math.max(8, Math.min(rect.left, window.innerWidth - 336)),
+                });
+              }
+            }}
+            title={isId ? 'Pilihan Simbol Poin' : 'Bullet Library'}
+            className={`p-1 -ml-0.5 rounded-r transition cursor-pointer flex items-center justify-center ${
+              listMenuAnchor?.mode === 'bullet'
+                ? 'bg-blue-600/30 text-blue-400'
+                : 'hover:bg-slate-700/70 hover:text-white text-slate-400'
+            }`}
+          >
+            <ChevronDown className="w-2.5 h-2.5" />
+          </button>
+        </div>
+
+        {/* Numbered List Group with Word-like Dropdown Gallery */}
+        <div className="relative inline-flex items-center">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onCommand('numbered')}
+            title={t.tb_numbered}
+            className="p-1.5 rounded-l hover:bg-slate-700/70 hover:text-white transition"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (listMenuAnchor?.mode === 'ordered') {
+                setListMenuAnchor(null);
+              } else {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setListMenuAnchor({
+                  mode: 'ordered',
+                  top: rect.bottom + 6,
+                  left: Math.max(8, Math.min(rect.left, window.innerWidth - 336)),
+                });
+              }
+            }}
+            title={isId ? 'Pilihan Penomoran & Abjad' : 'Numbering Library'}
+            className={`p-1 -ml-0.5 rounded-r transition cursor-pointer flex items-center justify-center ${
+              listMenuAnchor?.mode === 'ordered'
+                ? 'bg-blue-600/30 text-blue-400'
+                : 'hover:bg-slate-700/70 hover:text-white text-slate-400'
+            }`}
+          >
+            <ChevronDown className="w-2.5 h-2.5" />
+          </button>
+        </div>
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
@@ -247,6 +337,24 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition"
         >
           <CheckSquare className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onCommand('outdent')}
+          title={t.tb_outdent || (isId ? 'Kurangi Indentasi (Shift+Tab / Ctrl+[)' : 'Decrease Indent (Shift+Tab / Ctrl+[)')}
+          className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition text-slate-300"
+        >
+          <IndentDecrease className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onCommand('indent')}
+          title={t.tb_indent || (isId ? 'Tambah Indentasi (Tab / Ctrl+]) - Sub-Daftar Bertingkat' : 'Increase Indent (Tab / Ctrl+]) - Multilevel List')}
+          className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition text-slate-300"
+        >
+          <IndentIncrease className="w-3.5 h-3.5" />
         </button>
 
         <span className="w-px h-4 bg-slate-700 mx-1" />
@@ -364,6 +472,26 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition text-purple-400"
           >
             <Sparkles className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onOpenOCR && (
+          <button
+            type="button"
+            onClick={onOpenOCR}
+            title={isId ? 'Ekstraksi Teks Gambar (OCR Lokal)' : 'Extract Text from Image (Local OCR)'}
+            className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition text-cyan-400"
+          >
+            <ScanText className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onOpenSRS && (
+          <button
+            type="button"
+            onClick={onOpenSRS}
+            title={isId ? 'Tinjau Flashcard (Spaced Repetition SM-2)' : 'Review Flashcards (SRS SM-2)'}
+            className="p-1.5 rounded hover:bg-slate-700/70 hover:text-white transition text-emerald-400"
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
           </button>
         )}
         <button
@@ -486,7 +614,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <button
           type="button"
           onClick={onOpenPublish}
-          title={isId ? 'Publikasikan catatan ke web melalui Google Sheets (Gaya Simplenote)' : 'Publish note to web via Google Sheets (Simplenote style)'}
+          title={isId ? 'Publikasikan catatan ke web melalui Google Sheets' : 'Publish note to web via Google Sheets'}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition shrink-0 whitespace-nowrap min-h-[30px] ${
             note.published_info?.is_published
               ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-600/40'
@@ -593,6 +721,27 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </>
         )}
 
+        {/* Copy Note as Markdown for Social Media */}
+        {onCopyMarkdown && (
+          <button
+            type="button"
+            onClick={handleCopyMarkdown}
+            title={t.tb_copy_markdown_tooltip || (isId ? 'Salin seluruh catatan dalam format Markdown (siap tempel di sosmed)' : 'Copy note in Markdown format (ready for social media)')}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded border transition text-xs font-semibold shrink-0 active:scale-95 ${
+              copied
+                ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50'
+                : 'bg-cyan-600/10 hover:bg-cyan-600 text-cyan-400 hover:text-white border-cyan-500/30'
+            }`}
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            <span>{copied ? (t.tb_copy_copied_badge || (isId ? 'Tersalin!' : 'Copied!')) : (isId ? 'Salin MD' : 'Copy MD')}</span>
+          </button>
+        )}
+
         {/* Note Info Dialog */}
         <button
           type="button"
@@ -602,6 +751,30 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Info className="w-3.5 h-3.5" />
         </button>
+
+        {/* Split Screen Multi-Catatan Toggle */}
+        {onToggleSplitScreen && (
+          <button
+            type="button"
+            onClick={onToggleSplitScreen}
+            title={
+              isSplitScreen
+                ? isId
+                  ? 'Tutup Layar Ganda (Dual Note View Aktif)'
+                  : 'Close Dual Note View (Active)'
+                : isId
+                ? 'Buka Layar Ganda (Dua Catatan Berdampingan)'
+                : 'Open Side-by-Side Dual Note View'
+            }
+            className={`p-1.5 rounded transition flex items-center gap-1 ${
+              isSplitScreen
+                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
+                : 'hover:bg-slate-700/70 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Columns2 className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* Editor Mode Control:
             - If in WYSIWYG mode (Settings): DO NOT show split or markdown switcher buttons!
@@ -641,6 +814,20 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </>
         )}
       </div>
+
+      {listMenuAnchor && (
+        <ListStyleMenu
+          isOpen={true}
+          mode={listMenuAnchor.mode}
+          position={{ top: listMenuAnchor.top, left: listMenuAnchor.left }}
+          language={language}
+          onClose={() => setListMenuAnchor(null)}
+          onSelectStyle={(payload) => {
+            onCommand('apply-list-style', JSON.stringify(payload));
+            setListMenuAnchor(null);
+          }}
+        />
+      )}
     </div>
   );
 };

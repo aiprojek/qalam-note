@@ -24,6 +24,8 @@ import {
   Circle,
   Pin,
   Share2,
+  Calendar,
+  CalendarDays,
 } from 'lucide-react';
 import type { Folder, Tag, AppLanguage, Note } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -65,6 +67,8 @@ interface SidebarProps {
   onEmptyTrash: () => void;
   onOpenGraphView?: () => void;
   onOpenExportFolderModal?: (folder: Folder) => void;
+  onOpenDailyNote?: () => void;
+  onOpenDailyCalendar?: () => void;
   language?: AppLanguage;
 }
 
@@ -185,12 +189,12 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
       if (!dataStr) return;
       const data = JSON.parse(dataStr);
 
-      if (data.type === 'qalam-note' || data.type === 'joplin-note') {
+      if (data.type === 'qalam-note') {
         if (data.noteId) {
           onMoveNoteToFolder(data.noteId, folder.id);
           expandFolder(folder.id);
         }
-      } else if (data.type === 'qalam-folder' || data.type === 'joplin-folder') {
+      } else if (data.type === 'qalam-folder') {
         if (data.folderId && data.folderId !== folder.id) {
           onMoveFolder(data.folderId, folder.id);
           expandFolder(folder.id);
@@ -446,7 +450,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
                     const dataStr = e.dataTransfer.getData('application/json');
                     if (!dataStr) return;
                     const data = JSON.parse(dataStr);
-                    if ((data.type === 'qalam-note' || data.type === 'joplin-note') && data.noteId && data.noteId !== note.id) {
+                    if (data.type === 'qalam-note' && data.noteId && data.noteId !== note.id) {
                       onMoveNoteToFolder(data.noteId, folder.id);
                       expandFolder(folder.id);
                     }
@@ -561,6 +565,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onEmptyTrash,
   onOpenGraphView,
   onOpenExportFolderModal,
+  onOpenDailyNote,
+  onOpenDailyCalendar,
   language = 'id',
 }) => {
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
@@ -665,6 +671,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {starredCount}
             </span>
           </button>
+
+          {onOpenDailyNote && (
+            <div className="w-full flex items-center justify-between px-2.5 py-1.5 rounded transition text-blue-300 hover:bg-slate-800/60 group">
+              <button
+                type="button"
+                onClick={onOpenDailyNote}
+                title={language === 'id' ? 'Buka atau Buat Catatan Hari Ini (Alt+D)' : "Open or Create Today's Note (Alt+D)"}
+                className="flex items-center gap-2 flex-1 text-left min-w-0"
+              >
+                <Calendar className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+                <span className="font-medium text-xs truncate">{language === 'id' ? 'Jurnal Harian' : 'Daily Notes'}</span>
+              </button>
+              {onOpenDailyCalendar && (
+                <button
+                  type="button"
+                  onClick={onOpenDailyCalendar}
+                  title={language === 'id' ? 'Buka Mini Kalender & Riwayat Harian' : 'Open Mini Calendar & History'}
+                  className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-white transition shrink-0"
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-slate-400 hover:text-blue-400" />
+                </button>
+              )}
+            </div>
+          )}
 
           {onOpenGraphView && (
             <button
@@ -865,11 +895,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={onSync}
           disabled={isSyncing}
           title={`${t.synchronise} (Ctrl+S)`}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-blue-600/90 hover:bg-blue-600 text-white font-medium text-xs shadow-xs transition disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-blue-600/90 hover:bg-blue-600 text-white font-medium text-xs shadow-xs transition disabled:opacity-50 whitespace-nowrap overflow-hidden select-none"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span>{isSyncing ? t.syncing : t.synchronise}</span>
-          <span className="text-[10px] opacity-75 font-mono ml-0.5 hidden sm:inline">(Ctrl+S)</span>
+          <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span className="whitespace-nowrap truncate font-medium">
+            {isSyncing ? (t.syncing || (language === 'id' ? 'Sinkron...' : 'Syncing...')) : t.synchronise}
+          </span>
+          {!isSyncing && (
+            <span className="text-[10px] opacity-75 font-mono ml-0.5 hidden sm:inline shrink-0 whitespace-nowrap">(Ctrl+S)</span>
+          )}
         </button>
 
         <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">

@@ -19,6 +19,10 @@ import {
   ArrowRight,
   X,
   Hash,
+  Columns2,
+  ScanText,
+  GraduationCap,
+  CalendarDays,
 } from 'lucide-react';
 import type { Note, Folder, AppLanguage } from '../../types';
 
@@ -53,6 +57,10 @@ interface CommandPaletteModalProps {
   onToggleTheme: () => void;
   onToggleReadingMode: () => void;
   onOpenSettings: () => void;
+  onToggleSplitScreen?: () => void;
+  onOpenOCR?: () => void;
+  onOpenSRS?: () => void;
+  onOpenDailyCalendar?: () => void;
   language?: AppLanguage;
 }
 
@@ -78,6 +86,10 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onToggleTheme,
   onToggleReadingMode,
   onOpenSettings,
+  onToggleSplitScreen,
+  onOpenOCR,
+  onOpenSRS,
+  onOpenDailyCalendar,
   language = 'id',
 }) => {
   const [query, setQuery] = useState('');
@@ -206,7 +218,35 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       shortcut: 'Ctrl+,',
       action: () => { onClose(); onOpenSettings(); },
     },
-  ], [isId, onClose, onNewNote, onNewTodo, onOpenDailyNote, onOpenGraphView, onOpenTemplates, onExportPdf, onExportMarkdown, onOpenVoiceRecorder, onOpenDrawingCanvas, onOpenRevisionHistory, onToggleReadingMode, onToggleTheme, onSync, onToggleVaultLock, onOpenSettings]);
+    ...(onToggleSplitScreen ? [{
+      id: 'dual_note_split',
+      title: isId ? 'Layar Ganda Multi-Catatan (Dual Note Split)' : 'Side-by-Side Dual Note Split View',
+      category: isId ? 'Tampilan' : 'View',
+      icon: Columns2,
+      action: () => { onClose(); onToggleSplitScreen(); },
+    }] : []),
+    ...(onOpenOCR ? [{
+      id: 'scan_ocr',
+      title: isId ? 'Pindai Teks Gambar Lokal (Client-Side OCR)' : 'Scan Image Text (Local Client-Side OCR)',
+      category: isId ? 'Alat' : 'Tools',
+      icon: ScanText,
+      action: () => { onClose(); onOpenOCR(); },
+    }] : []),
+    ...(onOpenSRS ? [{
+      id: 'srs_review',
+      title: isId ? 'Tinjau Flashcard & Pengulangan Berjarak (SRS SM-2)' : 'Review Flashcards (Spaced Repetition SRS)',
+      category: isId ? 'Belajar' : 'Study',
+      icon: GraduationCap,
+      action: () => { onClose(); onOpenSRS(); },
+    }] : []),
+    ...(onOpenDailyCalendar ? [{
+      id: 'daily_calendar',
+      title: isId ? 'Kalender Jurnal Harian (Mini Calendar)' : 'Daily Notes & Mini Calendar',
+      category: isId ? 'Jurnal' : 'Journal',
+      icon: CalendarDays,
+      action: () => { onClose(); onOpenDailyCalendar(); },
+    }] : []),
+  ], [isId, onClose, onNewNote, onNewTodo, onOpenDailyNote, onOpenGraphView, onOpenTemplates, onExportPdf, onExportMarkdown, onOpenVoiceRecorder, onOpenDrawingCanvas, onOpenRevisionHistory, onToggleReadingMode, onToggleTheme, onSync, onToggleVaultLock, onOpenSettings, onToggleSplitScreen, onOpenOCR, onOpenSRS, onOpenDailyCalendar]);
 
   // Filter actions and notes based on search query
   const filteredActions = useMemo(() => {

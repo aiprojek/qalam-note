@@ -44,6 +44,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 }) => {
   const [gasUrl, setGasUrl] = useState(gasConfig.web_app_url || '');
   const [authorName, setAuthorName] = useState(gasConfig.author_name || (language === 'id' ? 'Anonim' : 'Anonymous'));
+  const [autoUpdateOnEdit, setAutoUpdateOnEdit] = useState(gasConfig.auto_update_on_edit !== false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
   const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
@@ -83,8 +84,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     setIsPublishing(true);
     setStatusMessage(null);
 
-    // Save configured GAS URL to settings
-    onUpdateGASConfig({ web_app_url: gasUrl, author_name: authorName });
+    // Save configured GAS URL & auto-update preference to settings
+    onUpdateGASConfig({ web_app_url: gasUrl, author_name: authorName, auto_update_on_edit: autoUpdateOnEdit });
 
     const result = await publishNoteToGAS(note, gasUrl, authorName);
 
@@ -416,6 +417,32 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500 placeholder-slate-500'
                     }`}
                   />
+                </div>
+
+                {/* Auto Update to Web toggle */}
+                <div className="pt-1">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoUpdateOnEdit}
+                      onChange={(e) => {
+                        const newVal = e.target.checked;
+                        setAutoUpdateOnEdit(newVal);
+                        onUpdateGASConfig({ auto_update_on_edit: newVal });
+                      }}
+                      className="w-4 h-4 rounded border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                        {isId ? 'Perbarui Otomatis saat Catatan Diedit' : 'Auto-update to web when edited'}
+                      </span>
+                      <span className={`block text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {isId
+                          ? 'Perubahan teks atau daftar tugas langsung dikirim ke web secara otomatis di latar belakang.'
+                          : 'Edits to text and tasks automatically sync to the public web in the background.'}
+                      </span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

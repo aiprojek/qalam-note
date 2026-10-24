@@ -20,9 +20,11 @@ import {
   ArrowLeft,
   Plus,
   FileDown,
+  Columns2,
 } from 'lucide-react';
 import type { Note, NoteSortField, NoteSortOrder, ViewFilter, DateFormatOption, TimeFormatOption, AppLanguage } from '../types';
 import { getT, formatNoteListDate, formatDate as formatGeneralDate } from '../utils/i18n';
+import { parseAdvancedSearchQuery } from '../utils/searchFilter';
 
 interface NoteListProps {
   notes: Note[];
@@ -55,6 +57,8 @@ interface NoteListProps {
   onNewNote?: () => void;
   onNewTodo?: () => void;
   onOpenExportNoteModal?: (note: Note) => void;
+  onOpenInSplitScreen?: (noteId: string) => void;
+  onCopyNoteMarkdown?: (note: Note) => void;
   theme?: string;
 }
 
@@ -89,14 +93,40 @@ export const NoteList: React.FC<NoteListProps> = ({
   onNewNote,
   onNewTodo,
   onOpenExportNoteModal,
+  onOpenInSplitScreen,
+  onCopyNoteMarkdown,
   theme = 'qalam-dark',
 }) => {
-  const isLight = theme === 'qalam-light' || theme === 'light' || theme === 'joplin-light';
+  const isLight = theme === 'qalam-light' || theme === 'light';
   const [activeMenuNoteId, setActiveMenuNoteId] = useState<string | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showFilterHelper, setShowFilterHelper] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [isListDragOver, setIsListDragOver] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Parse active search operators
+  const parsedSearch = React.useMemo(() => parseAdvancedSearchQuery(searchQuery), [searchQuery]);
+  const hasActiveOperators =
+    parsedSearch.tags.length > 0 ||
+    parsedSearch.folders.length > 0 ||
+    parsedSearch.isTodo !== null ||
+    parsedSearch.isDone !== null ||
+    parsedSearch.isPending !== null ||
+    parsedSearch.hasAudio !== null ||
+    parsedSearch.isLocked !== null;
+
+  const handleToggleFilterChip = (opText: string) => {
+    if (searchQuery.includes(opText)) {
+      // Remove it
+      const updated = searchQuery.replace(opText, '').replace(/\s{2,}/g, ' ').trim();
+      onSearchChange(updated);
+    } else {
+      // Append it
+      const updated = (searchQuery.trim() + ' ' + opText).trim();
+      onSearchChange(updated);
+    }
+  };
 
   // High performance virtual list rendering for 1,000+ notes
   const rowVirtualizer = useVirtualizer({
@@ -171,18 +201,151 @@ export const NoteList: React.FC<NoteListProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t.search_notes}
-            className="w-full bg-[#141b27] text-xs text-slate-200 pl-8 pr-7 py-1.5 rounded border border-slate-700/90 focus:border-blue-500 focus:outline-none placeholder:text-slate-500 transition"
+            placeholder={
+              language === 'id'
+                ? 'Cari catatan atau operator (tag:, is:todo)...'
+                : 'Search notes or operators (tag:, is:todo)...'
+            }
+            className="w-full bg-[#141b27] text-xs text-slate-200 pl-8 pr-14 py-1.5 rounded border border-slate-700/90 focus:border-blue-500 focus:outline-none placeholder:text-slate-500 transition"
           />
-          {searchQuery && (
+          <div className="absolute right-1.5 flex items-center gap-1">
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                className="text-slate-400 hover:text-slate-200 p-0.5"
+                title={language === 'id' ? 'Hapus pencarian' : 'Clear search'}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
             <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 text-slate-400 hover:text-slate-200"
+              type="button"
+              onClick={() => setShowFilterHelper((prev) => !prev)}
+              title={language === 'id' ? 'Filter Operator Pencarian (tag:, folder:, is:todo, has:audio...)' : 'Advanced Search Filters'}
+              className={`p-1 rounded transition text-xs flex items-center ${
+                showFilterHelper || hasActiveOperators
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
+              <Filter className="w-3 h-3" />
             </button>
-          )}
+          </div>
         </div>
+
+        {/* Advanced Search Operators Helper Popover */}
+        {showFilterHelper && (
+          <div className={`mt-2 p-2.5 rounded-lg border text-xs shadow-xl animate-in fade-in duration-150 ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-200'
+          }`}>
+            <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-800/60">
+              <span className="font-semibold text-[11px] text-slate-400">
+                {language === 'id' ? 'Sintaks Filter & Operator:' : 'Search Operators & Syntax:'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFilterHelper(false)}
+                className="text-slate-500 hover:text-slate-300"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {[
+                { label: 'tag:belajar', op: 'tag:belajar' },
+                { label: 'folder:projek', op: 'folder:projek' },
+                { label: 'is:todo', op: 'is:todo' },
+                { label: 'is:done', op: 'is:done' },
+                { label: 'has:audio', op: 'has:audio' },
+                { label: 'is:locked', op: 'is:locked' },
+              ].map((chip) => {
+                const isActive = searchQuery.includes(chip.op);
+                return (
+                  <button
+                    key={chip.op}
+                    type="button"
+                    onClick={() => handleToggleFilterChip(chip.op)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition border ${
+                      isActive
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                        : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-2 text-[10px] text-slate-500 leading-tight">
+              {language === 'id'
+                ? 'Tip: Gabungkan operator dengan kata kunci, contoh: "tag:belajar is:todo"'
+                : 'Tip: Combine operators with search keywords, e.g. "tag:study is:todo"'}
+            </p>
+          </div>
+        )}
+
+        {/* Active Operator Badges */}
+        {hasActiveOperators && !showFilterHelper && (
+          <div className="flex flex-wrap items-center gap-1 mt-1.5 pt-0.5">
+            {parsedSearch.tags.map((t) => (
+              <span
+                key={t}
+                onClick={() => handleToggleFilterChip(`tag:${t}`)}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-blue-950/80 text-blue-300 border border-blue-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+                title={language === 'id' ? 'Klik untuk hapus filter' : 'Click to remove filter'}
+              >
+                tag:{t} <X className="w-2.5 h-2.5" />
+              </span>
+            ))}
+            {parsedSearch.folders.map((f) => (
+              <span
+                key={f}
+                onClick={() => handleToggleFilterChip(`folder:${f}`)}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+                title={language === 'id' ? 'Klik untuk hapus filter' : 'Click to remove filter'}
+              >
+                folder:{f} <X className="w-2.5 h-2.5" />
+              </span>
+            ))}
+            {parsedSearch.isTodo && (
+              <span
+                onClick={() => handleToggleFilterChip('is:todo')}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-950/80 text-amber-300 border border-amber-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+              >
+                is:todo <X className="w-2.5 h-2.5" />
+              </span>
+            )}
+            {parsedSearch.isDone && (
+              <span
+                onClick={() => handleToggleFilterChip('is:done')}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+              >
+                is:done <X className="w-2.5 h-2.5" />
+              </span>
+            )}
+            {parsedSearch.hasAudio && (
+              <span
+                onClick={() => handleToggleFilterChip('has:audio')}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+              >
+                has:audio <X className="w-2.5 h-2.5" />
+              </span>
+            )}
+            {parsedSearch.isLocked && (
+              <span
+                onClick={() => handleToggleFilterChip('is:locked')}
+                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-rose-950/80 text-rose-300 border border-rose-800/60 cursor-pointer hover:bg-red-950 hover:text-red-300 hover:border-red-800 transition"
+              >
+                is:locked <X className="w-2.5 h-2.5" />
+              </span>
+            )}
+          </div>
+        )}
 
         {/* View title & Filter tabs (Desktop/Tablet only - on Mobile, MobileTopBar handles title and sort) */}
         {!isMobile && (
@@ -328,7 +491,7 @@ export const NoteList: React.FC<NoteListProps> = ({
               const dataStr = e.dataTransfer.getData('application/json');
               if (!dataStr) return;
               const data = JSON.parse(dataStr);
-              if ((data.type === 'qalam-note' || data.type === 'joplin-note') && data.noteId) {
+              if (data.type === 'qalam-note' && data.noteId) {
                 onMoveNoteToFolder(data.noteId, selectedFolderId);
               }
             } catch (err) {
@@ -514,6 +677,20 @@ export const NoteList: React.FC<NoteListProps> = ({
                               <Copy className="w-3.5 h-3.5 text-slate-400" />
                               <span>{t.duplicate}</span>
                             </button>
+                            {onCopyNoteMarkdown && (
+                              <button
+                                onClick={() => {
+                                  onCopyNoteMarkdown(note);
+                                  setActiveMenuNoteId(null);
+                                }}
+                                className={`w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center gap-2 ${
+                                  isLight ? 'text-cyan-700 font-medium' : 'text-cyan-300'
+                                }`}
+                              >
+                                <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>{language === 'id' ? 'Salin Teks (Markdown)' : 'Copy Text (Markdown)'}</span>
+                              </button>
+                            )}
                             {onOpenExportNoteModal && (
                               <button
                                 onClick={() => {
@@ -526,6 +703,20 @@ export const NoteList: React.FC<NoteListProps> = ({
                               >
                                 <FileDown className="w-3.5 h-3.5 text-blue-500" />
                                 <span>{language === 'id' ? 'Ekspor Catatan...' : 'Export Note...'}</span>
+                              </button>
+                            )}
+                            {onOpenInSplitScreen && (
+                              <button
+                                onClick={() => {
+                                  onOpenInSplitScreen(note.id);
+                                  setActiveMenuNoteId(null);
+                                }}
+                                className={`w-full px-3 py-1.5 text-left hover:bg-purple-600 hover:text-white flex items-center gap-2 ${
+                                  isLight ? 'text-purple-700 font-medium' : 'text-purple-300'
+                                }`}
+                              >
+                                <Columns2 className="w-3.5 h-3.5 text-purple-400" />
+                                <span>{language === 'id' ? 'Buka Berdampingan' : 'Open Side-by-Side'}</span>
                               </button>
                             )}
                             <div className={`border-t my-1 ${isLight ? 'border-slate-200' : 'border-slate-700'}`} />

@@ -55,7 +55,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { PublicReaderView } from './components/PublicReaderView';
 import type { RemotePublishedNote } from './components/PublicReaderView';
 import { decodePublishCipher } from './services/publishCipher';
-import { fetchPublishedNoteFromGAS } from './services/gas';
+import { fetchPublishedNoteFromGAS, publishNoteToGAS } from './services/gas';
 import { executeSync, exportAllData, importData } from './services/sync';
 import { isVaultUnlocked, lockVault } from './services/crypto';
 import { saveAttachment, dataUrlToBlob, migrateAllNotesInlineAttachments } from './utils/attachments';
@@ -74,6 +74,13 @@ import { markdownToHtml } from './utils/markdown';
 import { normalizeTitle } from './utils/wikilinks';
 import { getTemplates, renderTemplateContent } from './services/templates';
 import { QalamIcon } from './components/icons/QalamIcon';
+import { DualNoteEditor } from './components/Editor/DualNoteEditor';
+import { DailyNotesCalendarModal } from './components/Modals/DailyNotesCalendarModal';
+import { SRSModal } from './components/Modals/SRSModal';
+import { OCRModal } from './components/Modals/OCRModal';
+import { matchesAdvancedSearch } from './utils/searchFilter';
+import { copyNoteAsMarkdown } from './utils/clipboard';
+import { Toast } from './components/Toast';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -145,6 +152,26 @@ export default function App() {
   const [isDrawingModalOpen, setIsDrawingModalOpen] = useState(false);
   const [exportNoteModalTarget, setExportNoteModalTarget] = useState<Note | null>(null);
   const [exportFolderModalTarget, setExportFolderModalTarget] = useState<Folder | null>(null);
+
+  // Split Screen Dual Note State
+  const [isDualEditorOpen, setIsDualEditorOpen] = useState(false);
+  const [secondaryNoteId, setSecondaryNoteId] = useState<string | null>(null);
+
+  // Daily Calendar, SRS, and OCR Modals
+  const [isDailyCalendarOpen, setIsDailyCalendarOpen] = useState(false);
+  const [isSRSOpen, setIsSRSOpen] = useState(false);
+  const [isOCROpen, setIsOCROpen] = useState(false);
+
+  // Floating Toast Notification State
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    message: string;
+    type?: 'success' | 'info' | 'warning';
+  }>({
+    isOpen: false,
+    message: '',
+    type: 'success',
+  });
 
   // In-app Action & Delete Confirmation Dialog State
   const [confirmState, setConfirmState] = useState<{
@@ -473,6 +500,45 @@ export default function App() {
     }, delayMs);
   }, [settings.sync.target, isSyncing]);
 
+  const autoPublishDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced auto-update to Google Apps Script / Sheets for published notes
+  const requestAutoPublishToGAS = useCallback(
+    (targetNote: Note) => {
+      if (!targetNote.published_info?.is_published) return;
+      if (settings.gas?.auto_update_on_edit === false) return;
+      const targetGasUrl = targetNote.published_info?.gas_url || settings.gas?.web_app_url;
+      if (!targetGasUrl || targetGasUrl.trim() === '') return;
+
+      if (autoPublishDebounceTimerRef.current) {
+        clearTimeout(autoPublishDebounceTimerRef.current);
+      }
+
+      autoPublishDebounceTimerRef.current = setTimeout(async () => {
+        try {
+          const author = settings.gas?.author_name || (settings.language === 'id' ? 'Anonim' : 'Anonymous');
+          const res = await publishNoteToGAS(targetNote, targetGasUrl, author);
+          if (res.success) {
+            const now = Date.now();
+            await db.notes.update(targetNote.id, {
+              'published_info.published_at': now,
+            });
+            setNotes((prev) =>
+              prev.map((n) =>
+                n.id === targetNote.id && n.published_info
+                  ? { ...n, published_info: { ...n.published_info, published_at: now } }
+                  : n
+              )
+            );
+          }
+        } catch (err) {
+          console.warn('Auto-publish note to GAS error:', err);
+        }
+      }, 3500);
+    },
+    [settings.gas?.auto_update_on_edit, settings.gas?.web_app_url, settings.gas?.author_name, settings.language]
+  );
+
   // Handle Note Update in Dexie & State
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
     if (!selectedNoteId) return;
@@ -490,6 +556,11 @@ export default function App() {
     setNotes((prev) => prev.map((n) => (n.id === selectedNoteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
     requestAutoSync(5000);
+
+    // Auto-update to web if note is published
+    if (updatedNote.published_info?.is_published) {
+      requestAutoPublishToGAS(updatedNote);
+    }
   };
 
   // Create New Note
@@ -536,6 +607,11 @@ export default function App() {
     );
     await db.notes.update(noteId, { todo_completed: nextCompleted, updated_time: Date.now(), sync_status: 'pending' });
     requestAutoSync(1000);
+
+    const currentNote = notes.find((n) => n.id === noteId);
+    if (currentNote?.published_info?.is_published) {
+      requestAutoPublishToGAS({ ...currentNote, todo_completed: nextCompleted });
+    }
   };
 
   // Toggle Star / Favorite
@@ -577,6 +653,33 @@ export default function App() {
     setNotes((prev) => [dupNote, ...prev]);
     setSelectedNoteId(dupId);
     requestAutoSync(800);
+  };
+
+  // Copy Entire Note as Markdown (Formatted for Social Media)
+  const handleCopyNoteMarkdown = async (targetNote?: Note) => {
+    const noteToCopy = targetNote || activeNote;
+    if (!noteToCopy) return;
+
+    let liveHtml: string | undefined = undefined;
+    if (noteToCopy.id === selectedNoteId && editorMode === 'wysiwyg') {
+      const editorRoot = document.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      if (editorRoot) {
+        liveHtml = editorRoot.innerHTML;
+      }
+    }
+
+    const res = await copyNoteAsMarkdown(noteToCopy, liveHtml);
+    if (res.success) {
+      const isId = settings.language === 'id';
+      const cleanTitle = (noteToCopy.title || '').trim() || (isId ? 'Catatan' : 'Note');
+      setToast({
+        isOpen: true,
+        message: isId
+          ? `Seluruh teks "${cleanTitle}" berhasil disalin dalam format Markdown!`
+          : `Note "${cleanTitle}" copied in Markdown format!`,
+        type: 'success',
+      });
+    }
   };
 
   // Soft Delete Note (Move to Trash) with Confirmation
@@ -1185,19 +1288,22 @@ export default function App() {
     }
   };
 
-  // Open or Create Today's Daily Note
-  const handleOpenDailyNote = async () => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+  // Open or Create Today's (or target date's) Daily Note
+  const handleOpenDailyNote = async (targetDateStr?: string) => {
+    let dateStr = targetDateStr;
+    if (!dateStr) {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      dateStr = `${yyyy}-${mm}-${dd}`;
+    }
     const dailyTitle = settings.language === 'id' ? `Catatan Harian ${dateStr}` : `Daily Note ${dateStr}`;
 
     const existing = notes.find(
       (n) =>
         !n.is_deleted &&
-        (normalizeTitle(n.title).includes(dateStr) ||
+        (normalizeTitle(n.title).includes(dateStr!) ||
           normalizeTitle(n.title) === normalizeTitle(dailyTitle))
     );
 
@@ -1237,6 +1343,91 @@ export default function App() {
       setSelectedNoteId(newNoteId);
       if (isMobile) setMobileActiveView('editor');
     }
+  };
+
+  // Split Screen Multi-Catatan (Dual Note View) Handlers
+  const handleToggleSplitScreen = () => {
+    setIsDualEditorOpen((prev) => {
+      const next = !prev;
+      if (next && !secondaryNoteId) {
+        // Automatically pick the first other non-deleted note
+        const other = notes.find((n) => !n.is_deleted && n.id !== selectedNoteId);
+        if (other) setSecondaryNoteId(other.id);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenInSplitScreen = (noteId: string) => {
+    setSecondaryNoteId(noteId);
+    setIsDualEditorOpen(true);
+  };
+
+  const handleSwapNotes = () => {
+    if (!secondaryNoteId || !selectedNoteId) return;
+    const oldPrimary = selectedNoteId;
+    setSelectedNoteId(secondaryNoteId);
+    setSecondaryNoteId(oldPrimary);
+  };
+
+  const handleCreateSecondaryNote = async () => {
+    const targetFolderId = selectedFolderId || (folders.length > 0 ? folders[0].id : 'folder-default');
+    const newNoteId = 'note-' + Date.now();
+    const now = Date.now();
+    const newNote: Note = {
+      id: newNoteId,
+      folder_id: targetFolderId,
+      title: settings.language === 'id' ? 'Catatan Referensi Baru' : 'New Reference Note',
+      body: '',
+      is_todo: false,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: [],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now,
+      updated_time: now,
+      sync_status: 'pending',
+      order: notes.length + 1,
+    };
+    await db.notes.add(newNote);
+    setNotes((prev) => [newNote, ...prev]);
+    setSecondaryNoteId(newNoteId);
+  };
+
+  const handleUpdateSecondaryNote = async (updatedFields: Partial<Note>) => {
+    if (!secondaryNoteId) return;
+    const current = notes.find((n) => n.id === secondaryNoteId);
+    if (!current) return;
+
+    const updatedNote: Note = cleanNoteForDb({
+      ...current,
+      ...updatedFields,
+      updated_time: Date.now(),
+      sync_status: 'pending',
+    });
+
+    setNotes((prev) => prev.map((n) => (n.id === secondaryNoteId ? updatedNote : n)));
+    await db.notes.put(updatedNote);
+    requestAutoSync(5000);
+
+    if (updatedNote.published_info?.is_published) {
+      requestAutoPublishToGAS(updatedNote);
+    }
+  };
+
+  // Local OCR Handler: Insert extracted text into active note
+  const handleInsertOCRText = async (extractedText: string) => {
+    if (!extractedText || !selectedNoteId) return;
+    const currentNote = notes.find((n) => n.id === selectedNoteId);
+    if (!currentNote) return;
+    const isId = settings.language === 'id';
+    const ocrSnippet = `\n\n> 📷 **${isId ? 'Hasil Pindai Teks (OCR Lokal)' : 'Extracted Text (Local OCR)'}:**\n\n${extractedText}\n`;
+    const newBody = (currentNote.body || '') + ocrSnippet;
+    await handleUpdateNote({ body: newBody });
+    setIsOCROpen(false);
   };
 
   // Export Note to PDF (Direct download without print dialog)
@@ -1416,7 +1607,7 @@ export default function App() {
         e.preventDefault();
         handleCreateNote(true);
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
-        // Joplin Standard: Synchronise (Ctrl+S / Cmd+S)
+        // Synchronise shortcut (Ctrl+S / Cmd+S)
         e.preventDefault();
         handleSyncRef.current();
       } else if (e.key === 'F10') {
@@ -1458,13 +1649,9 @@ export default function App() {
         if (filter === 'todos_only' && !note.is_todo) return false;
         if (filter === 'todos_incomplete' && (!note.is_todo || note.todo_completed > 0)) return false;
 
-        // Search Query
+        // Search Query with Advanced Operators (tag:, folder:, is:todo, is:done, has:audio, is:locked)
         if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase();
-          const matchTitle = note.title.toLowerCase().includes(query);
-          const matchBody = note.body.toLowerCase().includes(query);
-          const matchTag = note.tags?.some((t) => t.toLowerCase().includes(query));
-          if (!matchTitle && !matchBody && !matchTag) return false;
+          if (!matchesAdvancedSearch(note, searchQuery, folders)) return false;
         }
 
         return true;
@@ -1489,6 +1676,7 @@ export default function App() {
       });
   }, [
     notes,
+    folders,
     selectedSpecialView,
     selectedTagId,
     selectedFolderId,
@@ -1502,6 +1690,12 @@ export default function App() {
   const activeNote = useMemo(() => {
     return notes.find((n) => n.id === selectedNoteId) || null;
   }, [notes, selectedNoteId]);
+
+  // Secondary Note Object for Side-by-Side Dual View
+  const secondaryNote = useMemo(() => {
+    if (!secondaryNoteId) return null;
+    return notes.find((n) => n.id === secondaryNoteId && !n.is_deleted) || null;
+  }, [notes, secondaryNoteId]);
 
   // Note counts
   const noteCountsByFolder = useMemo(() => {
@@ -1632,12 +1826,18 @@ export default function App() {
           onOpenGraphView={() => setIsGraphViewOpen(true)}
           onOpenTemplates={() => setIsTemplatesOpen(true)}
           onOpenExportModal={() => activeNote && setExportNoteModalTarget(activeNote)}
+          onCopyMarkdown={() => handleCopyNoteMarkdown()}
+          onToggleSplitScreen={handleToggleSplitScreen}
+          isSplitScreen={isDualEditorOpen}
+          onOpenOCR={() => setIsOCROpen(true)}
+          onOpenSRS={() => setIsSRSOpen(true)}
+          onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
           language={settings.language}
           theme={settings.theme}
         />
       )}
 
-      {/* Obsidian / Joplin Style Mobile Top Bar (Phone only) */}
+      {/* Mobile Top Bar (Phone only) */}
       {isMobile && (
         <MobileTopBar
           view={mobileActiveView}
@@ -1681,6 +1881,7 @@ export default function App() {
           onExportPdf={handleExportPdf}
           onExportMarkdown={handleExportMarkdown}
           onOpenExportModal={() => activeNote && setExportNoteModalTarget(activeNote)}
+          onCopyMarkdown={() => handleCopyNoteMarkdown()}
           mobileReadingMode={mobileReadingMode}
           onToggleReadingMode={() => setMobileReadingMode((prev) => !prev)}
           isVaultUnlocked={vaultUnlocked}
@@ -1774,6 +1975,8 @@ export default function App() {
                   onMoveNoteToFolder={handleMoveNoteToFolder}
                   onOpenGraphView={() => setIsGraphViewOpen(true)}
                   onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                  onOpenDailyNote={() => handleOpenDailyNote()}
+                  onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                   language={settings.language}
                 />
               </div>
@@ -1820,6 +2023,8 @@ export default function App() {
                   onNewNote={() => handleCreateNote(false)}
                   onNewTodo={() => handleCreateNote(true)}
                   onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                  onOpenInSplitScreen={handleOpenInSplitScreen}
+                  onCopyNoteMarkdown={handleCopyNoteMarkdown}
                 />
               </div>
             )}
@@ -1854,6 +2059,7 @@ export default function App() {
                     onExportPdf={handleExportPdf}
                     onExportMarkdown={handleExportMarkdown}
                     onOpenExportModal={() => setExportNoteModalTarget(activeNote)}
+                    onShowToast={(msg, type) => setToast({ isOpen: true, message: msg, type: type || 'success' })}
                     language={settings.language}
                     theme={settings.theme}
                     isMobile={true}
@@ -1963,6 +2169,8 @@ export default function App() {
                         onMoveFolder={handleMoveFolder}
                         onMoveNoteToFolder={handleMoveNoteToFolder}
                         onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                        onOpenDailyNote={() => handleOpenDailyNote()}
+                        onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                         language={settings.language}
                       />
                     </div>
@@ -2004,13 +2212,54 @@ export default function App() {
                       theme={settings.theme}
                       onBackToSidebar={() => setIsSidebarOpen(true)}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                      onOpenInSplitScreen={handleOpenInSplitScreen}
+                      onCopyNoteMarkdown={handleCopyNoteMarkdown}
                     />
                   </div>
                 )}
 
-                {/* Column 3 on Tablet: Note Editor */}
+                {/* Column 3 on Tablet: Note Editor or Dual Note Split */}
                 <div className="flex-1 h-full min-w-0">
-                  {activeNote ? (
+                  {isDualEditorOpen && activeNote ? (
+                    <DualNoteEditor
+                      primaryNote={activeNote}
+                      secondaryNote={secondaryNote}
+                      allNotes={notes}
+                      folders={folders}
+                      availableTags={tags.map((t) => t.title)}
+                      settingsEditorMode={editorMode}
+                      markdownViewMode={markdownViewMode}
+                      isVaultUnlocked={vaultUnlocked}
+                      onUpdatePrimaryNote={handleUpdateNote}
+                      onUpdateSecondaryNote={handleUpdateSecondaryNote}
+                      onSelectSecondaryNote={setSecondaryNoteId}
+                      onCreateSecondaryNote={handleCreateSecondaryNote}
+                      onSwapNotes={handleSwapNotes}
+                      onCloseDualView={() => setIsDualEditorOpen(false)}
+                      onMarkdownViewModeChange={(v) => {
+                        setMarkdownViewMode(v);
+                        handleSaveSettings({ markdown_view_mode: v });
+                      }}
+                      onOpenPublish={() => setIsPublishOpen(true)}
+                      onOpenInfo={() => setIsNoteInfoOpen(true)}
+                      onToggleEncrypt={handleToggleEncryptNote}
+                      onRequestUnlock={() => setIsUnlockVaultOpen(true)}
+                      onOpenWikiLink={handleOpenWikiLink}
+                      onOpenTemplates={() => setIsTemplatesOpen(true)}
+                      onOpenGraphView={() => setIsGraphViewOpen(true)}
+                      onOpenRevisionHistory={() => setIsRevisionHistoryOpen(true)}
+                      onOpenVoiceRecorder={() => setIsAudioRecordOpen(true)}
+                      onOpenDrawingCanvas={() => setIsDrawingModalOpen(true)}
+                      onExportPdf={handleExportPdf}
+                      onExportMarkdown={handleExportMarkdown}
+                      onOpenExportModal={(n) => setExportNoteModalTarget(n)}
+                      onOpenOCR={() => setIsOCROpen(true)}
+                      onOpenSRS={() => setIsSRSOpen(true)}
+                      onShowToast={(msg, type) => setToast({ isOpen: true, message: msg, type: type || 'success' })}
+                      language={settings.language}
+                      theme={settings.theme}
+                    />
+                  ) : activeNote ? (
                     <NoteEditor
                       note={activeNote}
                       folders={folders}
@@ -2037,6 +2286,11 @@ export default function App() {
                       onExportPdf={handleExportPdf}
                       onExportMarkdown={handleExportMarkdown}
                       onOpenExportModal={() => setExportNoteModalTarget(activeNote)}
+                      onShowToast={(msg, type) => setToast({ isOpen: true, message: msg, type: type || 'success' })}
+                      onOpenOCR={() => setIsOCROpen(true)}
+                      onOpenSRS={() => setIsSRSOpen(true)}
+                      onToggleSplitScreen={handleToggleSplitScreen}
+                      isSplitScreen={isDualEditorOpen}
                       language={settings.language}
                       theme={settings.theme}
                     />
@@ -2125,6 +2379,8 @@ export default function App() {
                       onMoveNoteToFolder={handleMoveNoteToFolder}
                       onOpenGraphView={() => setIsGraphViewOpen(true)}
                       onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                      onOpenDailyNote={() => handleOpenDailyNote()}
+                      onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                       language={settings.language}
                     />
                   </div>
@@ -2164,13 +2420,54 @@ export default function App() {
                       language={settings.language}
                       theme={settings.theme}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                      onOpenInSplitScreen={handleOpenInSplitScreen}
+                      onCopyNoteMarkdown={handleCopyNoteMarkdown}
                     />
                   </div>
                 )}
 
-                {/* Column 3: Note Editor */}
+                {/* Column 3: Note Editor or Dual Note Split */}
                 <div className="flex-1 h-full min-w-0">
-                  {activeNote ? (
+                  {isDualEditorOpen && activeNote ? (
+                    <DualNoteEditor
+                      primaryNote={activeNote}
+                      secondaryNote={secondaryNote}
+                      allNotes={notes}
+                      folders={folders}
+                      availableTags={tags.map((t) => t.title)}
+                      settingsEditorMode={editorMode}
+                      markdownViewMode={markdownViewMode}
+                      isVaultUnlocked={vaultUnlocked}
+                      onUpdatePrimaryNote={handleUpdateNote}
+                      onUpdateSecondaryNote={handleUpdateSecondaryNote}
+                      onSelectSecondaryNote={setSecondaryNoteId}
+                      onCreateSecondaryNote={handleCreateSecondaryNote}
+                      onSwapNotes={handleSwapNotes}
+                      onCloseDualView={() => setIsDualEditorOpen(false)}
+                      onMarkdownViewModeChange={(v) => {
+                        setMarkdownViewMode(v);
+                        handleSaveSettings({ markdown_view_mode: v });
+                      }}
+                      onOpenPublish={() => setIsPublishOpen(true)}
+                      onOpenInfo={() => setIsNoteInfoOpen(true)}
+                      onToggleEncrypt={handleToggleEncryptNote}
+                      onRequestUnlock={() => setIsUnlockVaultOpen(true)}
+                      onOpenWikiLink={handleOpenWikiLink}
+                      onOpenTemplates={() => setIsTemplatesOpen(true)}
+                      onOpenGraphView={() => setIsGraphViewOpen(true)}
+                      onOpenRevisionHistory={() => setIsRevisionHistoryOpen(true)}
+                      onOpenVoiceRecorder={() => setIsAudioRecordOpen(true)}
+                      onOpenDrawingCanvas={() => setIsDrawingModalOpen(true)}
+                      onExportPdf={handleExportPdf}
+                      onExportMarkdown={handleExportMarkdown}
+                      onOpenExportModal={(n) => setExportNoteModalTarget(n)}
+                      onOpenOCR={() => setIsOCROpen(true)}
+                      onOpenSRS={() => setIsSRSOpen(true)}
+                      onShowToast={(msg, type) => setToast({ isOpen: true, message: msg, type: type || 'success' })}
+                      language={settings.language}
+                      theme={settings.theme}
+                    />
+                  ) : activeNote ? (
                     <NoteEditor
                       note={activeNote}
                       folders={folders}
@@ -2197,6 +2494,11 @@ export default function App() {
                       onExportPdf={handleExportPdf}
                       onExportMarkdown={handleExportMarkdown}
                       onOpenExportModal={() => setExportNoteModalTarget(activeNote)}
+                      onShowToast={(msg, type) => setToast({ isOpen: true, message: msg, type: type || 'success' })}
+                      onOpenOCR={() => setIsOCROpen(true)}
+                      onOpenSRS={() => setIsSRSOpen(true)}
+                      onToggleSplitScreen={handleToggleSplitScreen}
+                      isSplitScreen={isDualEditorOpen}
                       language={settings.language}
                       theme={settings.theme}
                     />
@@ -2449,6 +2751,19 @@ export default function App() {
           setSettingsInitialTab('general');
           setIsSettingsOpen(true);
         }}
+        onToggleSplitScreen={handleToggleSplitScreen}
+        onOpenOCR={() => {
+          setIsCommandPaletteOpen(false);
+          setIsOCROpen(true);
+        }}
+        onOpenSRS={() => {
+          setIsCommandPaletteOpen(false);
+          setIsSRSOpen(true);
+        }}
+        onOpenDailyCalendar={() => {
+          setIsCommandPaletteOpen(false);
+          setIsDailyCalendarOpen(true);
+        }}
         language={settings.language}
       />
 
@@ -2532,7 +2847,7 @@ export default function App() {
         }}
       />
 
-      {/* Export Folder Modal (Joplin style ZIP archive export: all, docx, markdown, html, pdf) */}
+      {/* Export Folder Modal (ZIP archive export: all, docx, markdown, html, pdf) */}
       <ExportFolderModal
         isOpen={!!exportFolderModalTarget}
         onClose={() => setExportFolderModalTarget(null)}
@@ -2549,8 +2864,48 @@ export default function App() {
         }}
       />
 
+      {/* Daily Notes Mini Calendar Modal */}
+      <DailyNotesCalendarModal
+        isOpen={isDailyCalendarOpen}
+        onClose={() => setIsDailyCalendarOpen(false)}
+        notes={notes}
+        onOpenDailyNote={(dateStr) => {
+          setIsDailyCalendarOpen(false);
+          handleOpenDailyNote(dateStr);
+        }}
+        language={settings.language}
+        theme={settings.theme}
+      />
+
+      {/* Spaced Repetition Flashcard (SRS SM-2) Modal */}
+      <SRSModal
+        isOpen={isSRSOpen}
+        onClose={() => setIsSRSOpen(false)}
+        activeNote={activeNote || undefined}
+        allNotes={notes}
+        language={settings.language}
+        theme={settings.theme}
+      />
+
+      {/* Client-Side Optical Character Recognition (OCR via Tesseract.js) Modal */}
+      <OCRModal
+        isOpen={isOCROpen}
+        onClose={() => setIsOCROpen(false)}
+        onInsertText={handleInsertOCRText}
+        language={settings.language}
+        theme={settings.theme}
+      />
+
       {/* Real-time PWA Offline State Indicator */}
       <OfflineIndicator language={settings.language} />
+
+      {/* Floating Action & Copy Feedback Toast Notification */}
+      <Toast
+        isOpen={toast.isOpen}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

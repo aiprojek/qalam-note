@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useState } from 'react';
 import { FileText, CheckSquare, Link2, Plus } from 'lucide-react';
 import type { Note } from '../../types';
 import { searchWikiLinkSuggestions } from '../../utils/wikilinks';
+import { parseListLineMarker } from '../../utils/listStyles';
 
 interface MarkdownEditorProps {
   content: string;
@@ -122,103 +123,112 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
     }
 
-    // Tab key: Indent 2 spaces (or Shift+Tab outdent)
-    if (e.key === 'Tab') {
+    // Indent / Outdent Keyboard Shortcuts: Tab / Shift+Tab or Ctrl+] / Ctrl+[
+    const isIndentShortcut = (e.key === 'Tab' && !e.shiftKey) || (isMetaOrCtrl && e.key === ']');
+    const isOutdentShortcut = (e.key === 'Tab' && e.shiftKey) || (isMetaOrCtrl && e.key === '[');
+
+    if (isIndentShortcut) {
       e.preventDefault();
-      if (e.shiftKey) {
-        // Outdent
-        const before = content.substring(0, start);
-        const lineStart = before.lastIndexOf('\n') + 1;
-        if (content.substring(lineStart, lineStart + 2) === '  ') {
-          const updated = content.substring(0, lineStart) + content.substring(lineStart + 2);
-          onChange(updated);
-          setTimeout(() => {
-            textarea.selectionStart = textarea.selectionEnd = Math.max(start - 2, lineStart);
-          }, 0);
-        }
-      } else {
-        const updated = content.substring(0, start) + '  ' + content.substring(end);
-        onChange(updated);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + 2;
-        }, 0);
-      }
+      const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = content.indexOf('\n', end);
+      if (lineEnd === -1) lineEnd = content.length;
+
+      const selectedBlock = content.substring(lineStart, lineEnd);
+      const lines = selectedBlock.split('\n');
+      const indented = lines.map((l) => '  ' + l).join('\n');
+      const updated = content.substring(0, lineStart) + indented + content.substring(lineEnd);
+      onChange(updated);
+
+      setTimeout(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.focus();
+        const addedTotal = 2 * lines.length;
+        textareaRef.current.selectionStart = start + 2;
+        textareaRef.current.selectionEnd = end + addedTotal;
+      }, 0);
       return;
     }
 
-    // Enter key: smart list continuation (- [ ], -, 1.)
+    if (isOutdentShortcut) {
+      e.preventDefault();
+      const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = content.indexOf('\n', end);
+      if (lineEnd === -1) lineEnd = content.length;
+
+      const selectedBlock = content.substring(lineStart, lineEnd);
+      const lines = selectedBlock.split('\n');
+      let removedTotal = 0;
+      let firstRemoved = 0;
+      const outdented = lines
+        .map((l, idx) => {
+          let rem = 0;
+          let res = l;
+          if (res.startsWith('  ')) {
+            res = res.substring(2);
+            rem = 2;
+          } else if (res.startsWith(' ') || res.startsWith('\t')) {
+            res = res.substring(1);
+            rem = 1;
+          }
+          if (idx === 0) firstRemoved = rem;
+          removedTotal += rem;
+          return res;
+        })
+        .join('\n');
+
+      const updated = content.substring(0, lineStart) + outdented + content.substring(lineEnd);
+      onChange(updated);
+
+      setTimeout(() => {
+        if (!textareaRef.current) return;
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = Math.max(lineStart, start - firstRemoved);
+        textareaRef.current.selectionEnd = Math.max(lineStart, end - removedTotal);
+      }, 0);
+      return;
+    }
+
+    // Enter key: smart list continuation with full Word-like list styles support (abjad, roman, icons, checklist)
     if (e.key === 'Enter') {
       const before = content.substring(0, start);
       const currentLineStart = before.lastIndexOf('\n') + 1;
       const currentLine = before.substring(currentLineStart);
 
-      // Empty checkbox list item -> clear list prefix
-      if (/^-\s*\[[ x]\]\s*$/.test(currentLine)) {
+      const parsed = parseListLineMarker(currentLine);
+      if (parsed) {
         e.preventDefault();
-        const updated = content.substring(0, currentLineStart) + content.substring(start);
-        onChange(updated);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = currentLineStart;
-        }, 0);
-        return;
-      }
-
-      // Checkbox continuation
-      if (/^-\s*\[[ x]\]\s+/.test(currentLine)) {
-        e.preventDefault();
-        const insertion = '\n- [ ] ';
-        const updated = content.substring(0, start) + insertion + content.substring(end);
-        onChange(updated);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
-        }, 0);
-        return;
-      }
-
-      // Empty bullet -> clear bullet
-      if (/^[-*]\s*$/.test(currentLine)) {
-        e.preventDefault();
-        const updated = content.substring(0, currentLineStart) + content.substring(start);
-        onChange(updated);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = currentLineStart;
-        }, 0);
-        return;
-      }
-
-      // Bullet continuation
-      const bulletMatch = currentLine.match(/^(\s*[-*]\s+)/);
-      if (bulletMatch) {
-        e.preventDefault();
-        const insertion = '\n' + bulletMatch[1];
-        const updated = content.substring(0, start) + insertion + content.substring(end);
-        onChange(updated);
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
-        }, 0);
-        return;
-      }
-
-      // Numbered list continuation
-      const numMatch = currentLine.match(/^(\s*)(\d+)\.\s+/);
-      if (numMatch) {
-        // If empty numbered line -> clear
-        if (/^\s*\d+\.\s*$/.test(currentLine)) {
-          e.preventDefault();
-          const updated = content.substring(0, currentLineStart) + content.substring(start);
-          onChange(updated);
-          setTimeout(() => {
-            textarea.selectionStart = textarea.selectionEnd = currentLineStart;
-          }, 0);
+        // If line has marker but empty text -> outdent or clear
+        if (!parsed.text.trim()) {
+          const leadingSpaces = parsed.indent;
+          if (leadingSpaces.length >= 2) {
+            const newSpaces = leadingSpaces.substring(2);
+            const replacement = `${newSpaces}${parsed.marker} `;
+            const updated = content.substring(0, currentLineStart) + replacement + content.substring(start);
+            onChange(updated);
+            setTimeout(() => {
+              if (!textareaRef.current) return;
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = currentLineStart + replacement.length;
+            }, 0);
+          } else {
+            // At root: clear marker
+            const updated = content.substring(0, currentLineStart) + content.substring(start);
+            onChange(updated);
+            setTimeout(() => {
+              if (!textareaRef.current) return;
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = currentLineStart;
+            }, 0);
+          }
           return;
         }
-        e.preventDefault();
-        const nextNum = parseInt(numMatch[2], 10) + 1;
-        const insertion = `\n${numMatch[1]}${nextNum}. `;
+
+        // Non-empty line: insert next marker
+        const nextMarker = parsed.nextMarker || parsed.marker;
+        const insertion = `\n${parsed.indent}${nextMarker} `;
         const updated = content.substring(0, start) + insertion + content.substring(end);
         onChange(updated);
         setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+          if (!textareaRef.current) return;
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + insertion.length;
         }, 0);
         return;
       }

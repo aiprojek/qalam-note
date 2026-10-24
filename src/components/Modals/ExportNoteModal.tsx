@@ -98,11 +98,11 @@ export const ExportNoteModal: React.FC<ExportNoteModalProps> = ({
     {
       id: 'markdown',
       title: isId ? 'Berkas Markdown (.md)' : 'Markdown File (.md)',
-      badge: 'Obsidian / Standar',
+      badge: isId ? 'Standar Universal' : 'Universal Standard',
       badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
       desc: isId
-        ? 'Teks Markdown murni standar yang kompatibel dengan Obsidian dan standar Markdown GitHub'
-        : 'Pure standard Markdown compatible with Obsidian and standard GitHub Markdown',
+        ? 'Teks Markdown murni standar yang portabel dan kompatibel dengan berbagai aplikasi catatan'
+        : 'Pure standard Markdown format compatible with any Markdown editor',
       icon: FileCode,
       iconColor: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10',
       action: () => handleAction('markdown', () => onExportMarkdown(note)),

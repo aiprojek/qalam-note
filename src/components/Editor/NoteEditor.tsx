@@ -30,6 +30,8 @@ import { getT } from '../../utils/i18n';
 import { getNoteDirection } from '../../utils/rtl';
 import { htmlToMarkdown, markdownToHtml } from '../../utils/markdown';
 import { saveAttachment, preloadNoteAttachments, downloadAttachment } from '../../utils/attachments';
+import { toRoman, toAlpha } from '../../utils/listStyles';
+import { copyNoteAsMarkdown } from '../../utils/clipboard';
 
 interface NoteEditorProps {
   note: Note;
@@ -55,6 +57,11 @@ interface NoteEditorProps {
   onExportPdf?: () => void;
   onExportMarkdown?: () => void;
   onOpenExportModal?: () => void;
+  onOpenOCR?: () => void;
+  onOpenSRS?: () => void;
+  onToggleSplitScreen?: () => void;
+  isSplitScreen?: boolean;
+  onShowToast?: (message: string, type?: 'success' | 'info') => void;
   language?: AppLanguage;
   theme?: string;
   isMobile?: boolean;
@@ -85,12 +92,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onExportPdf,
   onExportMarkdown,
   onOpenExportModal,
+  onOpenOCR,
+  onOpenSRS,
+  onToggleSplitScreen,
+  isSplitScreen = false,
+  onShowToast,
   language = 'id',
   theme = 'qalam-dark',
   isMobile = false,
   mobileReadingMode = false,
 }) => {
-  const isLight = theme === 'qalam-light' || theme === 'light' || theme === 'joplin-light';
+  const isLight = theme === 'qalam-light' || theme === 'light';
   const [newTagInput, setNewTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
   const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
@@ -101,6 +113,27 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [isFileAttachmentModalOpen, setIsFileAttachmentModalOpen] = useState(false);
   const savedRangeRef = useRef<Range | null>(null);
   const t = getT(language);
+
+  // Copy Note as clean Markdown for Social Media
+  const handleCopyMarkdown = async () => {
+    let liveHtml: string | undefined = undefined;
+    if (settingsEditorMode === 'wysiwyg') {
+      const editorRoot = document.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      if (editorRoot) {
+        liveHtml = editorRoot.innerHTML;
+      }
+    }
+    const res = await copyNoteAsMarkdown(note, liveHtml);
+    if (res.success && onShowToast) {
+      onShowToast(
+        t.tb_copy_markdown_success ||
+          (language === 'id'
+            ? 'Seluruh teks catatan berhasil disalin dalam format Markdown!'
+            : 'Entire note copied in Markdown format!'),
+        'success'
+      );
+    }
+  };
 
   // Undo & Redo History Management
   const historyRef = useRef<{ body: string; body_html?: string }[]>([]);
@@ -613,6 +646,109 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           }
           break;
         }
+        case 'indent': {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            let node: Node | null = sel.getRangeAt(0).commonAncestorContainer;
+            if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+            const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
+            if (todoItem) {
+              const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
+              const nextIndent = Math.min(currentIndent + 1, 6);
+              todoItem.setAttribute('data-indent', String(nextIndent));
+              todoItem.style.marginLeft = `${nextIndent * 1.5}rem`;
+              break;
+            }
+          }
+          document.execCommand('indent', false);
+          break;
+        }
+        case 'outdent': {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            let node: Node | null = sel.getRangeAt(0).commonAncestorContainer;
+            if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+            const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
+            if (todoItem) {
+              const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
+              const nextIndent = Math.max(currentIndent - 1, 0);
+              todoItem.setAttribute('data-indent', String(nextIndent));
+              todoItem.style.marginLeft = nextIndent > 0 ? `${nextIndent * 1.5}rem` : '';
+              break;
+            }
+          }
+          document.execCommand('outdent', false);
+          break;
+        }
+        case 'apply-list-style': {
+          if (!val) break;
+          try {
+            const payload = JSON.parse(val);
+            const sel = window.getSelection();
+            let parentList: HTMLElement | null = null;
+            if (sel && sel.rangeCount > 0) {
+              let node: Node | null = sel.getRangeAt(0).commonAncestorContainer;
+              if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+              parentList = (node as HTMLElement | null)?.closest('ul, ol') || null;
+            }
+
+            if (payload.type === 'bullet') {
+              if (!parentList || parentList.tagName.toLowerCase() !== 'ul') {
+                document.execCommand('insertUnorderedList', false);
+                const newSel = window.getSelection();
+                if (newSel && newSel.rangeCount > 0) {
+                  let n: Node | null = newSel.getRangeAt(0).commonAncestorContainer;
+                  if (n.nodeType === Node.TEXT_NODE) n = n.parentElement;
+                  parentList = (n as HTMLElement | null)?.closest('ul') || null;
+                }
+              }
+
+              if (parentList) {
+                const sym = payload.symbol || '•';
+                if (sym === '•' || sym === '-') {
+                  parentList.style.listStyleType = 'disc';
+                } else if (sym === '○') {
+                  parentList.style.listStyleType = 'circle';
+                } else if (sym === '■') {
+                  parentList.style.listStyleType = 'square';
+                } else {
+                  parentList.style.listStyleType = `'${sym} '`;
+                }
+              }
+            } else if (payload.type === 'ordered') {
+              if (!parentList || parentList.tagName.toLowerCase() !== 'ol') {
+                document.execCommand('insertOrderedList', false);
+                const newSel = window.getSelection();
+                if (newSel && newSel.rangeCount > 0) {
+                  let n: Node | null = newSel.getRangeAt(0).commonAncestorContainer;
+                  if (n.nodeType === Node.TEXT_NODE) n = n.parentElement;
+                  parentList = (n as HTMLElement | null)?.closest('ol') || null;
+                }
+              }
+
+              if (parentList) {
+                const typeMap: Record<string, string> = {
+                  'upper-alpha': 'A',
+                  'lower-alpha': 'a',
+                  'lower-alpha-paren': 'a',
+                  'upper-roman': 'I',
+                  'lower-roman': 'i',
+                  'decimal': '1',
+                  'decimal-paren': '1',
+                };
+                const attrVal = typeMap[payload.styleId] || '1';
+                parentList.setAttribute('type', attrVal);
+
+                if (payload.start && payload.start > 1) {
+                  parentList.setAttribute('start', String(payload.start));
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to apply list style in WYSIWYG:', e);
+          }
+          break;
+        }
         case 'quote':
           try {
             document.execCommand('formatBlock', false, '<blockquote>');
@@ -891,6 +1027,129 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           case 'todo':
             snippet = `\n- [ ] ${selected || 'Task item'}\n`;
             break;
+          case 'indent': {
+            const fullText = textarea.value;
+            const startLineIdx = fullText.lastIndexOf('\n', start - 1) + 1;
+            let endLineIdx = fullText.indexOf('\n', end);
+            if (endLineIdx === -1) endLineIdx = fullText.length;
+
+            const selectedBlock = fullText.substring(startLineIdx, endLineIdx);
+            const lines = selectedBlock.split('\n');
+            const indentedLines = lines.map((l) => '  ' + l);
+            const replaced = indentedLines.join('\n');
+
+            const updatedBody = fullText.substring(0, startLineIdx) + replaced + fullText.substring(endLineIdx);
+            handleBodyChange(updatedBody);
+            setTimeout(() => {
+              textarea.focus();
+              const addedChars = 2 * lines.length;
+              textarea.selectionStart = start + 2;
+              textarea.selectionEnd = end + addedChars;
+            }, 10);
+            return;
+          }
+          case 'outdent': {
+            const fullText = textarea.value;
+            const startLineIdx = fullText.lastIndexOf('\n', start - 1) + 1;
+            let endLineIdx = fullText.indexOf('\n', end);
+            if (endLineIdx === -1) endLineIdx = fullText.length;
+
+            const selectedBlock = fullText.substring(startLineIdx, endLineIdx);
+            const lines = selectedBlock.split('\n');
+            let removedCount = 0;
+            let firstLineRemoved = 0;
+            const outdentedLines = lines.map((l, idx) => {
+              let removed = 0;
+              let outLine = l;
+              if (outLine.startsWith('  ')) {
+                outLine = outLine.substring(2);
+                removed = 2;
+              } else if (outLine.startsWith(' ') || outLine.startsWith('\t')) {
+                outLine = outLine.substring(1);
+                removed = 1;
+              }
+              if (idx === 0) firstLineRemoved = removed;
+              removedCount += removed;
+              return outLine;
+            });
+            const replaced = outdentedLines.join('\n');
+
+            const updatedBody = fullText.substring(0, startLineIdx) + replaced + fullText.substring(endLineIdx);
+            handleBodyChange(updatedBody);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.selectionStart = Math.max(startLineIdx, start - firstLineRemoved);
+              textarea.selectionEnd = Math.max(startLineIdx, end - removedCount);
+            }, 10);
+            return;
+          }
+          case 'apply-list-style': {
+            if (!val) return;
+            try {
+              const payload = JSON.parse(val);
+              const fullText = textarea.value;
+              const startLineIdx = fullText.lastIndexOf('\n', start - 1) + 1;
+              let endLineIdx = fullText.indexOf('\n', end);
+              if (endLineIdx === -1) endLineIdx = fullText.length;
+
+              const selectedBlock = fullText.substring(startLineIdx, endLineIdx);
+              const lines = selectedBlock.split('\n');
+
+              const startIndex = payload.start || 1;
+              const prefix = payload.prefix || '';
+              const suffix = payload.suffix || (payload.styleId === 'decimal-paren' || payload.styleId === 'lower-alpha-paren' ? ')' : '.');
+
+              const formatMarker = (idx: number): string => {
+                if (payload.type === 'bullet') {
+                  return `${payload.symbol || '•'} `;
+                }
+                const actualNum = startIndex + idx;
+                let valStr = String(actualNum);
+                if (payload.styleId === 'upper-alpha') valStr = toAlpha(actualNum, true);
+                else if (payload.styleId === 'lower-alpha' || payload.styleId === 'lower-alpha-paren') valStr = toAlpha(actualNum, false);
+                else if (payload.styleId === 'upper-roman') valStr = toRoman(actualNum, true);
+                else if (payload.styleId === 'lower-roman') valStr = toRoman(actualNum, false);
+                return `${prefix}${valStr}${suffix} `;
+              };
+
+              // If block is completely empty / cursor on a single empty line
+              if (lines.length === 1 && !lines[0].trim()) {
+                const sampleLines = [
+                  formatMarker(0) + (note ? 'Butir pertama' : 'First item'),
+                  formatMarker(1) + (note ? 'Butir kedua' : 'Second item'),
+                ].join('\n');
+                const updated = fullText.substring(0, startLineIdx) + sampleLines + fullText.substring(endLineIdx);
+                handleBodyChange(updated);
+                setTimeout(() => {
+                  textarea.focus();
+                  textarea.selectionStart = startLineIdx + formatMarker(0).length;
+                  textarea.selectionEnd = startLineIdx + sampleLines.indexOf('\n');
+                }, 10);
+                return;
+              }
+
+              // Apply or replace marker on each line
+              const formattedLines = lines.map((l, i) => {
+                const indentMatch = l.match(/^([ \t]*)/);
+                const indent = indentMatch ? indentMatch[1] : '';
+                // Strip existing list marker if present
+                const cleanText = l.replace(/^([ \t]*)(?:(-\s*\[[ xX]\])|(\d+[\.\)])|([a-zA-Z][\.\)])|([IVXLCDMivxlcdm]+[\.\)])|([-*+•○■◆➔✔★—]|\p{Extended_Pictographic}))\s*/u, '');
+                return `${indent}${formatMarker(i)}${cleanText.trim() || 'Item'}`;
+              });
+
+              const replaced = formattedLines.join('\n');
+              const updatedBody = fullText.substring(0, startLineIdx) + replaced + fullText.substring(endLineIdx);
+              handleBodyChange(updatedBody);
+              setTimeout(() => {
+                textarea.focus();
+                textarea.selectionStart = startLineIdx;
+                textarea.selectionEnd = startLineIdx + replaced.length;
+              }, 10);
+            } catch (e) {
+              console.warn('Failed to parse list style in markdown:', e);
+            }
+            return;
+          }
           case 'code':
             snippet = `\n\`\`\`typescript\n${selected || '// code here'}\n\`\`\`\n`;
             break;
@@ -1250,6 +1509,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onToggleEncrypt={onToggleEncrypt}
           onOpenPublish={onOpenPublish}
           onOpenInfo={onOpenInfo}
+          onCopyMarkdown={handleCopyMarkdown}
           onOpenCheatSheet={(mathOnly) => {
             setIsCheatSheetMathOnly(!!mathOnly);
             setIsCheatSheetOpen(true);
@@ -1264,6 +1524,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onExportPdf={onExportPdf}
           onExportMarkdown={onExportMarkdown}
           onOpenExportModal={onOpenExportModal}
+          onOpenOCR={onOpenOCR}
+          onOpenSRS={onOpenSRS}
+          onToggleSplitScreen={onToggleSplitScreen}
+          isSplitScreen={isSplitScreen}
           language={language}
         />
       )}
@@ -1298,7 +1562,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             </button>
           </div>
         ) : isMobile && mobileReadingMode ? (
-          /* Mobile Distraction-Free Reading Mode (Obsidian / Joplin Reading View) */
+          /* Mobile Distraction-Free Reading Mode (Reading View) */
           <div
             onClick={(e) => {
               const target = e.target as HTMLElement;
@@ -1367,7 +1631,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               )}
             </div>
 
-            {/* Obsidian-Style Mobile Quick Formatting Ribbon - Full Feature Parity with Desktop */}
+            {/* Mobile Quick Formatting Ribbon - Full Feature Parity with Desktop */}
             {isMobile && (
               <MobileEditorRibbon
                 onCommand={handleCommand}
@@ -1392,6 +1656,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 onExportPdf={onExportPdf}
                 onExportMarkdown={onExportMarkdown}
                 onOpenExportModal={onOpenExportModal}
+                onCopyMarkdown={handleCopyMarkdown}
                 settingsEditorMode={settingsEditorMode}
                 markdownViewMode={markdownViewMode}
                 onMarkdownViewModeChange={onMarkdownViewModeChange}

@@ -48,11 +48,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       </div>
 
       {/* Sync Status */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
         {isSyncing ? (
-          <span className="flex items-center gap-1.5 text-blue-400">
-            <RefreshCw className="w-3 h-3 animate-spin" />
-            <span>{syncMessage || t.syncing}</span>
+          <span className="flex items-center gap-1.5 text-blue-400 whitespace-nowrap shrink-0">
+            <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+            <span className="whitespace-nowrap">{syncMessage || t.syncing}</span>
           </span>
         ) : (
           <span className="flex items-center gap-1 text-slate-500">

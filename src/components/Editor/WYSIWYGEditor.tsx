@@ -283,13 +283,47 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
       e.preventDefault();
       document.execCommand('insertUnorderedList', false);
       handleInput();
-    } else if (e.key === 'Tab') {
+    } else if (
+      (e.key === 'Tab' && !e.shiftKey) ||
+      (isMetaOrCtrl && e.key === ']')
+    ) {
       e.preventDefault();
-      if (e.shiftKey) {
-        document.execCommand('outdent', false);
-      } else {
-        document.execCommand('indent', false);
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
+        if (todoItem) {
+          const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
+          const nextIndent = Math.min(currentIndent + 1, 6);
+          todoItem.setAttribute('data-indent', String(nextIndent));
+          todoItem.style.marginLeft = `${nextIndent * 1.5}rem`;
+          handleInput();
+          return;
+        }
       }
+      document.execCommand('indent', false);
+      handleInput();
+    } else if (
+      (e.key === 'Tab' && e.shiftKey) ||
+      (isMetaOrCtrl && e.key === '[')
+    ) {
+      e.preventDefault();
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
+        if (todoItem) {
+          const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
+          const nextIndent = Math.max(currentIndent - 1, 0);
+          todoItem.setAttribute('data-indent', String(nextIndent));
+          todoItem.style.marginLeft = nextIndent > 0 ? `${nextIndent * 1.5}rem` : '';
+          handleInput();
+          return;
+        }
+      }
+      document.execCommand('outdent', false);
       handleInput();
     } else if (e.key === 'Enter') {
       // Smart Checklist Enter continuation
@@ -297,26 +331,39 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         const startNode = range.startContainer;
-        const currentItem = (startNode instanceof Element ? startNode : startNode.parentElement)?.closest('.qalam-todo-item');
+        const currentItem = (startNode instanceof Element ? startNode : startNode.parentElement)?.closest('.qalam-todo-item') as HTMLElement | null;
         if (currentItem) {
           e.preventDefault();
           const span = currentItem.querySelector('span');
           const currentText = span?.textContent?.trim() || '';
+          const currentIndent = parseInt(currentItem.getAttribute('data-indent') || '0', 10);
 
           if (!currentText || currentText === '\u00A0' || currentText === '​') {
-            const p = document.createElement('p');
-            p.innerHTML = '<br/>';
-            currentItem.parentNode?.insertBefore(p, currentItem.nextSibling);
-            currentItem.remove();
+            if (currentIndent > 0) {
+              // Outdent empty nested todo by 1 level
+              const nextIndent = currentIndent - 1;
+              currentItem.setAttribute('data-indent', String(nextIndent));
+              currentItem.style.marginLeft = nextIndent > 0 ? `${nextIndent * 1.5}rem` : '';
+            } else {
+              // At root level: convert to normal paragraph
+              const p = document.createElement('p');
+              p.innerHTML = '<br/>';
+              currentItem.parentNode?.insertBefore(p, currentItem.nextSibling);
+              currentItem.remove();
 
-            const newRange = document.createRange();
-            newRange.setStart(p, 0);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
+              const newRange = document.createRange();
+              newRange.setStart(p, 0);
+              newRange.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+            }
           } else {
             const newItem = document.createElement('div');
             newItem.className = 'qalam-todo-item flex items-center gap-2 my-1.5';
+            if (currentIndent > 0) {
+              newItem.setAttribute('data-indent', String(currentIndent));
+              newItem.style.marginLeft = `${currentIndent * 1.5}rem`;
+            }
             newItem.innerHTML = '<input type="checkbox" class="qalam-todo-checkbox accent-blue-500 cursor-pointer w-4 h-4 rounded" /> <span>&nbsp;</span>';
             currentItem.parentNode?.insertBefore(newItem, currentItem.nextSibling);
 

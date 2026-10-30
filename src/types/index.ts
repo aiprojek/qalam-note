@@ -33,9 +33,45 @@ export interface Note {
   attachments?: Attachment[];
   created_time: number;
   updated_time: number;
+  is_kanban?: boolean;
+  kanban_data?: KanbanBoardData;
+  kanban_status?: KanbanStatus;
   sync_time?: number;
   sync_status: 'synced' | 'pending' | 'conflict';
   order: number;
+}
+
+export type KanbanStatus = 'todo' | 'in_progress' | 'backlog' | 'done';
+export type KanbanPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface KanbanChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface KanbanCardItem {
+  id: string;
+  title: string;
+  description?: string;
+  due_date?: number; // timestamp or 0
+  priority?: KanbanPriority;
+  tags?: string[];
+  checklist?: KanbanChecklistItem[];
+  color?: string;
+  created_at: number;
+  updated_at?: number;
+}
+
+export interface KanbanBoardColumn {
+  id: KanbanStatus;
+  title: string;
+  cards: KanbanCardItem[];
+}
+
+export interface KanbanBoardData {
+  version?: number;
+  columns: KanbanBoardColumn[];
 }
 
 export interface Folder {
@@ -123,7 +159,7 @@ export interface AppSettings {
 
 export type NoteSortField = 'updated_time' | 'created_time' | 'title' | 'order';
 export type NoteSortOrder = 'asc' | 'desc';
-export type ViewFilter = 'all' | 'notes_only' | 'todos_only' | 'todos_incomplete';
+export type ViewFilter = 'all' | 'notes_only' | 'todos_only' | 'todos_incomplete' | 'kanban_only';
 
 export interface NoteRevision {
   id: string;

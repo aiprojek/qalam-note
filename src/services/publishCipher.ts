@@ -9,6 +9,7 @@ export interface PublishCipherPayload {
   title?: string;
   author?: string;
   publishedAt?: number;
+  isKanban?: boolean;
 }
 
 // Dedicated keystream seed for public published note link encryption
@@ -54,6 +55,11 @@ export function encodePublishCipher(payload: PublishCipherPayload): string {
   // Only include author if custom and no GAS URL (GAS database stores author in column 4)
   if (!compressedGas && payload.author && payload.author !== 'Anonymous') {
     packed.a = payload.author;
+  }
+
+  // Preserve Kanban Project Board flag (1 = Kanban, 0/omit = Document)
+  if (payload.isKanban) {
+    packed.k = 1;
   }
 
   const jsonStr = JSON.stringify(packed);
@@ -145,6 +151,7 @@ export function decodePublishCipher(cipher: string): PublishCipherPayload | null
       gasUrl: fullGasUrl || undefined,
       title: parsed.t || undefined,
       author: parsed.a || undefined,
+      isKanban: parsed.k === 1,
     };
   } catch (err) {
     console.warn('Unable to decode publish cipher k parameter:', err);

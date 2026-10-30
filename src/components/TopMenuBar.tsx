@@ -28,6 +28,7 @@ import {
   GraduationCap,
   CalendarDays,
   Copy,
+  Kanban,
 } from 'lucide-react';
 
 import type { AppLanguage } from '../types';
@@ -36,6 +37,7 @@ import { getT } from '../utils/i18n';
 interface TopMenuBarProps {
   onNewNote: () => void;
   onNewTodo: () => void;
+  onNewKanban?: () => void;
   onNewFolder: () => void;
   onSync: () => void;
   isSyncing: boolean;
@@ -64,6 +66,7 @@ interface TopMenuBarProps {
   onOpenOCR?: () => void;
   onOpenSRS?: () => void;
   onOpenDailyCalendar?: () => void;
+  onOpenKanban?: () => void;
   onCopyMarkdown?: () => void;
   language?: AppLanguage;
   theme?: string;
@@ -72,6 +75,7 @@ interface TopMenuBarProps {
 export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onNewNote,
   onNewTodo,
+  onNewKanban,
   onNewFolder,
   onSync,
   isSyncing,
@@ -101,6 +105,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onOpenOCR,
   onOpenSRS,
   onOpenDailyCalendar,
+  onOpenKanban,
   language = 'id',
   theme = 'qalam-dark',
 }) => {
@@ -179,6 +184,20 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                   <span>{t.new_todo}</span>
                   <span className="text-[10px] text-slate-400">Ctrl+T</span>
                 </button>
+                {onNewKanban && (
+                  <button
+                    onClick={() => {
+                      onNewKanban();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center justify-between text-indigo-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Kanban className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{language === 'id' ? 'Papan Kanban Baru' : 'New Kanban Board'}</span>
+                    </div>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onNewFolder();
@@ -449,6 +468,21 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                     <span>{language === 'id' ? 'Kalender Jurnal Harian' : 'Daily Notes Calendar'}</span>
                   </button>
                 )}
+                {onOpenKanban && (
+                  <button
+                    onClick={() => {
+                      onOpenKanban();
+                      setActiveMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-600 hover:text-white flex items-center justify-between text-indigo-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Kanban className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{language === 'id' ? 'Papan Kanban (Alur Kerja)' : 'Kanban Board'}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Ctrl+Shift+K</span>
+                  </button>
+                )}
                 <div className="border-t border-slate-700 my-1" />
                 <button
                   onClick={() => {
@@ -564,23 +598,24 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Qalam Quick Action Bar (+ Note, + To-do, Panel toggles, Sync) */}
-      <div className={`flex items-center justify-between px-3 py-1.5 transition-colors ${
+      {/* Row 2: Qalam Quick Action Bar (+ Note, + To-do, Panel toggles, Sync) - Compact & Non-wrapping */}
+      <div className={`flex items-center justify-between px-2.5 sm:px-3 py-1 transition-colors flex-nowrap overflow-x-auto custom-scrollbar gap-2 ${
         isLight ? 'bg-slate-50 border-b border-slate-200 text-slate-800' : 'bg-[#171f2d] text-slate-200'
       }`}>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
           <button
             onClick={onNewNote}
             title={`${t.new_note} (Ctrl+N)`}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-xs transition"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-xs transition text-xs shrink-0 whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{t.new_note}</span>
           </button>
+
           <button
             onClick={onNewTodo}
             title={`${t.new_todo} (Ctrl+T)`}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition ${
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded border font-medium transition text-xs shrink-0 whitespace-nowrap ${
               isLight
                 ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -590,18 +625,33 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             <span>{t.new_todo}</span>
           </button>
 
+          {onNewKanban && (
+            <button
+              onClick={onNewKanban}
+              title={language === 'id' ? 'Buat Papan Proyek Kanban Baru' : 'New Project Kanban Board'}
+              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded border font-medium transition text-xs shrink-0 whitespace-nowrap ${
+                isLight
+                  ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-300 shadow-xs'
+                  : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-slate-700'
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5 text-indigo-400" />
+              <span>+ Kanban</span>
+            </button>
+          )}
+
           {onOpenDailyNote && (
             <button
               onClick={onOpenDailyNote}
               title={language === 'id' ? 'Catatan Harian Hari Ini (Alt+D)' : "Today's Daily Note (Alt+D)"}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition ${
+              className={`flex items-center gap-1 px-2 py-1 rounded border font-medium transition text-xs shrink-0 whitespace-nowrap ${
                 isLight
                   ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                   : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
               }`}
             >
               <Calendar className="w-3.5 h-3.5 text-amber-500" />
-              <span>{language === 'id' ? 'Harian' : 'Daily'}</span>
+              <span className="hidden sm:inline">{language === 'id' ? 'Harian' : 'Daily'}</span>
             </button>
           )}
 
@@ -609,14 +659,14 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             <button
               onClick={onOpenGraphView}
               title={language === 'id' ? 'Grafik Pengetahuan (Ctrl+G)' : 'Knowledge Graph (Ctrl+G)'}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-medium transition ${
+              className={`flex items-center gap-1 px-2 py-1 rounded border font-medium transition text-xs shrink-0 whitespace-nowrap ${
                 isLight
                   ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
                   : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
               }`}
             >
               <Share2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="inline font-medium">{language === 'id' ? 'Grafik' : 'Graph'}</span>
+              <span className="hidden sm:inline">{language === 'id' ? 'Grafik' : 'Graph'}</span>
             </button>
           )}
 
@@ -624,42 +674,50 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             <button
               onClick={onOpenTemplates}
               title={language === 'id' ? 'Galeri Templat Catatan' : 'Note Templates'}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded border transition ${
+              className={`flex items-center gap-1 px-2 py-1 rounded border transition text-xs shrink-0 whitespace-nowrap ${
                 isLight
                   ? 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-300'
                   : 'hover:bg-slate-800 text-purple-300 border-transparent hover:border-slate-700'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-              <span className="hidden sm:inline">{language === 'id' ? 'Templat' : 'Templates'}</span>
+              <span className="hidden md:inline">{language === 'id' ? 'Templat' : 'Templates'}</span>
             </button>
           )}
 
-          <span className={`w-px h-4 mx-1 ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
+          <span className={`w-px h-4 mx-0.5 sm:mx-1 shrink-0 ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
 
           {/* Toggle Panels */}
           <button
             onClick={onToggleSidebar}
             title={isSidebarOpen ? `${t.toggle_sidebar} (F10)` : `${t.toggle_sidebar} (F10)`}
-            className={`p-1.5 rounded transition ${
-              isSidebarOpen ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-800'
+            className={`p-1 rounded transition shrink-0 ${
+              isLight
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                : isSidebarOpen ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-800'
             }`}
           >
             {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap">
           {/* Spotlight / Command Palette trigger */}
           {onOpenCommandPalette && (
             <button
               onClick={onOpenCommandPalette}
               title="Command Palette (Ctrl+K)"
-              className="flex items-center gap-2 px-2.5 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 text-xs transition"
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition shrink-0 whitespace-nowrap border ${
+                isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-2xs'
+                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/80'
+              }`}
             >
-              <Search className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden md:inline">{language === 'id' ? 'Cari / Perintah...' : 'Search or command...'}</span>
-              <span className="text-[10px] font-mono bg-slate-900 px-1 py-0.2 rounded text-slate-400 border border-slate-700">
+              <Search className="w-3.5 h-3.5 text-blue-500" />
+              <span className="hidden md:inline">{language === 'id' ? 'Cari...' : 'Search...'}</span>
+              <span className={`text-[10px] font-mono px-1 py-0.2 rounded border ${
+                isLight ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-700'
+              }`}>
                 Ctrl K
               </span>
             </button>
@@ -670,10 +728,14 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             onClick={onSync}
             disabled={isSyncing}
             title={`${t.synchronise} (Ctrl+S)`}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-800 text-slate-300 transition text-xs border border-transparent hover:border-slate-700 whitespace-nowrap shrink-0 select-none"
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition text-xs border whitespace-nowrap shrink-0 select-none ${
+              isLight
+                ? 'hover:bg-slate-200/70 text-slate-700 border-slate-300/80 bg-white shadow-2xs'
+                : 'hover:bg-slate-800 text-slate-300 border-slate-700/70 bg-slate-800/60'
+            }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />
-            <span className="whitespace-nowrap font-medium">
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin text-blue-500' : ''}`} />
+            <span className="whitespace-nowrap font-medium hidden sm:inline">
               {isSyncing ? (t.syncing || (language === 'id' ? 'Sinkron...' : 'Syncing...')) : t.synchronise}
             </span>
           </button>

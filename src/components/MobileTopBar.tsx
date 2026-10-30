@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   ChevronLeft,
   ArrowUpDown,
-  Plus,
   MoreVertical,
   Eye,
   Edit3,
@@ -16,8 +15,6 @@ import {
   Trash2,
   Copy,
   Calculator,
-  CheckSquare,
-  FileText,
   Search,
   Calendar,
   Sparkles,
@@ -27,6 +24,7 @@ import {
   Printer,
   Download,
   FileDown,
+  Kanban,
 } from 'lucide-react';
 import type { Note, AppLanguage, NoteSortField, NoteSortOrder } from '../types';
 import { QalamIcon } from './icons/QalamIcon';
@@ -45,8 +43,9 @@ interface MobileTopBarProps {
   sortOrder: NoteSortOrder;
   onSortChange: (field: NoteSortField, order: NoteSortOrder) => void;
   // Actions
-  onNewNote: () => void;
-  onNewTodo: () => void;
+  onNewNote?: () => void;
+  onNewTodo?: () => void;
+  onNewKanban?: () => void;
   onCreateFolder: () => void;
   onSync: () => void;
   isSyncing: boolean;
@@ -62,6 +61,7 @@ interface MobileTopBarProps {
   onExportPdf?: () => void;
   onExportMarkdown?: () => void;
   onOpenExportModal?: () => void;
+  onOpenKanban?: () => void;
   // Editor-specific
   mobileReadingMode: boolean;
   onToggleReadingMode: () => void;
@@ -74,6 +74,7 @@ interface MobileTopBarProps {
   onDeleteNote: (noteId: string) => void;
   onCopyMarkdown?: () => void;
   language?: AppLanguage;
+  theme?: 'qalam-dark' | 'qalam-light' | 'qalam-nord';
 }
 
 export const MobileTopBar: React.FC<MobileTopBarProps> = ({
@@ -89,6 +90,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   onSortChange,
   onNewNote,
   onNewTodo,
+  onNewKanban,
   onCreateFolder,
   onSync,
   isSyncing,
@@ -103,6 +105,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   onExportPdf,
   onExportMarkdown,
   onOpenExportModal,
+  onOpenKanban,
   mobileReadingMode,
   onToggleReadingMode,
   isVaultUnlocked,
@@ -114,13 +117,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   onDeleteNote,
   onCopyMarkdown,
   language = 'id',
+  theme = 'qalam-dark',
 }) => {
   const t = getT(language);
   const isId = language === 'id';
+  const isLight = theme === 'qalam-light';
 
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showEditorMenu, setShowEditorMenu] = useState(false);
-  const [showComposeMenu, setShowComposeMenu] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -130,7 +134,6 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setShowSortMenu(false);
         setShowEditorMenu(false);
-        setShowComposeMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -146,7 +149,11 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-[50px] px-2.5 bg-[#141b27] border-b border-slate-800 text-slate-200 select-none shrink-0 transition-colors shadow-xs">
+    <header className={`sticky top-0 z-30 flex items-center justify-between h-[50px] px-2.5 select-none shrink-0 transition-colors shadow-xs ${
+      isLight
+        ? 'bg-white border-b border-slate-200 text-slate-800'
+        : 'bg-[#141b27] border-b border-slate-800 text-slate-200'
+    }`}>
       {/* VIEW: SIDEBAR (Notebooks / Folders) */}
       {view === 'sidebar' && (
         <>
@@ -242,11 +249,16 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
               type="button"
               onClick={() => {
                 setShowSortMenu(!showSortMenu);
-                setShowComposeMenu(false);
               }}
               title={isId ? 'Urutkan Catatan' : 'Sort notes'}
               className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition ${
-                showSortMenu ? 'bg-blue-600/20 text-blue-400' : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                showSortMenu
+                  ? isLight
+                    ? 'bg-blue-100 text-blue-600'
+                    : 'bg-blue-600/20 text-blue-400'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               <ArrowUpDown className="w-4 h-4" />
@@ -254,8 +266,18 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
 
             {/* Sort Dropdown Menu */}
             {showSortMenu && (
-              <div className="absolute right-0 top-12 z-50 w-48 rounded-xl bg-[#1e2739] border border-slate-700/80 py-1.5 shadow-2xl text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+              <div
+                className={`absolute right-0 top-12 z-50 w-48 rounded-xl py-1.5 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-150 ${
+                  isLight
+                    ? 'bg-white border border-slate-200 text-slate-700 shadow-slate-300/50'
+                    : 'bg-[#1e2739] border border-slate-700/80 text-slate-200'
+                }`}
+              >
+                <div
+                  className={`px-3 py-1 text-[10px] uppercase font-bold tracking-wider ${
+                    isLight ? 'text-slate-500' : 'text-slate-400'
+                  }`}
+                >
                   {t.sort_by}
                 </div>
                 <button
@@ -264,8 +286,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                     onSortChange('updated_time', sortField === 'updated_time' && sortOrder === 'desc' ? 'asc' : 'desc');
                     setShowSortMenu(false);
                   }}
-                  className={`w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center justify-between ${
-                    sortField === 'updated_time' ? 'text-blue-400 font-semibold' : ''
+                  className={`w-full px-3 py-2 text-left transition flex items-center justify-between ${
+                    sortField === 'updated_time'
+                      ? isLight
+                        ? 'text-blue-600 font-semibold bg-blue-50'
+                        : 'text-blue-400 font-semibold bg-blue-900/30'
+                      : isLight
+                      ? 'hover:bg-slate-100 text-slate-700'
+                      : 'hover:bg-slate-800 text-slate-200'
                   }`}
                 >
                   <span>{t.sort_updated}</span>
@@ -279,8 +307,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                     onSortChange('created_time', sortField === 'created_time' && sortOrder === 'desc' ? 'asc' : 'desc');
                     setShowSortMenu(false);
                   }}
-                  className={`w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center justify-between ${
-                    sortField === 'created_time' ? 'text-blue-400 font-semibold' : ''
+                  className={`w-full px-3 py-2 text-left transition flex items-center justify-between ${
+                    sortField === 'created_time'
+                      ? isLight
+                        ? 'text-blue-600 font-semibold bg-blue-50'
+                        : 'text-blue-400 font-semibold bg-blue-900/30'
+                      : isLight
+                      ? 'hover:bg-slate-100 text-slate-700'
+                      : 'hover:bg-slate-800 text-slate-200'
                   }`}
                 >
                   <span>{t.sort_created}</span>
@@ -294,8 +328,14 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                     onSortChange('title', sortField === 'title' && sortOrder === 'asc' ? 'desc' : 'asc');
                     setShowSortMenu(false);
                   }}
-                  className={`w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center justify-between ${
-                    sortField === 'title' ? 'text-blue-400 font-semibold' : ''
+                  className={`w-full px-3 py-2 text-left transition flex items-center justify-between ${
+                    sortField === 'title'
+                      ? isLight
+                        ? 'text-blue-600 font-semibold bg-blue-50'
+                        : 'text-blue-400 font-semibold bg-blue-900/30'
+                      : isLight
+                      ? 'hover:bg-slate-100 text-slate-700'
+                      : 'hover:bg-slate-800 text-slate-200'
                   }`}
                 >
                   <span>{t.sort_title}</span>
@@ -312,93 +352,31 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 type="button"
                 onClick={onOpenGraphView}
                 title={isId ? 'Grafik Pengetahuan (Ctrl+G)' : 'Knowledge Graph (Ctrl+G)'}
-                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-slate-800/80 transition active:scale-95 border border-emerald-500/20"
+                className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition active:scale-95 ${
+                  isLight
+                    ? 'text-emerald-700 hover:bg-emerald-50 border border-emerald-300'
+                    : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800/80 border border-emerald-500/20'
+                }`}
               >
                 <Share2 className="w-4 h-4" />
               </button>
             )}
 
-            {/* Quick Compose Button */}
-            <div className="relative">
+            {/* Quick Kanban Button */}
+            {onOpenKanban && (
               <button
                 type="button"
-                onClick={() => {
-                  setShowComposeMenu(!showComposeMenu);
-                  setShowSortMenu(false);
-                }}
-                title={isId ? 'Buat Baru' : 'Create New'}
-                className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs active:scale-95 transition"
+                onClick={onOpenKanban}
+                title={isId ? 'Papan Kanban (Ctrl+Shift+K)' : 'Kanban Board (Ctrl+Shift+K)'}
+                className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition active:scale-95 ${
+                  isLight
+                    ? 'text-indigo-700 hover:bg-indigo-50 border border-indigo-300'
+                    : 'text-indigo-400 hover:text-indigo-300 hover:bg-slate-800/80 border border-indigo-500/20'
+                }`}
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isId ? 'Baru' : 'New'}</span>
+                <Kanban className="w-4 h-4" />
               </button>
-
-              {showComposeMenu && (
-                <div className="absolute right-0 top-12 z-50 w-52 rounded-xl bg-[#1e2739] border border-slate-700/80 py-1.5 shadow-2xl text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-150">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onNewNote();
-                      setShowComposeMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5"
-                  >
-                    <FileText className="w-4 h-4 text-blue-400" />
-                    <span>{t.new_note}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onNewTodo();
-                      setShowComposeMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5"
-                  >
-                    <CheckSquare className="w-4 h-4 text-amber-400" />
-                    <span>{t.new_todo}</span>
-                  </button>
-                  {onOpenDailyNote && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onOpenDailyNote();
-                        setShowComposeMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5 text-amber-300"
-                    >
-                      <Calendar className="w-4 h-4 text-amber-400" />
-                      <span>{isId ? 'Catatan Harian Hari Ini' : "Today's Daily Note"}</span>
-                    </button>
-                  )}
-                  {onOpenTemplates && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onOpenTemplates();
-                        setShowComposeMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5 text-purple-300"
-                    >
-                      <Sparkles className="w-4 h-4 text-purple-400" />
-                      <span>{isId ? 'Galeri Templat' : 'Templates Gallery'}</span>
-                    </button>
-                  )}
-                  {onOpenGraphView && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onOpenGraphView();
-                        setShowComposeMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-blue-600 hover:text-white transition flex items-center gap-2.5 text-emerald-300"
-                    >
-                      <Share2 className="w-4 h-4 text-emerald-400" />
-                      <span>{isId ? 'Grafik Pengetahuan' : 'Knowledge Graph'}</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </>
       )}
@@ -410,37 +388,51 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('notes')}
-              className="flex items-center gap-1 -ml-1 py-1 px-2 min-h-[44px] rounded-lg text-blue-400 hover:text-blue-300 hover:bg-slate-800/60 active:scale-95 transition font-medium text-xs shrink-0"
+              className={`flex items-center gap-1 -ml-1 py-1 px-2 min-h-[44px] rounded-lg active:scale-95 transition font-medium text-xs shrink-0 ${
+                isLight
+                  ? 'text-blue-600 hover:text-blue-700 hover:bg-slate-100'
+                  : 'text-blue-400 hover:text-blue-300 hover:bg-slate-800/60'
+              }`}
             >
               <ChevronLeft className="w-4 h-4" />
               <span className="max-w-[70px] truncate">{isId ? 'Catatan' : 'Notes'}</span>
             </button>
 
-            <h2 className="text-xs sm:text-sm font-semibold text-slate-100 truncate tracking-tight pr-1">
+            <h2 className={`text-xs sm:text-sm font-semibold truncate tracking-tight pr-1 ${
+              isLight ? 'text-slate-900' : 'text-slate-100'
+            }`}>
               {activeNote?.title || (isId ? 'Catatan tanpa judul' : 'Untitled Note')}
             </h2>
           </div>
 
-          <div ref={menuRef} className="flex items-center gap-0.5 shrink-0 relative">
-            {/* Mode Toggle: Preview (Reading) vs Edit */}
+          <div ref={menuRef} className="flex items-center gap-1 shrink-0 relative">
+            {/* Single Toggle Button: Edit vs Preview */}
             <button
               type="button"
               onClick={onToggleReadingMode}
               title={
                 mobileReadingMode
-                  ? isId ? 'Beralih ke Mode Edit (Pencil)' : 'Switch to Edit Mode'
-                  : isId ? 'Beralih ke Mode Pratinjau Membaca (Glasses)' : 'Switch to Reading Preview'
+                  ? (isId ? 'Beralih ke Mode Edit (Dapat Diedit)' : 'Switch to Edit Mode')
+                  : (isId ? 'Beralih ke Mode Pratinjau (Hanya Lihat)' : 'Switch to Preview Mode (Read Only)')
               }
-              className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] rounded-lg text-xs font-semibold transition active:scale-95 shadow-xs border ${
                 mobileReadingMode
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-sm'
+                  : isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
               {mobileReadingMode ? (
-                <Edit3 className="w-4 h-4" />
+                <>
+                  <Edit3 className="w-3.5 h-3.5 text-white" />
+                  <span>{isId ? 'Edit' : 'Edit'}</span>
+                </>
               ) : (
-                <Eye className="w-4 h-4" />
+                <>
+                  <Eye className={`w-3.5 h-3.5 ${isLight ? 'text-blue-600' : 'text-blue-400'}`} />
+                  <span>{isId ? 'Pratinjau' : 'Preview'}</span>
+                </>
               )}
             </button>
 
@@ -450,7 +442,11 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 type="button"
                 onClick={onCopyMarkdown}
                 title={isId ? 'Salin Catatan (Format Markdown)' : 'Copy Note (Markdown Format)'}
-                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cyan-400 hover:text-cyan-300 hover:bg-slate-800/80 active:scale-95 transition"
+                className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg active:scale-95 transition ${
+                  isLight
+                    ? 'text-teal-700 hover:text-teal-900 hover:bg-slate-100'
+                    : 'text-cyan-400 hover:text-cyan-300 hover:bg-slate-800/80'
+                }`}
               >
                 <Copy className="w-4 h-4" />
               </button>
@@ -462,7 +458,13 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
               onClick={() => setShowEditorMenu(!showEditorMenu)}
               title={isId ? 'Opsi Catatan' : 'Note Options'}
               className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition ${
-                showEditorMenu ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                showEditorMenu
+                  ? isLight
+                    ? 'bg-slate-200 text-slate-900'
+                    : 'bg-slate-800 text-white'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               <MoreVertical className="w-4 h-4" />
@@ -470,7 +472,9 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
 
             {/* Editor Actions Dropdown */}
             {showEditorMenu && (
-              <div className="absolute right-0 top-12 z-50 w-52 rounded-xl bg-[#1e2739] border border-slate-700/80 py-1.5 shadow-2xl text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className={`absolute right-0 top-12 z-50 w-52 rounded-xl py-1.5 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-150 border ${
+                isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#1e2739] border-slate-700/80 text-slate-200'
+              }`}>
                 <button
                   type="button"
                   onClick={() => {

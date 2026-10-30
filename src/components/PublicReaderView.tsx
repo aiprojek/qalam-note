@@ -10,11 +10,21 @@ import {
   AlignRight,
   AlertTriangle,
   Calendar,
+  Kanban,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Search,
+  FileText,
+  ListTodo,
+  Columns3,
+  ExternalLink,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import type { Note } from '../types';
+import type { Note, KanbanBoardData, KanbanCardItem, KanbanPriority } from '../types';
 import { markdownToHtml } from '../utils/markdown';
 import { getNoteDirection } from '../utils/rtl';
+import { calculateKanbanStats, markdownToKanbanData, kanbanDataToMarkdown } from '../utils/kanbanSerializer';
 import { QalamIcon } from './icons/QalamIcon';
 
 export interface RemotePublishedNote {
@@ -26,6 +36,8 @@ export interface RemotePublishedNote {
   updated_at?: number | string;
   published_at?: number | string;
   gasUrl?: string;
+  is_kanban?: boolean;
+  kanban_data?: KanbanBoardData;
 }
 
 interface PublicReaderViewProps {
@@ -35,6 +47,7 @@ interface PublicReaderViewProps {
   gasUrl?: string;
   noteId?: string;
   publishedAt?: number | string;
+  isKanbanHint?: boolean;
   isLoadingRemote?: boolean;
   errorMessage?: string | null;
   onBackToApp: () => void;
@@ -47,6 +60,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   gasUrl,
   noteId,
   publishedAt,
+  isKanbanHint = false,
   isLoadingRemote = false,
   errorMessage = null,
   onBackToApp,
@@ -127,8 +141,123 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   const isLight = theme === 'light';
 
+  // Determine if note is a Project Kanban Board
+  const kanbanData: KanbanBoardData | null = useMemo(() => {
+    // 1. Direct kanban_data on local note
+    if (note?.kanban_data && Array.isArray(note.kanban_data.columns)) {
+      return note.kanban_data;
+    }
+    // 2. Direct kanban_data on remote published note
+    if (remoteNote?.kanban_data && Array.isArray(remoteNote.kanban_data.columns)) {
+      return remoteNote.kanban_data;
+    }
+    // 3. Embedded lossless JSON in remoteNote HTML comment (<!--QALAM_KANBAN_DATA:...-->)
+    if (remoteNote?.html) {
+      const match = remoteNote.html.match(/<!--QALAM_KANBAN_DATA:(.*?)-->/);
+      if (match && match[1]) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(match[1]));
+          if (parsed && Array.isArray(parsed.columns)) {
+            return parsed;
+          }
+        } catch (e) {
+          console.warn('Failed parsing embedded kanban JSON in reader:', e);
+        }
+      }
+    }
+    // 4. Local note body parsed with markdownToKanbanData
+    if (note?.body && (note.is_kanban || isKanbanHint)) {
+      const parsed = markdownToKanbanData(note.body);
+      return parsed;
+    }
+    // 5. Fallback markdown detection in raw body
+    const rawContent = note?.body || '';
+    if (
+      rawContent.includes('## 📥') ||
+      rawContent.includes('## 🔵') ||
+      rawContent.includes('## 🟡') ||
+      rawContent.includes('## 🟢') ||
+      rawContent.includes('Backlog') ||
+      rawContent.includes('(To Do)') ||
+      rawContent.includes('(In Progress)')
+    ) {
+      const parsed = markdownToKanbanData(rawContent);
+      const hasAnyCards = parsed.columns.some((c) => c.cards.length > 0);
+      if (hasAnyCards || note?.is_kanban) {
+        return parsed;
+      }
+    }
+    // 6. If explicitly marked as Kanban (from cipher flag or note property), guarantee empty structure
+    if (note?.is_kanban || remoteNote?.is_kanban || isKanbanHint) {
+      return {
+        version: 1,
+        columns: [
+          { id: 'backlog', title: 'Rencana & Ide', cards: [] },
+          { id: 'todo', title: 'Akan Dikerjakan', cards: [] },
+          { id: 'in_progress', title: 'Sedang Dikerjakan', cards: [] },
+          { id: 'done', title: 'Selesai', cards: [] },
+        ],
+      };
+    }
+    return null;
+  }, [
+    note?.is_kanban,
+    note?.kanban_data,
+    note?.body,
+    remoteNote?.kanban_data,
+    remoteNote?.html,
+    remoteNote?.is_kanban,
+    isKanbanHint,
+  ]);
+
+  const isKanban = Boolean(kanbanData || note?.is_kanban || remoteNote?.is_kanban || isKanbanHint);
+  const [kanbanViewMode, setKanbanViewMode] = useState<'board' | 'document'>('board');
+  const [kanbanSearch, setKanbanSearch] = useState('');
+
+  const stats = useMemo(() => calculateKanbanStats(kanbanData), [kanbanData]);
+
+  // Priority color helper with light theme adaptive contrast
+  const getPriorityBadge = (p?: KanbanPriority) => {
+    switch (p) {
+      case 'urgent':
+        return {
+          label: 'Mendesak',
+          cls: isLight
+            ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
+            : 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+        };
+      case 'high':
+        return {
+          label: 'Tinggi',
+          cls: isLight
+            ? 'bg-orange-100 text-orange-800 border-orange-300 font-bold'
+            : 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+        };
+      case 'low':
+        return {
+          label: 'Rendah',
+          cls: isLight
+            ? 'bg-slate-100 text-slate-700 border-slate-300 font-medium'
+            : 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+        };
+      default:
+        return {
+          label: 'Sedang',
+          cls: isLight
+            ? 'bg-blue-100 text-blue-800 border-blue-300 font-medium'
+            : 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+        };
+    }
+  };
+
   // Format and sanitize HTML/Markdown content with support for both editor modes
   const formattedHtml = useMemo(() => {
+    // If it's a Kanban board viewed in document mode, render the formatted markdown report
+    if (isKanban && kanbanData) {
+      const md = kanbanDataToMarkdown(kanbanData, title);
+      return markdownToHtml(md, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+    }
+
     // 1. Remote published HTML (from GAS)
     if (remoteNote?.html && remoteNote.html.trim()) {
       const content = remoteNote.html.trim();
@@ -178,7 +307,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     }
 
     return '';
-  }, [note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
+  }, [isKanban, kanbanData, title, note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
 
   // Loading State
   if (isLoadingRemote) {
@@ -314,10 +443,14 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
       </header>
 
       {/* Main Reading Container with generous bottom scroll padding */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-36 sm:pb-48">
+      <main
+        className={`flex-1 w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-36 sm:pb-48 transition-all ${
+          isKanban && kanbanViewMode === 'board' ? 'max-w-7xl' : 'max-w-3xl'
+        }`}
+      >
         <article
           dir={isRtl ? 'rtl' : 'ltr'}
-          className={`rounded-2xl border p-6 sm:p-10 md:p-12 transition-colors ${
+          className={`rounded-2xl border p-6 sm:p-8 md:p-10 transition-colors ${
             isLight
               ? 'bg-white text-slate-950 border-slate-200/90 shadow-md'
               : 'bg-[#11192a] text-slate-100 border-slate-800 shadow-xl'
@@ -325,13 +458,19 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
         >
           {/* Note Header */}
           <div
-            className={`border-b pb-5 mb-8 ${
+            className={`border-b pb-5 mb-6 ${
               isLight ? 'border-slate-200' : 'border-slate-800'
             }`}
           >
-            {/* Tags and RTL pill only - public note & cipher pills removed */}
-            {(isRtl || (tags && tags.length > 0)) && (
-              <div className={`flex items-center gap-2 mb-3 flex-wrap ${isRtl ? 'justify-end' : 'justify-start'}`}>
+            {/* Tags and RTL pill */}
+            <div className={`flex items-center gap-2 mb-3 flex-wrap justify-between`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {isKanban && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
+                    <Kanban className="w-3 h-3" />
+                    <span>Papan Proyek Klien</span>
+                  </span>
+                )}
                 {isRtl && (
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
                     Aksara RTL
@@ -352,7 +491,45 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
                   </div>
                 )}
               </div>
-            )}
+
+              {/* View Switcher for Kanban Boards */}
+              {isKanban && (
+                <div
+                  className={`flex items-center gap-1 p-0.5 rounded-lg border text-xs ${
+                    isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-800/80 border-slate-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setKanbanViewMode('board')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition ${
+                      kanbanViewMode === 'board'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Columns3 className="w-3.5 h-3.5" />
+                    <span>Papan Kanban</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setKanbanViewMode('document')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition ${
+                      kanbanViewMode === 'document'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Laporan Teks</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             <h1
               className={`text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight ${
@@ -375,20 +552,335 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
               </div>
               <div className="flex items-center gap-1.5 font-medium ml-auto">
                 <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                <span>Tanggal Publikasi: <strong className={isLight ? 'text-slate-900 font-bold' : 'text-slate-100 font-bold'}>{displayPublicationDate}</strong></span>
+                <span>
+                  Tanggal Publikasi:{' '}
+                  <strong className={isLight ? 'text-slate-900 font-bold' : 'text-slate-100 font-bold'}>
+                    {displayPublicationDate}
+                  </strong>
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Rendered Body with qalam-markdown-preview typography */}
-          <div
-            className={`qalam-markdown-preview prose max-w-none text-[15px] sm:text-base leading-relaxed break-words ${
-              isLight ? 'text-slate-900' : 'text-slate-100'
-            } ${isRtl ? 'text-right' : 'text-left'}`}
-            dangerouslySetInnerHTML={{
-              __html: formattedHtml,
-            }}
-          />
+          {/* KANBAN BOARD VIEW (CLIENT LIVE PROJECT PROGRESS) */}
+          {isKanban && kanbanData && kanbanViewMode === 'board' ? (
+            <div className="space-y-6">
+              {/* Project Progress Overview Header Bar */}
+              <div
+                className={`p-4 sm:p-5 rounded-xl border ${
+                  isLight
+                    ? 'bg-white border-slate-200 shadow-2xs'
+                    : 'bg-[#151f33] border-slate-700/80 shadow-md'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <div>
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${
+                      isLight ? 'text-indigo-700' : 'text-indigo-400'
+                    }`}>
+                      Pantauan Progres Proyek
+                    </span>
+                    <h2 className={`text-base font-bold flex items-center gap-2 mt-0.5 ${
+                      isLight ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <span>Tingkat Penyelesaian Keseluruhan</span>
+                      <span className={`text-sm font-extrabold font-mono ${
+                        isLight ? 'text-emerald-700' : 'text-emerald-400'
+                      }`}>
+                        {stats.percentage}%
+                      </span>
+                    </h2>
+                  </div>
+
+                  {/* Search deliverables input */}
+                  <div className="relative min-w-[200px] sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={kanbanSearch}
+                      onChange={(e) => setKanbanSearch(e.target.value)}
+                      placeholder="Cari tugas / deliverable..."
+                      className={`w-full pl-8 pr-3 py-1.5 rounded-lg text-xs transition border focus:outline-hidden focus:ring-1 focus:ring-indigo-500 ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                          : 'bg-[#0f1624] border-slate-700 text-slate-200 placeholder-slate-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className={`w-full h-2.5 rounded-full overflow-hidden border mb-3 ${
+                  isLight ? 'bg-slate-200 border-slate-300' : 'bg-slate-800/80 border-slate-700/60'
+                }`}>
+                  <div
+                    className="h-full bg-linear-to-r from-blue-500 via-indigo-500 to-emerald-400 transition-all duration-500 rounded-full"
+                    style={{ width: `${Math.max(stats.percentage, 2)}%` }}
+                  />
+                </div>
+
+                {/* Metrics Breakdown Chips */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${
+                    isLight
+                      ? 'bg-slate-100 border-slate-300 text-slate-700'
+                      : 'bg-slate-800/60 border-slate-700/60 text-slate-300'
+                  }`}>
+                    <ListTodo className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Total: <strong className={isLight ? 'text-slate-900 font-bold' : 'text-white'}>{stats.totalCards}</strong> Tugas</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${
+                    isLight
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                      : 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300'
+                  }`}>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Selesai: <strong className={isLight ? 'text-emerald-950 font-bold' : 'text-white'}>{stats.doneCount}</strong></span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${
+                    isLight
+                      ? 'bg-amber-50 border-amber-300 text-amber-900'
+                      : 'bg-amber-950/40 border-amber-800/50 text-amber-300'
+                  }`}>
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Sedang Dikerjakan: <strong className={isLight ? 'text-amber-950 font-bold' : 'text-white'}>{stats.inProgressCount}</strong></span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${
+                    isLight
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-900'
+                      : 'bg-indigo-950/40 border-indigo-800/50 text-indigo-300'
+                  }`}>
+                    <Columns3 className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Akan Dikerjakan: <strong className={isLight ? 'text-indigo-950 font-bold' : 'text-white'}>{stats.todoCount}</strong></span>
+                  </div>
+                  {stats.backlogCount > 0 && (
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${
+                      isLight
+                        ? 'bg-slate-100 border-slate-300 text-slate-700'
+                        : 'bg-slate-800/40 border-slate-700/50 text-slate-400'
+                    }`}>
+                      <span>Rencana: <strong className={isLight ? 'text-slate-900 font-bold' : 'text-slate-300'}>{stats.backlogCount}</strong></span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 Kanban Columns (Horizontally scrollable with snap-x on tablet and mobile to prevent overlapping) */}
+              <div className="flex gap-4 items-start overflow-x-auto pb-4 custom-scrollbar snap-x">
+                {kanbanData.columns.map((column) => {
+                  const filteredCards = (column.cards || []).filter((card) => {
+                    if (!kanbanSearch.trim()) return true;
+                    const q = kanbanSearch.toLowerCase();
+                    return (
+                      card.title.toLowerCase().includes(q) ||
+                      (card.description && card.description.toLowerCase().includes(q)) ||
+                      (card.tags && card.tags.some((t) => t.toLowerCase().includes(q)))
+                    );
+                  });
+
+                  // Header color accent
+                  const getColTheme = () => {
+                    switch (column.id) {
+                      case 'backlog':
+                        return { dot: 'bg-slate-400', badge: 'text-slate-400', border: 'border-slate-700/60' };
+                      case 'todo':
+                        return { dot: 'bg-blue-400', badge: 'text-blue-400', border: 'border-blue-700/40' };
+                      case 'in_progress':
+                        return { dot: 'bg-amber-400', badge: 'text-amber-400', border: 'border-amber-700/40' };
+                      case 'done':
+                        return { dot: 'bg-emerald-400', badge: 'text-emerald-400', border: 'border-emerald-700/40' };
+                    }
+                  };
+                  const colTheme = getColTheme();
+
+                  return (
+                    <div
+                      key={column.id}
+                      className={`w-[280px] sm:w-[300px] shrink-0 snap-start flex flex-col rounded-xl border p-3.5 transition ${
+                        isLight
+                          ? 'bg-slate-50/90 border-slate-200'
+                          : 'bg-[#131b2c] border-slate-800'
+                      }`}
+                    >
+                      {/* Column Header */}
+                      <div className={`flex items-center justify-between pb-3 mb-3 border-b ${
+                        isLight ? 'border-slate-200' : 'border-slate-700/50'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${colTheme.dot}`} />
+                          <h3 className={`text-xs font-bold uppercase tracking-wider ${
+                            isLight ? 'text-slate-900' : 'text-slate-200'
+                          }`}>
+                            {column.title}
+                          </h3>
+                        </div>
+                        <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                          isLight
+                            ? 'bg-slate-200 text-slate-800'
+                            : 'bg-slate-800 text-slate-300'
+                        }`}>
+                          {filteredCards.length}
+                        </span>
+                      </div>
+
+                      {/* Cards List */}
+                      <div className="space-y-2.5">
+                        {filteredCards.length === 0 ? (
+                          <div className={`p-4 rounded-lg border border-dashed text-center text-xs ${
+                            isLight
+                              ? 'border-slate-300 text-slate-500 bg-white'
+                              : 'border-slate-800 text-slate-500'
+                          }`}>
+                            {kanbanSearch ? 'Tidak ada kartu yang cocok' : 'Belum ada tugas'}
+                          </div>
+                        ) : (
+                          filteredCards.map((card) => {
+                            const prio = getPriorityBadge(card.priority);
+                            const totalChecklist = card.checklist ? card.checklist.length : 0;
+                            const doneChecklist = card.checklist
+                              ? card.checklist.filter((i) => i.completed).length
+                              : 0;
+
+                            return (
+                              <div
+                                key={card.id}
+                                className={`p-3 rounded-lg border text-xs shadow-xs transition hover:shadow-md ${
+                                  column.id === 'done'
+                                    ? isLight
+                                      ? 'bg-emerald-50/60 border-emerald-300 text-slate-800'
+                                      : 'bg-emerald-950/15 border-emerald-900/40 text-slate-300'
+                                    : isLight
+                                    ? 'bg-white border-slate-200 text-slate-900'
+                                    : 'bg-[#182337] border-slate-700/80 text-slate-200'
+                                }`}
+                              >
+                                {/* Priority & Due Date Header */}
+                                <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
+                                  {card.priority && (
+                                    <span
+                                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${prio.cls}`}
+                                    >
+                                      {prio.label}
+                                    </span>
+                                  )}
+                                  {card.due_date && card.due_date > 0 && (
+                                    <span className={`flex items-center gap-1 text-[10px] ml-auto font-mono ${
+                                      isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'
+                                    }`}>
+                                      <Calendar className="w-3 h-3 text-indigo-500 shrink-0" />
+                                      {new Date(card.due_date).toLocaleDateString('id-ID', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Title */}
+                                <h4
+                                  className={`font-bold text-xs leading-snug break-words ${
+                                    column.id === 'done'
+                                      ? 'line-through text-slate-400'
+                                      : isLight
+                                      ? 'text-slate-900'
+                                      : 'text-white'
+                                  }`}
+                                >
+                                  {card.title}
+                                </h4>
+
+                                {/* Description */}
+                                {card.description && card.description.trim() && (
+                                  <p className={`mt-1.5 text-[11px] leading-relaxed whitespace-pre-wrap break-words ${
+                                    isLight ? 'text-slate-600' : 'text-slate-400'
+                                  }`}>
+                                    {card.description}
+                                  </p>
+                                )}
+
+                                {/* Checklist items */}
+                                {card.checklist && card.checklist.length > 0 && (
+                                  <div className={`mt-2.5 pt-2 border-t space-y-1 ${
+                                    isLight ? 'border-slate-200' : 'border-slate-700/50'
+                                  }`}>
+                                    <div className="flex items-center justify-between text-[10px] mb-1">
+                                      <span className={isLight ? 'text-slate-700 font-semibold' : 'text-slate-400'}>Checklist Sub-Tugas</span>
+                                      <span className={`font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
+                                        {doneChecklist}/{totalChecklist}
+                                      </span>
+                                    </div>
+                                    <div className={`w-full h-1.5 rounded-full overflow-hidden mb-1.5 ${
+                                      isLight ? 'bg-slate-200' : 'bg-slate-800'
+                                    }`}>
+                                      <div
+                                        className="h-full bg-indigo-500 rounded-full"
+                                        style={{
+                                          width: `${Math.round((doneChecklist / totalChecklist) * 100)}%`,
+                                        }}
+                                      />
+                                    </div>
+                                    {card.checklist.map((chk) => (
+                                      <div
+                                        key={chk.id}
+                                        className={`flex items-start gap-1.5 text-[11px] leading-tight ${
+                                          isLight ? 'text-slate-800' : 'text-slate-300'
+                                        }`}
+                                      >
+                                        <span className="mt-0.5 shrink-0">
+                                          {chk.completed ? (
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                          ) : (
+                                            <span className={`inline-block w-3 h-3 rounded-xs border ${
+                                              isLight ? 'border-slate-400' : 'border-slate-600'
+                                            }`} />
+                                          )}
+                                        </span>
+                                        <span className={chk.completed ? 'line-through text-slate-400' : ''}>
+                                          {chk.text}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Tags */}
+                                {card.tags && card.tags.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-2.5 flex-wrap">
+                                    {card.tags.map((t) => (
+                                      <span
+                                        key={t}
+                                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                                          isLight
+                                            ? 'bg-indigo-50 text-indigo-800 border-indigo-200 font-medium'
+                                            : 'bg-slate-800 text-slate-400 border-slate-700/60'
+                                        }`}
+                                      >
+                                        #{t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Rendered Document Body with qalam-markdown-preview typography */
+            <div
+              className={`qalam-markdown-preview prose max-w-none text-[15px] sm:text-base leading-relaxed break-words ${
+                isLight ? 'text-slate-900' : 'text-slate-100'
+              } ${isRtl ? 'text-right' : 'text-left'}`}
+              dangerouslySetInnerHTML={{
+                __html: formattedHtml,
+              }}
+            />
+          )}
 
           {/* Footer note */}
           <footer

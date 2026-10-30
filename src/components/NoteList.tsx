@@ -21,10 +21,14 @@ import {
   Plus,
   FileDown,
   Columns2,
+  Kanban,
+  Sparkles,
 } from 'lucide-react';
-import type { Note, NoteSortField, NoteSortOrder, ViewFilter, DateFormatOption, TimeFormatOption, AppLanguage } from '../types';
+import type { Note, Folder, NoteSortField, NoteSortOrder, ViewFilter, DateFormatOption, TimeFormatOption, AppLanguage } from '../types';
 import { getT, formatNoteListDate, formatDate as formatGeneralDate } from '../utils/i18n';
 import { parseAdvancedSearchQuery } from '../utils/searchFilter';
+import { calculateKanbanStats } from '../utils/kanbanSerializer';
+import { NoteContextMenu } from './ContextMenu/NoteContextMenu';
 
 interface NoteListProps {
   notes: Note[];
@@ -56,9 +60,13 @@ interface NoteListProps {
   isMobile?: boolean;
   onNewNote?: () => void;
   onNewTodo?: () => void;
+  onNewKanban?: () => void;
+  onOpenDailyNote?: () => void;
+  onOpenTemplates?: () => void;
   onOpenExportNoteModal?: (note: Note) => void;
   onOpenInSplitScreen?: (noteId: string) => void;
   onCopyNoteMarkdown?: (note: Note) => void;
+  folders?: Folder[];
   theme?: string;
 }
 
@@ -92,13 +100,28 @@ export const NoteList: React.FC<NoteListProps> = ({
   isMobile = false,
   onNewNote,
   onNewTodo,
+  onNewKanban,
+  onOpenDailyNote,
+  onOpenTemplates,
   onOpenExportNoteModal,
   onOpenInSplitScreen,
   onCopyNoteMarkdown,
+  folders = [],
   theme = 'qalam-dark',
 }) => {
   const isLight = theme === 'qalam-light' || theme === 'light';
   const [activeMenuNoteId, setActiveMenuNoteId] = useState<string | null>(null);
+  const [contextMenuNote, setContextMenuNote] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    note: Note | null;
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    note: null,
+  });
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showFilterHelper, setShowFilterHelper] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -438,34 +461,69 @@ export const NoteList: React.FC<NoteListProps> = ({
           </div>
         )}
 
-        {/* Filter Pills (All / Notes / To-Dos) */}
+        {/* Filter Pills (All / Notes / To-Dos / Kanban - Compact & Non-wrapping) */}
         {!isTrashView && (
-          <div className="flex items-center gap-1 mt-2 text-[11px] bg-slate-900/60 p-0.5 rounded border border-slate-800">
+          <div className={`flex items-center gap-0.5 mt-2 p-0.5 rounded-lg border flex-nowrap text-[11px] ${
+            isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-900/80 border-slate-800'
+          }`}>
             <button
+              type="button"
               onClick={() => onFilterChange('all')}
-              className={`flex-1 py-0.5 text-center rounded transition font-medium ${
-                filter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              title={t.filter_all}
+              className={`flex-1 min-w-0 py-1 px-1 rounded-md transition font-medium whitespace-nowrap shrink flex items-center justify-center gap-1 text-[11px] ${
+                filter === 'all'
+                  ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              {t.filter_all}
+              <span className="truncate">{t.filter_all}</span>
             </button>
             <button
+              type="button"
               onClick={() => onFilterChange('notes_only')}
-              className={`flex-1 py-0.5 text-center rounded transition font-medium flex items-center justify-center gap-1 ${
-                filter === 'notes_only' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              title={t.filter_notes}
+              className={`flex-1 min-w-0 py-1 px-1 rounded-md transition font-medium whitespace-nowrap shrink flex items-center justify-center gap-1 text-[11px] ${
+                filter === 'notes_only'
+                  ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <FileText className="w-2.5 h-2.5" />
-              {t.filter_notes}
+              <FileText className="w-3 h-3 shrink-0" />
+              <span className="truncate">{t.filter_notes}</span>
             </button>
             <button
+              type="button"
               onClick={() => onFilterChange('todos_only')}
-              className={`flex-1 py-0.5 text-center rounded transition font-medium flex items-center justify-center gap-1 ${
-                filter === 'todos_only' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              title={t.filter_todos}
+              className={`flex-1 min-w-0 py-1 px-1 rounded-md transition font-medium whitespace-nowrap shrink flex items-center justify-center gap-1 text-[11px] ${
+                filter === 'todos_only'
+                  ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <CheckSquare className="w-2.5 h-2.5" />
-              {t.filter_todos}
+              <CheckSquare className="w-3 h-3 shrink-0" />
+              <span className="truncate">{t.filter_todos}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onFilterChange('kanban_only')}
+              title="Kanban"
+              className={`flex-1 min-w-0 py-1 px-1 rounded-md transition font-medium whitespace-nowrap shrink flex items-center justify-center gap-1 text-[11px] ${
+                filter === 'kanban_only'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Kanban className={`w-3 h-3 shrink-0 ${filter === 'kanban_only' ? 'text-white' : 'text-indigo-500'}`} />
+              <span className="truncate">Kanban</span>
             </button>
           </div>
         )}
@@ -538,7 +596,20 @@ export const NoteList: React.FC<NoteListProps> = ({
                     zIndex: activeMenuNoteId === note.id ? 50 : 1,
                   }}
                   onClick={() => onSelectNote(note.id)}
-                draggable={!isTrashView}
+                  onContextMenu={(e) => {
+                    if (e.shiftKey) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectNote(note.id);
+                    setActiveMenuNoteId(null);
+                    setContextMenuNote({
+                      isOpen: true,
+                      x: e.clientX,
+                      y: e.clientY,
+                      note,
+                    });
+                  }}
+                  draggable={!isTrashView}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(
                     'application/json',
@@ -587,6 +658,12 @@ export const NoteList: React.FC<NoteListProps> = ({
                         {note.is_pinned && (
                           <Pin className="w-3 h-3 text-blue-400 shrink-0 fill-blue-400" />
                         )}
+                        {note.is_kanban && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shrink-0 flex items-center gap-0.5">
+                            <Kanban className="w-2.5 h-2.5" />
+                            <span>KANBAN</span>
+                          </span>
+                        )}
                         <h4
                           dir="auto"
                           className={`text-xs font-semibold truncate ${
@@ -602,9 +679,32 @@ export const NoteList: React.FC<NoteListProps> = ({
                       </div>
 
                       {/* Excerpt Snippet */}
-                      <p dir="auto" className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 leading-snug">
-                        {getCleanSnippet(note.body)}
-                      </p>
+                      {note.is_kanban ? (
+                        (() => {
+                          const kStats = calculateKanbanStats(note.kanban_data);
+                          return (
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-indigo-300/80">
+                              <span>
+                                {kStats.totalCards > 0
+                                  ? `${kStats.completedCards}/${kStats.totalCards} tugas selesai (${kStats.percentage}%)`
+                                  : (language === 'id' ? 'Papan Proyek Kanban' : 'Kanban Project Board')}
+                              </span>
+                              {kStats.totalCards > 0 && (
+                                <div className="w-12 bg-slate-800 h-1 rounded-full overflow-hidden shrink-0">
+                                  <div
+                                    className="bg-indigo-400 h-full rounded-full"
+                                    style={{ width: `${kStats.percentage}%` }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <p dir="auto" className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 leading-snug">
+                          {getCleanSnippet(note.body)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -806,52 +906,146 @@ export const NoteList: React.FC<NoteListProps> = ({
       )}
     </div>
 
-      {/* Mobile Floating Action Button (FAB) for fast one-thumb note/todo creation */}
+      {/* Mobile Floating Action Button (FAB) - Central hub for all creation actions */}
       {isMobile && onNewNote && !isTrashView && (
-        <div className="fixed bottom-16 right-4 z-20 flex flex-col items-end gap-2">
+        <>
           {showFabMenu && (
-            <div className="flex flex-col items-end gap-2 mb-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
-              {onNewTodo && (
+            <div
+              className="fixed inset-0 z-15 bg-black/30 backdrop-blur-[1px] animate-in fade-in duration-150"
+              onClick={() => setShowFabMenu(false)}
+              aria-hidden="true"
+            />
+          )}
+          <div className="fixed bottom-16 right-4 z-20 flex flex-col items-end gap-2">
+            {showFabMenu && (
+              <div className="flex flex-col items-end gap-2 mb-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                {onOpenTemplates && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFabMenu(false);
+                      onOpenTemplates();
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full shadow-xl text-xs font-medium active:scale-95 transition ${
+                      isLight
+                        ? 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50 shadow-slate-300/60'
+                        : 'bg-[#1e2739] text-purple-300 border border-slate-700 shadow-xl hover:bg-[#253248]'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
+                    <span>{language === 'id' ? 'Galeri Templat' : 'Templates Gallery'}</span>
+                  </button>
+                )}
+                {onOpenDailyNote && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFabMenu(false);
+                      onOpenDailyNote();
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full shadow-xl text-xs font-medium active:scale-95 transition ${
+                      isLight
+                        ? 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 shadow-slate-300/60'
+                        : 'bg-[#1e2739] text-emerald-300 border border-slate-700 shadow-xl hover:bg-[#253248]'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{language === 'id' ? 'Catatan Harian Hari Ini' : "Today's Daily Note"}</span>
+                  </button>
+                )}
+                {onNewKanban && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFabMenu(false);
+                      onNewKanban();
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full shadow-xl text-xs font-medium active:scale-95 transition ${
+                      isLight
+                        ? 'bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 shadow-slate-300/60'
+                        : 'bg-[#1e2739] text-indigo-300 border border-slate-700 shadow-xl hover:bg-[#253248]'
+                    }`}
+                  >
+                    <Kanban className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <span>{language === 'id' ? 'Papan Kanban Baru' : 'New Kanban Board'}</span>
+                  </button>
+                )}
+                {onNewTodo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFabMenu(false);
+                      onNewTodo();
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full shadow-xl text-xs font-medium active:scale-95 transition ${
+                      isLight
+                        ? 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50 shadow-slate-300/60'
+                        : 'bg-[#1e2739] text-amber-300 border border-slate-700 shadow-xl hover:bg-[#253248]'
+                    }`}
+                  >
+                    <CheckSquare className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span>{t.new_todo}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
                     setShowFabMenu(false);
-                    onNewTodo();
+                    onNewNote();
                   }}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#1e2739] text-amber-300 border border-slate-700 shadow-xl text-xs font-medium active:scale-95 transition"
+                  className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full shadow-xl text-xs font-medium active:scale-95 transition ${
+                    isLight
+                      ? 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 shadow-slate-300/60'
+                      : 'bg-[#1e2739] text-blue-300 border border-slate-700 shadow-xl hover:bg-[#253248]'
+                  }`}
                 >
-                  <CheckSquare className="w-4 h-4 text-amber-400" />
-                  <span>{t.new_todo}</span>
+                  <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>{t.new_note}</span>
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFabMenu(false);
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (onNewTodo || onNewKanban || onOpenDailyNote || onOpenTemplates) {
+                  setShowFabMenu(!showFabMenu);
+                } else {
                   onNewNote();
-                }}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#1e2739] text-blue-300 border border-slate-700 shadow-xl text-xs font-medium active:scale-95 transition"
-              >
-                <FileText className="w-4 h-4 text-blue-400" />
-                <span>{t.new_note}</span>
-              </button>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (onNewTodo) {
-                setShowFabMenu(!showFabMenu);
-              } else {
-                onNewNote();
-              }
-            }}
-            aria-label={t.new_note}
-            className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-90 text-white shadow-xl shadow-blue-900/40 flex items-center justify-center transition-transform"
-          >
-            <Plus className={`w-5 h-5 transition-transform ${showFabMenu ? 'rotate-45' : ''}`} />
-          </button>
-        </div>
+                }
+              }}
+              aria-label={t.new_note}
+              className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 active:scale-90 text-white shadow-xl shadow-blue-900/40 flex items-center justify-center transition-transform"
+            >
+              <Plus className={`w-5 h-5 transition-transform duration-200 ${showFabMenu ? 'rotate-45' : ''}`} />
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Note Right-Click Context Menu */}
+      {contextMenuNote.isOpen && contextMenuNote.note && (
+        <NoteContextMenu
+          note={contextMenuNote.note}
+          isOpen={contextMenuNote.isOpen}
+          position={{ x: contextMenuNote.x, y: contextMenuNote.y }}
+          onClose={() => setContextMenuNote((prev) => ({ ...prev, isOpen: false, note: null }))}
+          onSelectNote={onSelectNote}
+          onToggleStar={onToggleStar}
+          onTogglePin={onTogglePin}
+          onToggleTodo={onToggleTodo}
+          onDuplicateNote={onDuplicateNote}
+          onDeleteNote={onDeleteNote}
+          onRestoreNote={onRestoreNote}
+          onPermanentDeleteNote={onPermanentDeleteNote}
+          onOpenInSplitScreen={onOpenInSplitScreen}
+          onOpenExportNoteModal={onOpenExportNoteModal}
+          onCopyNoteMarkdown={onCopyNoteMarkdown}
+          onMoveNoteToFolder={onMoveNoteToFolder}
+          folders={folders}
+          isTrashView={isTrashView}
+          language={language}
+          theme={theme}
+        />
       )}
     </div>
   );

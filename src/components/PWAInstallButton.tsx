@@ -14,12 +14,7 @@ export const PWAInstallButton: React.FC<{ compact?: boolean; language?: AppLangu
   const isId = language === 'id';
 
   if (isInstalled) {
-    return compact ? null : (
-      <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 bg-slate-800/40 rounded border border-slate-700/50">
-        <Check className="w-3.5 h-3.5 text-emerald-400" />
-        <span>{isId ? 'Terpasang (PWA)' : 'Installed (PWA)'}</span>
-      </div>
-    );
+    return null;
   }
 
   const handleInstallClick = async () => {

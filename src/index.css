@@ -170,13 +170,39 @@ html.qalam-light {
 }
 
 /* Typography Hierarchy in Light Theme */
-.qalam-light .text-white,
-.qalam-light .text-slate-100,
-.qalam-light .text-slate-200,
-.qalam-light .text-white,
-.qalam-light .text-slate-100,
-.qalam-light .text-slate-200 {
+.qalam-light .text-white:not(button):not(.bg-blue-600):not(.bg-purple-600):not(.bg-indigo-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-rose-600),
+.qalam-light .text-slate-100:not(button):not(.bg-blue-600):not(.bg-purple-600):not(.bg-indigo-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-rose-600),
+.qalam-light .text-slate-200:not(button):not(.bg-blue-600):not(.bg-purple-600):not(.bg-indigo-600):not(.bg-emerald-600):not(.bg-red-600):not(.bg-rose-600) {
   color: #0f172a !important;
+}
+
+/* Ensure solid filled action buttons, active tabs, and primary controls in light theme maintain crisp white text */
+.qalam-light .bg-blue-600,
+.qalam-light .bg-blue-700,
+.qalam-light .bg-blue-500,
+.qalam-light .bg-purple-600,
+.qalam-light .bg-purple-700,
+.qalam-light .bg-indigo-600,
+.qalam-light .bg-emerald-600,
+.qalam-light .bg-red-600,
+.qalam-light .bg-rose-600,
+.qalam-light button.bg-blue-600,
+.qalam-light button.bg-purple-600 {
+  color: #ffffff !important;
+}
+
+.qalam-light .bg-blue-600 *,
+.qalam-light .bg-blue-700 *,
+.qalam-light .bg-blue-500 *,
+.qalam-light .bg-purple-600 *,
+.qalam-light .bg-purple-700 *,
+.qalam-light .bg-indigo-600 *,
+.qalam-light .bg-emerald-600 *,
+.qalam-light .bg-red-600 *,
+.qalam-light .bg-rose-600 *,
+.qalam-light button.bg-blue-600 *,
+.qalam-light button.bg-purple-600 * {
+  color: #ffffff !important;
 }
 
 .qalam-light .text-slate-300,
@@ -322,12 +348,23 @@ html.qalam-light {
 }
 
 /* Inputs, Textareas, and Selects in Light Theme */
-.qalam-light input:not(.bg-transparent),
-.qalam-light textarea:not(.bg-transparent),
-.qalam-light select {
+.qalam-light input:not(.bg-transparent):not(.border-0),
+.qalam-light textarea:not(.bg-transparent):not(.border-0),
+.qalam-light select:not(.bg-transparent):not(.border-0) {
   background-color: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
+}
+
+.qalam-light select.bg-transparent,
+.qalam-light select.border-0,
+.qalam-light select[class*="border-0"],
+.qalam-light select[class*="border-none"],
+.qalam-light .border-0 select,
+.qalam-light .border-none select {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 .qalam-light select option {
   background-color: #ffffff !important;

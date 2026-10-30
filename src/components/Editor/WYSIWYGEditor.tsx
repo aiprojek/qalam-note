@@ -42,6 +42,7 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
   const [wikiQuery, setWikiQuery] = useState('');
   const [selectedWikiIndex, setSelectedWikiIndex] = useState(0);
   const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
+  const suggestionsListRef = useRef<HTMLDivElement>(null);
 
   const wikiSuggestions = useMemo(() => {
     if (!showWikiSuggestions) return [];
@@ -50,6 +51,27 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
 
   // Total selectable items (suggestions + optional create item)
   const totalItemsCount = wikiSuggestions.length + (wikiQuery.trim() ? 1 : 0);
+
+  // Auto-scroll the dropdown list to ensure keyboard-selected item is always visible
+  useEffect(() => {
+    if (showWikiSuggestions && suggestionsListRef.current) {
+      const container = suggestionsListRef.current;
+      const buttons = container.querySelectorAll<HTMLButtonElement>('button');
+      const activeEl = buttons[selectedWikiIndex];
+      if (activeEl) {
+        const containerTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const itemTop = activeEl.offsetTop - container.offsetTop;
+        const itemBottom = itemTop + activeEl.offsetHeight;
+
+        if (itemTop < containerTop) {
+          container.scrollTop = itemTop;
+        } else if (itemBottom > containerTop + containerHeight) {
+          container.scrollTop = itemBottom - containerHeight;
+        }
+      }
+    }
+  }, [selectedWikiIndex, showWikiSuggestions]);
 
   // Initialize or update content when note changes ID, theme changes, or external content update (e.g. Drawing, Voice, Template)
   useEffect(() => {
@@ -126,9 +148,13 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
         const queryWithEnd = textBefore.substring(lastOpen + 2);
         const cleanQuery = queryWithEnd.replace(/^\[+/, '').replace(/\]+$/, '');
         if (!cleanQuery.includes('\n')) {
-          setWikiQuery(cleanQuery);
+          setWikiQuery((prev) => {
+            if (prev !== cleanQuery) {
+              setSelectedWikiIndex(0);
+            }
+            return cleanQuery;
+          });
           setShowWikiSuggestions(true);
-          setSelectedWikiIndex(0);
 
           // Calculate caret positioning for dropdown
           const rect = range.getBoundingClientRect();
@@ -207,16 +233,19 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
     if (showWikiSuggestions && totalItemsCount > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        e.stopPropagation();
         setSelectedWikiIndex((prev) => (prev + 1) % totalItemsCount);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
+        e.stopPropagation();
         setSelectedWikiIndex((prev) => (prev - 1 + totalItemsCount) % totalItemsCount);
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
+        e.stopPropagation();
         if (selectedWikiIndex < wikiSuggestions.length) {
           const selectedNote = wikiSuggestions[selectedWikiIndex];
           if (selectedNote) insertWikiLink(selectedNote.title);
@@ -227,6 +256,7 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
       }
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         setShowWikiSuggestions(false);
         return;
       }
@@ -460,7 +490,7 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
               ↵ / Tab
             </kbd>
           </div>
-          <div className="max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-700/30">
+          <div ref={suggestionsListRef} className="max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-700/30">
             {wikiSuggestions.map((item, idx) => {
               const isSelected = idx === selectedWikiIndex;
               const isCurrent = item.id === (currentNoteId || noteId);
@@ -536,7 +566,10 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
         suppressContentEditableWarning
         onInput={handleInput}
         onKeyDown={handleKeyDown}
-        onKeyUp={() => checkWikiLinkTrigger()}
+        onKeyUp={(e) => {
+          if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab', 'Escape'].includes(e.key)) return;
+          checkWikiLinkTrigger();
+        }}
         onClick={handleClick}
         data-placeholder={placeholderText}
         className={`min-h-full w-full outline-none text-[15px] leading-relaxed select-text font-sans empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none prose max-w-none ${

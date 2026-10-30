@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { FileText, CheckSquare, Link2, Plus } from 'lucide-react';
 import type { Note } from '../../types';
 import { searchWikiLinkSuggestions } from '../../utils/wikilinks';
@@ -30,6 +30,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const [wikiQuery, setWikiQuery] = useState('');
   const [wikiTriggerIndex, setWikiTriggerIndex] = useState(-1);
   const [selectedWikiIndex, setSelectedWikiIndex] = useState(0);
+  const suggestionsListRef = useRef<HTMLDivElement>(null);
 
   const wikiSuggestions = useMemo(() => {
     if (!showWikiSuggestions) return [];
@@ -37,6 +38,27 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, [showWikiSuggestions, wikiQuery, availableNotes, currentNoteId]);
 
   const totalItemsCount = wikiSuggestions.length + (wikiQuery.trim() ? 1 : 0);
+
+  // Auto-scroll dropdown list to keep keyboard selection in view
+  useEffect(() => {
+    if (showWikiSuggestions && suggestionsListRef.current) {
+      const container = suggestionsListRef.current;
+      const buttons = container.querySelectorAll<HTMLButtonElement>('button');
+      const activeEl = buttons[selectedWikiIndex];
+      if (activeEl) {
+        const containerTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const itemTop = activeEl.offsetTop - container.offsetTop;
+        const itemBottom = itemTop + activeEl.offsetHeight;
+
+        if (itemTop < containerTop) {
+          container.scrollTop = itemTop;
+        } else if (itemBottom > containerTop + containerHeight) {
+          container.scrollTop = itemBottom - containerHeight;
+        }
+      }
+    }
+  }, [selectedWikiIndex, showWikiSuggestions]);
 
   const linesCount = useMemo(() => {
     return (content || '').split('\n').length;
@@ -76,10 +98,14 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       const textAfter = beforeCursor.substring(lastOpenIndex + 2);
       const cleanTextAfter = textAfter.replace(/\]+$/, '');
       if (!cleanTextAfter.includes('\n')) {
-        setWikiQuery(cleanTextAfter);
+        setWikiQuery((prev) => {
+          if (prev !== cleanTextAfter) {
+            setSelectedWikiIndex(0);
+          }
+          return cleanTextAfter;
+        });
         setWikiTriggerIndex(lastOpenIndex);
         setShowWikiSuggestions(true);
-        setSelectedWikiIndex(0);
         return;
       }
     }
@@ -98,16 +124,19 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     if (showWikiSuggestions && totalItemsCount > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        e.stopPropagation();
         setSelectedWikiIndex((prev) => (prev + 1) % totalItemsCount);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
+        e.stopPropagation();
         setSelectedWikiIndex((prev) => (prev - 1 + totalItemsCount) % totalItemsCount);
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
+        e.stopPropagation();
         if (selectedWikiIndex < wikiSuggestions.length) {
           const selectedNote = wikiSuggestions[selectedWikiIndex];
           if (selectedNote) insertWikiLink(selectedNote.title);
@@ -118,6 +147,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         setShowWikiSuggestions(false);
         return;
       }
@@ -346,7 +376,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 ↵ / Tab
               </kbd>
             </div>
-            <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-slate-700/20">
+            <div ref={suggestionsListRef} className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-slate-700/20">
               {wikiSuggestions.map((item, idx) => (
                 <button
                   key={item.id}

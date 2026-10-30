@@ -1347,12 +1347,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-900/60 border-slate-800 text-slate-200'
                 }`}>
                   <div className="flex items-center justify-between border-b border-slate-700/30 pb-2">
-                    <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-purple-500">
+                    <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-purple-600 dark:text-purple-400">
                       <Smartphone className="w-4 h-4 shrink-0" />
                       <span>{t.pairing_title}</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-purple-500/80 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
-                      WebDAV &bull; Dropbox
+                    <span className={`text-xs font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      WebDAV · Dropbox
                     </span>
                   </div>
 
@@ -1373,7 +1373,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span>{t.pairing_export_label}</span>
                           </span>
                           {formSettings.sync.target !== 'disabled' && (
-                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                              isLight ? 'bg-blue-100 text-blue-700' : 'bg-blue-500/10 text-blue-400'
+                            }`}>
                               {formSettings.sync.target}
                             </span>
                           )}
@@ -1460,15 +1462,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             readOnly
                             disabled
                             placeholder={formSettings.language === 'id' ? 'Klik tombol untuk membuat...' : 'Click button to generate...'}
-                            className={`flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 rounded-lg border outline-none opacity-60 cursor-not-allowed truncate ${
-                              isLight ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-900 text-slate-500 border-slate-800'
+                            className={`flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 rounded-lg border outline-none cursor-not-allowed truncate ${
+                              isLight ? 'bg-slate-100 text-slate-700 placeholder:text-slate-500 border-slate-300' : 'bg-slate-900 text-slate-400 border-slate-800'
                             }`}
                           />
                           <button
                             type="button"
                             onClick={handleGeneratePairing}
                             disabled={formSettings.sync.target === 'disabled'}
-                            className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
+                            className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
                               isLight
                                 ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
                                 : 'bg-blue-600 hover:bg-blue-500 text-white'
@@ -1487,7 +1489,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}>
                       <div>
                         <span className="font-semibold text-xs flex items-center gap-1.5 mb-1">
-                          <Smartphone className="w-3.5 h-3.5 text-purple-500" />
+                          <Smartphone className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                           <span>{t.pairing_import_title}</span>
                         </span>
                         <p className={`text-[11px] leading-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -1511,8 +1513,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={handleApplyPairing}
                           disabled={!pairingInputCode.trim()}
-                          className={`shrink-0 py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 whitespace-nowrap transition active:scale-95 disabled:opacity-50 ${
-                            isLight
+                          className={`shrink-0 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition active:scale-95 disabled:cursor-not-allowed ${
+                            !pairingInputCode.trim()
+                              ? isLight
+                                ? 'bg-slate-200 text-slate-400 border border-slate-200'
+                                : 'bg-slate-800 text-slate-500 border border-slate-700'
+                              : isLight
                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-2xs'
                               : 'bg-purple-600 hover:bg-purple-500 text-white'
                           }`}
@@ -1841,7 +1847,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className={`text-base sm:text-lg font-bold tracking-tight leading-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                            {t.about_qalam}
+                            Qalam Note
                           </h4>
                           <span className="text-[11px] font-mono text-slate-400">
                             v{APP_VERSION}
@@ -1876,7 +1882,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </>
                         )}
                       </button>
-                      <PWAInstallButton language={formSettings.language} />
                     </div>
                   </div>
                 </div>
@@ -2130,48 +2135,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       isLight ? 'hover:bg-slate-100/60 text-slate-800' : 'hover:bg-slate-800/40 text-slate-200'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="font-semibold">{t.about_changelog_title}</span>
-                      <span className="text-[10px] font-mono text-slate-400">
-                        v{APP_VERSION}
-                      </span>
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-semibold text-xs leading-tight">
+                            {t.about_changelog_title}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            v{APP_VERSION}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[11px] text-blue-400 font-medium">
-                      <span>{showFullChangelog ? t.about_changelog_hide : t.about_changelog_view_all}</span>
-                      {showFullChangelog ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    <div className="flex items-center gap-1.5 text-[11px] text-blue-500 dark:text-blue-400 font-medium shrink-0 ml-2">
+                      <span className="hidden sm:inline">
+                        {showFullChangelog ? t.about_changelog_hide : t.about_changelog_view_all}
+                      </span>
+                      <span className="sm:hidden font-semibold">
+                        {showFullChangelog
+                          ? (formSettings.language === 'id' ? 'Tutup' : 'Hide')
+                          : (formSettings.language === 'id' ? 'Buka' : 'View')}
+                      </span>
+                      {showFullChangelog ? (
+                        <ChevronUp className="w-4 h-4 shrink-0 transition-transform" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 shrink-0 transition-transform" />
+                      )}
                     </div>
                   </button>
 
                   {showFullChangelog && (
-                    <div className={`p-3.5 pt-0 border-t space-y-3 ${
+                    <div className={`p-4 pt-1 border-t space-y-4 ${
                       isLight ? 'border-slate-200/80' : 'border-slate-800/80'
                     }`}>
                       {APP_CHANGELOG.map((log, idx) => (
                         <div
                           key={log.version}
-                          className={`pt-3 first:pt-2 space-y-1.5 ${
-                            idx > 0 ? isLight ? 'border-t border-slate-200/60' : 'border-t border-slate-800/60' : ''
+                          className={`pt-4 first:pt-2 space-y-2 ${
+                            idx > 0
+                              ? isLight
+                                ? 'border-t border-slate-200/80'
+                                : 'border-t border-slate-800/80'
+                              : ''
                           }`}
                         >
-                          <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-semibold text-xs text-blue-400">
-                                v{log.version}
-                              </span>
-                              <span className={`font-medium text-xs ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                                {formSettings.language === 'id' ? log.title.id : log.title.en}
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400">
+                          {/* Row 1: Version Badge & Date */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                              v{log.version}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-400">
                               {log.date}
                             </span>
                           </div>
-                          <ul className="space-y-1 text-[11px]">
+
+                          {/* Row 2: Title */}
+                          <h5 className={`font-semibold text-xs leading-relaxed ${
+                            isLight ? 'text-slate-900' : 'text-slate-100'
+                          }`}>
+                            {formSettings.language === 'id' ? log.title.id : log.title.en}
+                          </h5>
+
+                          {/* Row 3: Highlights List */}
+                          <ul className="space-y-1.5 text-[11px]">
                             {(formSettings.language === 'id' ? log.highlights.id : log.highlights.en).map((hl, hlIdx) => (
-                              <li key={hlIdx} className={`flex items-start gap-1.5 leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                                <span className="text-emerald-400 shrink-0 font-bold">•</span>
-                                <span>{hl}</span>
+                              <li
+                                key={hlIdx}
+                                className={`flex items-start gap-2 leading-relaxed ${
+                                  isLight ? 'text-slate-600' : 'text-slate-300'
+                                }`}
+                              >
+                                <span className="text-emerald-500 shrink-0 font-bold mt-0.5">•</span>
+                                <span className="flex-1">{hl}</span>
                               </li>
                             ))}
                           </ul>

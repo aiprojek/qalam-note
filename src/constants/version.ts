@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.0.4';
-export const APP_BUILD_DATE = '2026-10-23';
+export const APP_VERSION = '1.0.6';
+export const APP_BUILD_DATE = '2026-10-30';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,68 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.0.6',
+    date: '2026-10-30',
+    title: {
+      id: 'Pembaruan v1.0.6: Optimalisasi Kontras Tema Terang, Disiplin Zero-Pill, Perbaikan Total Grafik Pengetahuan & Peningkatan Navigasi WikiLink',
+      en: 'v1.0.6 Update: Light Theme Contrast Polish, Zero-Pill Discipline, Knowledge Graph Parity & WikiLink Navigation Polish',
+    },
+    highlights: {
+      id: [
+        'Perbaikan Kontras Menyeluruh pada Tema Terang: Menjamin kontras tinggi (WCAG AA) pada seluruh tombol aksi utama (Terapkan, Simpan Pengaturan, Publikasi, Buat Kode, Sinkronisasi, dan Tab aktif) dengan teks putih tajam di atas latar solid, serta input dan placeholder yang sangat jelas terbaca.',
+        'Penyempurnaan Header Catatan & Kanban Bebas Border Kaku: Menghilangkan border kotak kaku pada dropdown buku catatan dan pemilih tag di header editor maupun bilah filter Kanban, digantikan oleh chip teks minimalis yang menyatu anggun di tema terang.',
+        'Perbaikan Kontras Tambah Tugas/Kartu di Papan Kanban: Menata ulang formulir penambahan kartu inline di kolom Kanban mode terang dengan latar bersih putih, kolom input jelas terbaca, tombol Batal kontras tinggi, dan tombol Tambah berteks putih tajam.',
+        'Pustaka Format Simbol Poin & Penomoran/Abjad (List Styles): Mengadaptasi seluruh antarmuka menu pemilihan gaya butir (bullet) dan penomoran daftar ke tema terang dengan kartu galeri kontras tinggi, teks hitam pekat, badge gaya rapi, dan panel kustomisasi ramah mata.',
+        'Disiplin Zero-Pill & Pembersihan Elemen Redundan: Menghapus kapsul/pill dekoratif berlebihan pada penghitung catatan dan pintasan keyboard, serta menghilangkan badge "Terpasang (PWA)" yang redundan di halaman Pengaturan dan Sidebar untuk tampilan antarmuka yang tenang dan bersih.',
+        'Sinkronisasi 100% Keterhubungan Grafik Pengetahuan: Menghubungkan node grafik secara komprehensif dengan menyelaraskan deteksi backlink dua arah, pengenalan judul bersih (emoji-stripped), dan tautan berkas sehingga catatan yang saling tertaut di backlink terjamin terhubung di grafik.',
+        'Penyederhanaan Header Modal Grafik Pengetahuan: Menyederhanakan bilah header grafik pengetahuan menjadi minimalis dan bersih tanpa lencana/badge kotak yang membuat teks terpotong di layar ponsel.',
+        'Navigasi Keyboard & Auto-Scroll Saran WikiLink [[...]: Tombol panah bawah dan atas pada dropdown saran WikiLink [[ kini otomatis menggulir (auto-scroll) wadah daftar secara instan dan akurat di editor WYSIWYG maupun Markdown.',
+        'Penyatuan Tombol Buat Baru Mode Ponsel ke FAB (Floating Action Button): Menghilangkan duplikasi tombol "Baru" pada bilah header seluler dan memusatkan seluruh aksi pembuatan catatan ke Floating Action Button (FAB) di sudut kanan bawah.',
+        'Tombol Tunggal Switch Edit/Pratinjau Mobile & Proteksi Read-Only: Mengganti switch toggle mobile dengan satu tombol dinamis hemat ruang. Saat mode Pratinjau aktif, editor terkunci sepenuhnya untuk mencegah perubahan catatan yang tidak disengaja.',
+        'Header Catatan Kompak di Tablet: Memadatkan judul catatan, tombol grafik, dan tombol papan kanban agar ringkas dan tidak memenuhi layar atau terpotong di batas kanan layar tablet.',
+      ],
+      en: [
+        'Comprehensive Light Theme Contrast Polish: Guaranteed high contrast (WCAG AA) across all primary action buttons (Apply, Save Settings, Publish, Generate Code, Sync, and active tabs) with crisp white text over solid fills and clean readable inputs.',
+        'Elegant Borderless Note & Kanban Header Chips: Eliminated rigid boxy borders on notebook dropdowns and tag selectors in both the note header and Kanban filter bar, replacing them with refined, borderless text chips.',
+        'Kanban Quick Task Creator Contrast Fix: Overhauled the inline card addition box in Kanban columns for light mode with a clean white background, high-contrast readable input, visible Cancel button, and solid crisp Add button.',
+        'Light Theme Support for Bullet & Numbering Library: Full light mode styling for the list style popover with high-contrast choice cards, crisp dark typography, clear format badges, and accessible customization options.',
+        'Zero-Pill Discipline & UI De-cluttering: Eliminated gratuitous pill capsules on note counters and shortcuts, and removed redundant "PWA Installed" status pills from Settings and Sidebar for a quiet, distraction-free interface.',
+        '100% Knowledge Graph Backlink Parity: Synchronized bidirectional backlink detection with the knowledge graph engine, ensuring every note connected via backlinks is accurately mirrored with an edge line in the graph.',
+        'Streamlined Graph View Modal Header: Replaced bulky badge boxes in the graph header with clean, quiet typography that never clips or overflows on mobile screens.',
+        'Instant Auto-Scroll for WikiLink [[ Keyboard Suggestions: Arrow-down and arrow-up keys in the [[ autocomplete dropdown now directly and accurately scroll the suggestions container in both WYSIWYG and Markdown editors.',
+        'Consolidated Mobile Creation Controls into Single FAB: Eliminated duplicate "New" header button on mobile, channeling all creation options into the Floating Action Button.',
+        'Single Dynamic Mobile Edit/Preview Button & Strict Read-Only Mode: Replaced bulky switches with a single responsive button and enforced strict read-only lock in Preview mode.',
+        'Compact Tablet Note Header: Compacted titles and header action buttons to eliminate horizontal overflow on tablet viewports.',
+      ],
+    },
+  },
+  {
+    version: '1.0.5',
+    date: '2026-10-25',
+    title: {
+      id: 'Pembaruan v1.0.5: Papan Kanban Multi-Proyek, Publikasi Web Klien & Menu Kontekstual Lengkap',
+      en: 'v1.0.5 Update: Multi-Project Kanban Boards, Live Client Web Publication & Context Menus',
+    },
+    highlights: {
+      id: [
+        'Papan Kanban Multi-Proyek Spesifik: Pengguna dapat membuat lebih dari 1 papan Kanban mandiri untuk masing-masing proyek atau klien di dalam buku catatan (notebook) manapun, layaknya membuat catatan biasa.',
+        'Publikasi Web Langsung untuk Klien (Client Live Project Progress View): Papan Kanban proyek kini dapat dipublikasikan ke web melalui Google Apps Script (GAS). Klien dapat membuka tautan publik untuk memantau progres pengerjaan proyek secara langsung (Live Progress Dashboard, 4 kolom alur kerja, checklist deliverable, prioritas, dan tenggat waktu) atau beralih ke format laporan teks dokumen.',
+        'Editor Papan Kanban Interaktif & Drag-and-Drop: 4 kolom alur kerja industri (Rencana & Ide, Akan Dikerjakan, Sedang Dikerjakan, dan Selesai) dengan geser-dan-lepas halus, modal rincian kartu tugas, pemilih prioritas (Mendesak, Tinggi, Sedang, Rendah), tenggat waktu, dan checklist sub-tugas dinamis.',
+        'Konversi Catatan Dua Arah Otomatis: Ubah catatan biasa menjadi papan Kanban kapan saja dengan tombol "Papan Kanban", atau sebaliknya. Data kanban otomatis disinkronkan dua arah ke format teks Markdown rapi.',
+        'Badge & Filter Kanban di Daftar Catatan: Setiap papan proyek ditandai dengan badge khusus "KANBAN" dan meteran persentase penyelesaian tugas mini. Tab filter "Kanban" memungkinkan menyaring seluruh papan proyek dalam sekejap.',
+        'Menu Kontekstual Klik-Kanan Menyeluruh (Editor, Daftar Catatan, & Folder): Navigasi super responsif dan intuitif dengan klik-kanan di area editor teks (operasi clipboard, format teks, struktur judul, to-do list, tabel, tanggal/waktu, dan alat pro), pada item daftar catatan (buka, buka split-screen, bintang, pin, duplikasi, pindah folder, ekspor, dan hapus), serta pada hierarki buku catatan di bilah sisi (buka, buat catatan/to-do baru, buat papan kanban baru, buat sub-folder, ganti nama, ekspor ZIP, dan hapus). Dilengkapi deteksi tepi layar otomatis agar menu tidak pernah terpotong.',
+      ],
+      en: [
+        'Multi-Project Dedicated Kanban Boards: Users can create multiple independent Kanban boards for specific projects and clients within any notebook, just like standard notes.',
+        'Live Client Web Publication (Client Project Progress View): Project boards can be published directly to the web via Google Apps Script (GAS). Clients can open a shareable link to monitor project milestones in real-time with an interactive progress dashboard, 4 workflow columns, task checklists, priorities, and deadlines.',
+        'Interactive Drag-and-Drop Kanban Editor: 4 industry-standard columns (Backlog, To Do, In Progress, Done) with smooth drag-and-drop, card detail modals, priority tags (Urgent, High, Medium, Low), due date pickers, and dynamic sub-task checklists.',
+        'Bi-Directional Note & Board Conversion: Seamlessly toggle any note into an interactive Kanban board and back with automatic bi-directional Markdown synchronization.',
+        'Kanban Badges & Filter in Notes List: Dedicated "KANBAN" badge and mini completion percentage meters on note list cards, with a fast "Kanban" filter pill for quick access.',
+        'Universal Contextual Right-Click Menus (Editor, Notes List, & Notebooks): Super intuitive right-click menus for the note editor (clipboard, formatting, headings, checklists, tables, timestamps, pro tools), notes list items (open, split view, star, pin, duplicate, move to notebook, export, delete), and sidebar notebook tree (open, create note/to-do/kanban, new sub-notebook, rename, export ZIP, delete) with smart viewport edge detection.',
+      ],
+    },
+  },
   {
     version: '1.0.4',
     date: '2026-10-23',

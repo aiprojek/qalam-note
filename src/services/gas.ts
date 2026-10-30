@@ -3,10 +3,11 @@
  * Uses Google Sheets as the persistent metadata and content store
  */
 
-import type { Note } from '../types';
+import type { Note, KanbanBoardData } from '../types';
 import { encodePublishCipher } from './publishCipher';
 import { markdownToHtml } from '../utils/markdown';
 import { getNoteDirection } from '../utils/rtl';
+import { kanbanDataToHtml, markdownToKanbanData } from '../utils/kanbanSerializer';
 
 export interface PublishResult {
   success: boolean;
@@ -25,14 +26,16 @@ export async function publishNoteToGAS(
 ): Promise<PublishResult> {
   const publishedAt = Date.now();
   const slug = generateSlug(note.title);
+  const isKanban = Boolean(note.is_kanban);
 
-  // Generate compact encrypted cipher link (?k=<encoded_cipher>)
+  // Generate compact encrypted cipher link (?k=<encoded_cipher>) with Kanban flag
   const cipher = encodePublishCipher({
     id: note.id,
     gasUrl: gasUrl && gasUrl.trim() ? gasUrl.trim() : undefined,
     title: note.title,
     author: authorName,
     publishedAt,
+    isKanban,
   });
   const baseUrl = typeof window !== 'undefined'
     ? `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`
@@ -45,14 +48,24 @@ export async function publishNoteToGAS(
       success: true,
       public_url: compactPublicUrl,
       published_at: publishedAt,
-      message: 'Catatan dipublikasikan dalam mode pratinjau! Tautan ringkas terenkripsi (?k=...) siap dibagikan.',
+      message: isKanban
+        ? 'Papan Kanban dipublikasikan dalam mode pratinjau! Tautan interaktif klien (?k=...) siap dibagikan.'
+        : 'Catatan dipublikasikan dalam mode pratinjau! Tautan ringkas terenkripsi (?k=...) siap dibagikan.',
     };
   }
 
-  // Support both WYSIWYG rich HTML and Markdown editor content
+  // Support Kanban Board losslessly, WYSIWYG rich HTML, and Markdown editor content
   const noteDir = getNoteDirection(note);
   let compiledHtml = '';
-  if (note.body_html && note.body_html.trim()) {
+
+  if (isKanban) {
+    const kData: KanbanBoardData =
+      note.kanban_data || markdownToKanbanData(note.body || '');
+    // Embed lossless machine-readable JSON inside HTML comment + human-readable Kanban layout
+    const embeddedTag = `<!--QALAM_KANBAN_DATA:${encodeURIComponent(JSON.stringify(kData))}-->\n`;
+    const kanbanHtml = kanbanDataToHtml(kData, note.title);
+    compiledHtml = embeddedTag + kanbanHtml;
+  } else if (note.body_html && note.body_html.trim()) {
     compiledHtml = note.body_html;
   } else {
     compiledHtml = markdownToHtml(note.body || '', {
@@ -72,6 +85,8 @@ export async function publishNoteToGAS(
     tags: note.tags || [],
     is_todo: note.is_todo,
     todo_completed: note.todo_completed,
+    is_kanban: isKanban,
+    kanban_data: isKanban ? (note.kanban_data || markdownToKanbanData(note.body || '')) : undefined,
     created_time: note.created_time,
     updated_time: publishedAt,
   };
@@ -91,14 +106,18 @@ export async function publishNoteToGAS(
         success: true,
         public_url: compactPublicUrl,
         published_at: publishedAt,
-        message: 'Catatan berhasil dipublikasikan ke Google Sheets! Tautan ringkas terenkripsi (?k=...) siap dibagikan.',
+        message: isKanban
+          ? 'Papan Kanban proyek berhasil dipublikasikan ke Google Sheets! Tautan interaktif klien siap dibagikan.'
+          : 'Catatan berhasil dipublikasikan ke Google Sheets! Tautan ringkas terenkripsi (?k=...) siap dibagikan.',
       };
     } else {
       return {
         success: true,
         public_url: compactPublicUrl,
         published_at: publishedAt,
-        message: 'Publikasi dikirim ke Google Sheets. Tautan ringkas terenkripsi (?k=...) aktif!',
+        message: isKanban
+          ? 'Publikasi papan proyek terkirim ke Google Sheets. Tautan interaktif klien aktif!'
+          : 'Publikasi dikirim ke Google Sheets. Tautan ringkas terenkripsi (?k=...) aktif!',
       };
     }
   } catch (err: any) {
@@ -109,7 +128,9 @@ export async function publishNoteToGAS(
       success: true,
       public_url: compactPublicUrl,
       published_at: publishedAt,
-      message: 'Pembaruan catatan berhasil dikirim ke Google Apps Script. Tautan ringkas (?k=...) aktif!',
+      message: isKanban
+        ? 'Pembaruan papan proyek berhasil dikirim ke Google Apps Script. Tautan klien (?k=...) aktif!'
+        : 'Pembaruan catatan berhasil dikirim ke Google Apps Script. Tautan ringkas (?k=...) aktif!',
     };
   }
 }
@@ -127,6 +148,8 @@ export async function fetchPublishedNoteFromGAS(
   tags?: string[];
   updated_at?: number | string;
   published_at?: number | string;
+  is_kanban?: boolean;
+  kanban_data?: KanbanBoardData;
 } | null> {
   if (!gasUrl || !noteId) return null;
   try {
@@ -135,15 +158,34 @@ export async function fetchPublishedNoteFromGAS(
     if (!response.ok) return null;
     const data = await response.json();
     if (data && data.success && data.note) {
+      const rawHtml = data.note.html || '';
+      let kanbanData: KanbanBoardData | undefined = data.note.kanban_data;
+      let isKanban = Boolean(data.note.is_kanban || kanbanData);
+
+      // Extract embedded lossless Kanban JSON if stored in HTML comment
+      if (!kanbanData && rawHtml) {
+        const match = rawHtml.match(/<!--QALAM_KANBAN_DATA:(.*?)-->/);
+        if (match && match[1]) {
+          try {
+            kanbanData = JSON.parse(decodeURIComponent(match[1]));
+            isKanban = true;
+          } catch (e) {
+            console.warn('Failed parsing embedded kanban JSON from GAS:', e);
+          }
+        }
+      }
+
       return {
         title: data.note.title || 'Untitled Note',
-        html: data.note.html || '',
+        html: rawHtml,
         author: data.note.author || 'Anonymous',
         tags: typeof data.note.tags === 'string'
           ? data.note.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
           : (data.note.tags || []),
         updated_at: data.note.updated_at,
         published_at: data.note.published_at || data.note.updated_at,
+        is_kanban: isKanban,
+        kanban_data: kanbanData,
       };
     }
     return null;

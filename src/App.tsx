@@ -28,6 +28,7 @@ import type {
   NoteSortOrder,
   ViewFilter,
   SyncConfig,
+  KanbanStatus,
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
@@ -78,8 +79,10 @@ import { DualNoteEditor } from './components/Editor/DualNoteEditor';
 import { DailyNotesCalendarModal } from './components/Modals/DailyNotesCalendarModal';
 import { SRSModal } from './components/Modals/SRSModal';
 import { OCRModal } from './components/Modals/OCRModal';
+import { KanbanModal } from './components/Modals/KanbanModal';
 import { matchesAdvancedSearch } from './utils/searchFilter';
 import { copyNoteAsMarkdown } from './utils/clipboard';
+import { createInitialKanbanData, kanbanDataToMarkdown } from './utils/kanbanSerializer';
 import { Toast } from './components/Toast';
 
 export default function App() {
@@ -157,10 +160,11 @@ export default function App() {
   const [isDualEditorOpen, setIsDualEditorOpen] = useState(false);
   const [secondaryNoteId, setSecondaryNoteId] = useState<string | null>(null);
 
-  // Daily Calendar, SRS, and OCR Modals
+  // Daily Calendar, SRS, OCR, and Kanban Modals
   const [isDailyCalendarOpen, setIsDailyCalendarOpen] = useState(false);
   const [isSRSOpen, setIsSRSOpen] = useState(false);
   const [isOCROpen, setIsOCROpen] = useState(false);
+  const [isKanbanOpen, setIsKanbanOpen] = useState(false);
 
   // Floating Toast Notification State
   const [toast, setToast] = useState<{
@@ -201,6 +205,7 @@ export default function App() {
     title?: string;
     author?: string;
     publishedAt?: number | string;
+    isKanban?: boolean;
     remoteNote: RemotePublishedNote | null;
     isLoadingRemote: boolean;
     errorMessage: string | null;
@@ -254,6 +259,7 @@ export default function App() {
               title: decoded.title,
               author: decoded.author,
               publishedAt: decoded.publishedAt,
+              isKanban: decoded.isKanban,
               remoteNote: null,
               isLoadingRemote: !!decoded.gasUrl,
               errorMessage: null,
@@ -268,6 +274,7 @@ export default function App() {
                 setPublicReaderState((prev) => ({
                   ...prev,
                   isLoadingRemote: false,
+                  isKanban: prev.isKanban || remote.is_kanban,
                   publishedAt: prev.publishedAt || remote.published_at || remote.updated_at,
                   remoteNote: {
                     id: decoded.id,
@@ -278,6 +285,8 @@ export default function App() {
                     gasUrl: decoded.gasUrl,
                     updated_at: remote.updated_at,
                     published_at: remote.published_at || remote.updated_at || decoded.publishedAt,
+                    is_kanban: remote.is_kanban || decoded.isKanban,
+                    kanban_data: remote.kanban_data,
                   },
                 }));
               } else {
@@ -563,6 +572,68 @@ export default function App() {
     }
   };
 
+  // Handle Note Update by ID in Dexie & State (used by Kanban, etc.)
+  const handleUpdateNoteById = async (noteId: string, updatedFields: Partial<Note>) => {
+    const currentNote = notes.find((n) => n.id === noteId);
+    if (!currentNote) return;
+
+    const updatedNote: Note = cleanNoteForDb({
+      ...currentNote,
+      ...updatedFields,
+      updated_time: Date.now(),
+      sync_status: 'pending',
+    });
+
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? updatedNote : n)));
+    await db.notes.put(updatedNote);
+    requestAutoSync(5000);
+
+    if (updatedNote.published_info?.is_published) {
+      requestAutoPublishToGAS(updatedNote);
+    }
+  };
+
+  // Create New Note directly inside a Kanban Column
+  const handleCreateNoteInKanban = async (title: string, folderId: string, status: KanbanStatus) => {
+    const targetFolderId =
+      folderId || selectedFolderId || (folders.length > 0 ? folders[0].id : 'folder-welcome-01');
+    const newNoteId = 'note-' + Date.now();
+    const now = Date.now();
+    const cleanTitle = title.trim() || (settings.language === 'id' ? 'Tugas Baru' : 'New Task');
+
+    const newNote: Note = cleanNoteForDb({
+      id: newNoteId,
+      folder_id: targetFolderId,
+      title: cleanTitle,
+      body: `- [ ] ${cleanTitle}`,
+      is_todo: true,
+      todo_completed: status === 'done' ? now : 0,
+      todo_due: now + 86400000,
+      tags: selectedTagId ? [selectedTagId] : [],
+      kanban_status: status,
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now,
+      updated_time: now,
+      sync_status: 'pending',
+      order: notes.length + 1,
+    });
+
+    await db.notes.put(newNote);
+    setNotes((prev) => [newNote, ...prev]);
+    requestAutoSync(5000);
+  };
+
+  const handleShowToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
+    setToast({
+      isOpen: true,
+      message,
+      type,
+    });
+  };
+
   // Create New Note
   const handleCreateNote = async (isTodo: boolean = false) => {
     const targetFolderId =
@@ -594,6 +665,82 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     setSelectedNoteId(newNoteId);
     setSelectedSpecialView(null);
+    requestAutoSync(5000);
+  };
+
+  // Create New Project Kanban Board (as a dedicated Note with is_kanban: true)
+  const handleCreateKanbanNote = async (folderId?: string, title?: string) => {
+    const targetFolderId =
+      folderId || selectedFolderId || (folders.length > 0 ? folders[0].id : 'folder-welcome-01');
+
+    const newNoteId = 'note-' + Date.now();
+    const now = Date.now();
+    const isId = settings.language === 'id';
+    const boardTitle = title || (isId ? 'Papan Proyek Baru' : 'New Project Board');
+    const initialKanbanData = createInitialKanbanData(boardTitle, isId);
+    const initialMarkdown = kanbanDataToMarkdown(initialKanbanData, boardTitle);
+
+    const newNote: Note = cleanNoteForDb({
+      id: newNoteId,
+      folder_id: targetFolderId,
+      title: boardTitle,
+      body: initialMarkdown,
+      is_todo: false,
+      is_kanban: true,
+      kanban_data: initialKanbanData,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: ['kanban', 'proyek'],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now,
+      updated_time: now,
+      sync_status: 'pending',
+      order: notes.length + 1,
+    });
+
+    await db.notes.put(newNote);
+    setNotes((prev) => [newNote, ...prev]);
+    setSelectedNoteId(newNoteId);
+    setSelectedSpecialView(null);
+    if (folderId) setSelectedFolderId(folderId);
+    if (isMobile) setMobileActiveView('editor');
+    requestAutoSync(5000);
+  };
+
+  // Create New Note directly inside a specific Notebook (e.g. from Sidebar context menu)
+  const handleCreateNoteInFolder = async (folderId: string, isTodo: boolean = false) => {
+    const newNoteId = 'note-' + Date.now();
+    const now = Date.now();
+    const isId = settings.language === 'id';
+
+    const newNote: Note = cleanNoteForDb({
+      id: newNoteId,
+      folder_id: folderId,
+      title: isTodo ? (isId ? 'To-do Baru' : 'New To-do') : (isId ? 'Catatan Baru' : 'New Note'),
+      body: isTodo ? '- [ ] ' : '',
+      is_todo: isTodo,
+      todo_completed: 0,
+      todo_due: isTodo ? now + 86400000 : 0,
+      tags: [],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now,
+      updated_time: now,
+      sync_status: 'pending',
+      order: notes.length + 1,
+    });
+
+    await db.notes.put(newNote);
+    setNotes((prev) => [newNote, ...prev]);
+    setSelectedFolderId(folderId);
+    setSelectedSpecialView(null);
+    setSelectedNoteId(newNoteId);
+    if (isMobile) setMobileActiveView('editor');
     requestAutoSync(5000);
   };
 
@@ -1581,6 +1728,14 @@ export default function App() {
         // Knowledge Graph View (Ctrl+G / Cmd+G)
         e.preventDefault();
         setIsGraphViewOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
+        // Kanban Board (Ctrl+Shift+K)
+        e.preventDefault();
+        setIsKanbanOpen((prev) => !prev);
+      } else if (e.altKey && e.key.toLowerCase() === 'k') {
+        // Kanban Board (Alt+K)
+        e.preventDefault();
+        setIsKanbanOpen((prev) => !prev);
       } else if (e.altKey && e.key.toLowerCase() === 'd') {
         // Daily Note (Alt+D)
         e.preventDefault();
@@ -1644,10 +1799,11 @@ export default function App() {
           if (note.folder_id !== selectedFolderId && (!isDefaultFolder || note.folder_id)) return false;
         }
 
-        // View Type Filter (Notes / Todos)
-        if (filter === 'notes_only' && note.is_todo) return false;
+        // View Type Filter (Notes / Todos / Kanban)
+        if (filter === 'notes_only' && (note.is_todo || note.is_kanban)) return false;
         if (filter === 'todos_only' && !note.is_todo) return false;
         if (filter === 'todos_incomplete' && (!note.is_todo || note.todo_completed > 0)) return false;
+        if (filter === 'kanban_only' && !note.is_kanban) return false;
 
         // Search Query with Advanced Operators (tag:, folder:, is:todo, is:done, has:audio, is:locked)
         if (searchQuery.trim()) {
@@ -1755,6 +1911,7 @@ export default function App() {
         authorName={publicReaderState.author || settings.gas.author_name || 'Anonymous'}
         gasUrl={publicReaderState.gasUrl}
         noteId={publicReaderState.noteId || undefined}
+        isKanbanHint={publicReaderState.isKanban}
         isLoadingRemote={publicReaderState.isLoadingRemote && !localNote}
         errorMessage={
           !localNote && !publicReaderState.remoteNote && !publicReaderState.isLoadingRemote
@@ -1784,6 +1941,7 @@ export default function App() {
         <TopMenuBar
           onNewNote={() => handleCreateNote(false)}
           onNewTodo={() => handleCreateNote(true)}
+          onNewKanban={() => handleCreateKanbanNote()}
           onNewFolder={() => {
             setFolderToEdit(undefined);
             setFolderParentId('');
@@ -1832,6 +1990,7 @@ export default function App() {
           onOpenOCR={() => setIsOCROpen(true)}
           onOpenSRS={() => setIsSRSOpen(true)}
           onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
+          onOpenKanban={() => setIsKanbanOpen(true)}
           language={settings.language}
           theme={settings.theme}
         />
@@ -1860,6 +2019,7 @@ export default function App() {
           }}
           onNewNote={() => handleCreateNote(false)}
           onNewTodo={() => handleCreateNote(true)}
+          onNewKanban={() => handleCreateKanbanNote()}
           onCreateFolder={() => {
             setFolderToEdit(undefined);
             setFolderParentId('');
@@ -1881,6 +2041,7 @@ export default function App() {
           onExportPdf={handleExportPdf}
           onExportMarkdown={handleExportMarkdown}
           onOpenExportModal={() => activeNote && setExportNoteModalTarget(activeNote)}
+          onOpenKanban={() => setIsKanbanOpen(true)}
           onCopyMarkdown={() => handleCopyNoteMarkdown()}
           mobileReadingMode={mobileReadingMode}
           onToggleReadingMode={() => setMobileReadingMode((prev) => !prev)}
@@ -1895,6 +2056,7 @@ export default function App() {
           onDuplicateNote={handleDuplicateNote}
           onDeleteNote={requestDeleteNote}
           language={settings.language}
+          theme={settings.theme}
         />
       )}
 
@@ -1977,7 +2139,11 @@ export default function App() {
                   onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
                   onOpenDailyNote={() => handleOpenDailyNote()}
                   onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
+                  onOpenKanban={() => setIsKanbanOpen(true)}
+                  onCreateNoteInFolder={handleCreateNoteInFolder}
+                  onCreateKanbanInFolder={handleCreateKanbanNote}
                   language={settings.language}
+                  theme={settings.theme}
                 />
               </div>
             )}
@@ -2022,9 +2188,13 @@ export default function App() {
                   isMobile={true}
                   onNewNote={() => handleCreateNote(false)}
                   onNewTodo={() => handleCreateNote(true)}
+                  onNewKanban={() => handleCreateKanbanNote()}
+                  onOpenDailyNote={handleOpenDailyNote}
+                  onOpenTemplates={() => setIsTemplatesOpen(true)}
                   onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
                   onOpenInSplitScreen={handleOpenInSplitScreen}
                   onCopyNoteMarkdown={handleCopyNoteMarkdown}
+                  folders={folders}
                 />
               </div>
             )}
@@ -2171,7 +2341,11 @@ export default function App() {
                         onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
                         onOpenDailyNote={() => handleOpenDailyNote()}
                         onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
+                        onOpenKanban={() => setIsKanbanOpen(true)}
+                        onCreateNoteInFolder={handleCreateNoteInFolder}
+                        onCreateKanbanInFolder={handleCreateKanbanNote}
                         language={settings.language}
+                        theme={settings.theme}
                       />
                     </div>
                   </>
@@ -2211,9 +2385,13 @@ export default function App() {
                       language={settings.language}
                       theme={settings.theme}
                       onBackToSidebar={() => setIsSidebarOpen(true)}
+                      onNewNote={() => handleCreateNote(false)}
+                      onNewTodo={() => handleCreateNote(true)}
+                      onNewKanban={() => handleCreateKanbanNote()}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
+                      folders={folders}
                     />
                   </div>
                 )}
@@ -2381,7 +2559,11 @@ export default function App() {
                       onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
                       onOpenDailyNote={() => handleOpenDailyNote()}
                       onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
+                      onOpenKanban={() => setIsKanbanOpen(true)}
+                      onCreateNoteInFolder={handleCreateNoteInFolder}
+                      onCreateKanbanInFolder={handleCreateKanbanNote}
                       language={settings.language}
+                      theme={settings.theme}
                     />
                   </div>
                 )}
@@ -2419,9 +2601,13 @@ export default function App() {
                       timeFormat={settings.time_format}
                       language={settings.language}
                       theme={settings.theme}
+                      onNewNote={() => handleCreateNote(false)}
+                      onNewTodo={() => handleCreateNote(true)}
+                      onNewKanban={() => handleCreateKanbanNote()}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
+                      folders={folders}
                     />
                   </div>
                 )}
@@ -2691,6 +2877,10 @@ export default function App() {
           setIsCommandPaletteOpen(false);
           handleCreateNote(true);
         }}
+        onNewKanban={() => {
+          setIsCommandPaletteOpen(false);
+          handleCreateKanbanNote();
+        }}
         onOpenDailyNote={() => {
           setIsCommandPaletteOpen(false);
           handleOpenDailyNote();
@@ -2763,6 +2953,10 @@ export default function App() {
         onOpenDailyCalendar={() => {
           setIsCommandPaletteOpen(false);
           setIsDailyCalendarOpen(true);
+        }}
+        onOpenKanban={() => {
+          setIsCommandPaletteOpen(false);
+          setIsKanbanOpen(true);
         }}
         language={settings.language}
       />
@@ -2892,6 +3086,27 @@ export default function App() {
         isOpen={isOCROpen}
         onClose={() => setIsOCROpen(false)}
         onInsertText={handleInsertOCRText}
+        language={settings.language}
+        theme={settings.theme}
+      />
+
+      {/* Interactive Kanban Board Modal (Backlog, Todo, In Progress, Done) */}
+      <KanbanModal
+        isOpen={isKanbanOpen}
+        onClose={() => setIsKanbanOpen(false)}
+        notes={notes}
+        folders={folders}
+        tags={tags}
+        activeFolderId={selectedFolderId}
+        onSelectNote={(noteId) => {
+          setSelectedNoteId(noteId);
+          if (isMobile) setMobileActiveView('editor');
+          setIsKanbanOpen(false);
+        }}
+        onUpdateNote={handleUpdateNoteById}
+        onCreateNoteInKanban={handleCreateNoteInKanban}
+        onDeleteNote={requestDeleteNote}
+        onShowToast={handleShowToast}
         language={settings.language}
         theme={settings.theme}
       />

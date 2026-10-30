@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, Share2, Search, FileText } from 'lucide-react';
 import type { Note, Folder, AppLanguage } from '../../types';
-import { extractWikiLinks, normalizeTitle, cleanTitleKey } from '../../utils/wikilinks';
+import { extractWikiLinks, normalizeTitle, cleanTitleKey, resolveAllGraphLinks } from '../../utils/wikilinks';
 
 interface GraphNode {
   id: string;
@@ -57,44 +57,10 @@ export const GraphViewModal: React.FC<GraphViewModalProps> = ({
     theme === 'light' ||
     (typeof document !== 'undefined' && document.documentElement.classList.contains('light'));
 
-  // Build Graph Nodes and Links from WikiLinks
+  // Build Graph Nodes and Links using shared robust link resolution
   const { nodes, links } = useMemo(() => {
     const validNotes = notes.filter((n) => !n.is_deleted);
-    const titleToNoteMap = new Map<string, Note>();
-    const cleanTitleToNoteMap = new Map<string, Note>();
-
-    validNotes.forEach((n) => {
-      if (n.title) {
-        titleToNoteMap.set(normalizeTitle(n.title), n);
-        const clean = cleanTitleKey(n.title);
-        if (clean) cleanTitleToNoteMap.set(clean, n);
-      }
-    });
-
-    const linksList: GraphLink[] = [];
-    const connectionCounts = new Map<string, number>();
-
-    validNotes.forEach((n) => {
-      connectionCounts.set(n.id, 0);
-    });
-
-    validNotes.forEach((n) => {
-      const fullText = (n.body || '') + ' ' + (n.body_html || '');
-      const wikiLinks = extractWikiLinks(fullText);
-      const linkedTargetIds = new Set<string>();
-
-      wikiLinks.forEach((w) => {
-        const norm = normalizeTitle(w.target);
-        const clean = cleanTitleKey(w.target);
-        const target = titleToNoteMap.get(norm) || (clean ? cleanTitleToNoteMap.get(clean) : undefined);
-        if (target && target.id !== n.id && !linkedTargetIds.has(target.id)) {
-          linkedTargetIds.add(target.id);
-          linksList.push({ sourceId: n.id, targetId: target.id });
-          connectionCounts.set(n.id, (connectionCounts.get(n.id) || 0) + 1);
-          connectionCounts.set(target.id, (connectionCounts.get(target.id) || 0) + 1);
-        }
-      });
-    });
+    const { links: resolvedLinks, connectionCounts } = resolveAllGraphLinks(validNotes);
 
     const darkColors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#6366f1'];
     const lightColors = ['#2563eb', '#059669', '#d97706', '#db2777', '#7c3aed', '#0891b2', '#0d9488', '#4f46e5'];
@@ -135,7 +101,7 @@ export const GraphViewModal: React.FC<GraphViewModalProps> = ({
       };
     });
 
-    return { nodes: nodesList, links: linksList };
+    return { nodes: nodesList, links: resolvedLinks };
   }, [notes, folders, activeNoteId, isId, isLight]);
 
   // Handle Canvas Resize using ResizeObserver with reliable fallback
@@ -255,20 +221,30 @@ export const GraphViewModal: React.FC<GraphViewModalProps> = ({
       ctx.translate(cx, cy);
       ctx.scale(zoom, zoom);
 
-      // Draw Links
+      // Draw Links with Active Note & Hover Highlights and Crisp Contrast
       links.forEach((link) => {
         const source = nodeMap.get(link.sourceId);
         const target = nodeMap.get(link.targetId);
         if (source && target) {
           const isConnectedToHovered =
             hoveredNode && (hoveredNode.id === source.id || hoveredNode.id === target.id);
+          const isConnectedToActive =
+            activeNoteId && (activeNoteId === source.id || activeNoteId === target.id);
+
           ctx.beginPath();
           ctx.moveTo(source.x, source.y);
           ctx.lineTo(target.x, target.y);
-          ctx.strokeStyle = isConnectedToHovered
-            ? (isLight ? '#2563eb' : '#60a5fa')
-            : (isLight ? '#cbd5e1' : '#334155');
-          ctx.lineWidth = isConnectedToHovered ? 2.5 : 1.2;
+
+          if (isConnectedToHovered) {
+            ctx.strokeStyle = isLight ? '#2563eb' : '#60a5fa';
+            ctx.lineWidth = 2.8;
+          } else if (isConnectedToActive) {
+            ctx.strokeStyle = isLight ? '#0284c7' : '#38bdf8';
+            ctx.lineWidth = 2.4;
+          } else {
+            ctx.strokeStyle = isLight ? 'rgba(71, 85, 105, 0.7)' : 'rgba(148, 163, 184, 0.5)';
+            ctx.lineWidth = 1.8;
+          }
           ctx.stroke();
         }
       });
@@ -446,56 +422,36 @@ export const GraphViewModal: React.FC<GraphViewModalProps> = ({
             : 'bg-[#0f172a] border-0 sm:border border-slate-700 text-slate-100'
         }`}
       >
-        {/* Header */}
+        {/* Clean, Simple Header (Without gimmicks or pill boxes) */}
         <div
-          className={`flex items-center justify-between px-4 sm:px-6 py-3 border-b shrink-0 ${
-            isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0a0f1d] border-slate-800'
+          className={`flex items-center justify-between px-4 sm:px-5 py-2.5 border-b shrink-0 ${
+            isLight ? 'bg-white border-slate-200' : 'bg-[#0f172a] border-slate-800'
           }`}
         >
-          <div className="flex items-center gap-2.5">
-            <div
-              className={`p-2 rounded-lg border ${
-                isLight
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30'
-              }`}
-            >
-              <Share2 className="w-5 h-5 text-emerald-500" />
-            </div>
-            <div>
-              <h3 className={`text-sm sm:text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                <span>{isId ? 'Grafik Pengetahuan (Knowledge Graph)' : 'Knowledge Graph View'}</span>
-                <span
-                  className={`text-[11px] font-normal px-2 py-0.5 rounded-full border ${
-                    isLight
-                      ? 'bg-slate-100 text-slate-700 border-slate-300'
-                      : 'bg-slate-800 text-slate-300 border-slate-700'
-                  }`}
-                >
-                  {nodes.length} {isId ? 'catatan' : 'notes'} • {links.length} {isId ? 'koneksi' : 'links'}
-                </span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Share2 className="w-4 h-4 text-blue-500 shrink-0" />
+            <div className="min-w-0 flex items-baseline gap-2">
+              <h3 className={`text-sm font-semibold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {isId ? 'Grafik Pengetahuan' : 'Knowledge Graph'}
               </h3>
-              <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                {isId
-                  ? 'Visualisasi hubungan antar-catatan berbasis tautan dua arah ([[WikiLinks]])'
-                  : 'Interactive visual network of note connections powered by [[WikiLinks]]'}
-              </p>
+              <span className={`text-xs select-none ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                · {nodes.length} {isId ? 'catatan' : 'notes'} · {links.length} {isId ? 'tautan' : 'links'}
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              aria-label="Tutup"
-              className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition active:scale-95 ${
-                isLight
-                  ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            aria-label={isId ? 'Tutup' : 'Close'}
+            title={isId ? 'Tutup (Esc)' : 'Close (Esc)'}
+            className={`p-1.5 rounded-lg transition active:scale-95 ${
+              isLight
+                ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Canvas & Controls Area */}

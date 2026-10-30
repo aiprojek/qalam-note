@@ -26,11 +26,13 @@ import {
   Share2,
   Calendar,
   CalendarDays,
+  Kanban,
 } from 'lucide-react';
 import type { Folder, Tag, AppLanguage, Note } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { getT } from '../utils/i18n';
 import { QalamIcon } from './icons/QalamIcon';
+import { FolderContextMenu } from './ContextMenu/FolderContextMenu';
 
 interface SidebarProps {
   folders: Folder[];
@@ -69,7 +71,11 @@ interface SidebarProps {
   onOpenExportFolderModal?: (folder: Folder) => void;
   onOpenDailyNote?: () => void;
   onOpenDailyCalendar?: () => void;
+  onOpenKanban?: () => void;
+  onCreateNoteInFolder?: (folderId: string, isTodo?: boolean) => void;
+  onCreateKanbanInFolder?: (folderId: string) => void;
   language?: AppLanguage;
+  theme?: string;
 }
 
 interface FolderTreeItemProps {
@@ -100,6 +106,7 @@ interface FolderTreeItemProps {
   setDraggedFolderId: (id: string | null) => void;
   draggedNoteId: string | null;
   setDraggedNoteId: (id: string | null) => void;
+  onContextMenuFolder?: (e: React.MouseEvent, folder: Folder) => void;
   t: any;
   language: AppLanguage;
 }
@@ -132,6 +139,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
   setDraggedFolderId,
   draggedNoteId,
   setDraggedNoteId,
+  onContextMenuFolder,
   t,
   language,
 }) => {
@@ -218,6 +226,15 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
           onSelectFolder(folder.id);
           if (isCollapsed) {
             expandFolder(folder.id);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (e.shiftKey) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onSelectFolder(folder.id);
+          if (onContextMenuFolder) {
+            onContextMenuFolder(e, folder);
           }
         }}
         style={{ paddingLeft: `${Math.max(6, 6 + level * 14)}px` }}
@@ -410,6 +427,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
               setDraggedFolderId={setDraggedFolderId}
               draggedNoteId={draggedNoteId}
               setDraggedNoteId={setDraggedNoteId}
+              onContextMenuFolder={onContextMenuFolder}
               t={t}
               language={language}
             />
@@ -567,14 +585,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenExportFolderModal,
   onOpenDailyNote,
   onOpenDailyCalendar,
+  onOpenKanban,
+  onCreateNoteInFolder,
+  onCreateKanbanInFolder,
   language = 'id',
+  theme,
 }) => {
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [activeFolderMenuId, setActiveFolderMenuId] = useState<string | null>(null);
+  const [contextMenuFolder, setContextMenuFolder] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    folder: Folder | null;
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    folder: null,
+  });
   const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [isRootDragOver, setIsRootDragOver] = useState(false);
   const t = getT(language);
+
+  const handleContextMenuFolder = (e: React.MouseEvent, folder: Folder) => {
+    setActiveFolderMenuId(null);
+    setContextMenuFolder({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      folder,
+    });
+  };
 
   const toggleFolderCollapse = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -650,7 +693,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <FileText className="w-3.5 h-3.5 text-blue-400" />
               <span>{t.all_notes}</span>
             </div>
-            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full">
+            <span className="text-xs text-slate-400 font-mono">
               {totalNotesCount}
             </span>
           </button>
@@ -667,7 +710,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
               <span>{t.starred}</span>
             </div>
-            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full">
+            <span className="text-xs text-slate-400 font-mono">
               {starredCount}
             </span>
           </button>
@@ -706,9 +749,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Share2 className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
                 <span className="font-medium">{language === 'id' ? 'Grafik Pengetahuan' : 'Knowledge Graph'}</span>
               </div>
-              <span className="text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-1.5 py-0.2 rounded">
+              <span className="hidden md:inline-block text-[10px] font-mono text-emerald-500">
                 Ctrl+G
               </span>
+            </button>
+          )}
+
+          {onOpenKanban && (
+            <button
+              onClick={onOpenKanban}
+              title={language === 'id' ? 'Buka Papan Kanban (Ctrl+Shift+K)' : 'Open Kanban Board (Ctrl+Shift+K)'}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded transition text-indigo-400 hover:bg-slate-800/60 group"
+            >
+              <div className="flex items-center gap-2">
+                <Kanban className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="font-medium">{language === 'id' ? 'Papan Kanban' : 'Kanban Board'}</span>
+              </div>
             </button>
           )}
         </div>
@@ -794,6 +850,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setDraggedFolderId={setDraggedFolderId}
                   draggedNoteId={draggedNoteId}
                   setDraggedNoteId={setDraggedNoteId}
+                  onContextMenuFolder={handleContextMenuFolder}
                   t={t}
                   language={language}
                 />
@@ -895,14 +952,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={onSync}
           disabled={isSyncing}
           title={`${t.synchronise} (Ctrl+S)`}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded bg-blue-600/90 hover:bg-blue-600 text-white font-medium text-xs shadow-xs transition disabled:opacity-50 whitespace-nowrap overflow-hidden select-none"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition disabled:opacity-50 whitespace-nowrap overflow-hidden select-none active:scale-[0.99]"
         >
           <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span className="whitespace-nowrap truncate font-medium">
+          <span className="whitespace-nowrap truncate font-semibold">
             {isSyncing ? (t.syncing || (language === 'id' ? 'Sinkron...' : 'Syncing...')) : t.synchronise}
           </span>
           {!isSyncing && (
-            <span className="text-[10px] opacity-75 font-mono ml-0.5 hidden sm:inline shrink-0 whitespace-nowrap">(Ctrl+S)</span>
+            <span className="text-[10px] opacity-80 font-mono ml-0.5 hidden sm:inline shrink-0 whitespace-nowrap">(Ctrl+S)</span>
           )}
         </button>
 
@@ -914,6 +971,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* PWA Install Button */}
         <PWAInstallButton language={language} />
       </div>
+
+      {/* Folder Contextual Right-Click Menu */}
+      {contextMenuFolder.isOpen && contextMenuFolder.folder && (
+        <FolderContextMenu
+          folder={contextMenuFolder.folder}
+          isOpen={contextMenuFolder.isOpen}
+          position={{ x: contextMenuFolder.x, y: contextMenuFolder.y }}
+          onClose={() => setContextMenuFolder((prev) => ({ ...prev, isOpen: false, folder: null }))}
+          onSelectFolder={onSelectFolder}
+          onCreateNoteInFolder={onCreateNoteInFolder}
+          onCreateKanbanInFolder={onCreateKanbanInFolder}
+          onCreateSubFolder={onCreateFolder}
+          onRenameFolder={onRenameFolder}
+          onDeleteFolder={onDeleteFolder}
+          onMoveToRoot={(folderId) => onMoveFolder(folderId, '')}
+          onOpenExportFolderModal={onOpenExportFolderModal}
+          language={language}
+          theme={theme}
+        />
+      )}
     </div>
   );
 };

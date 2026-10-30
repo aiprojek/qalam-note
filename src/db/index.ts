@@ -198,6 +198,9 @@ export function cleanNoteForDb(note: Partial<Note> & { id?: string }): Note {
         : undefined,
     sync_status: (note.sync_status as any) || 'pending',
     order: typeof note.order === 'number' && !isNaN(note.order) ? note.order : 0,
+    is_kanban: Boolean(note.is_kanban),
+    kanban_data: note.kanban_data || undefined,
+    kanban_status: note.kanban_status || undefined,
   };
 }
 

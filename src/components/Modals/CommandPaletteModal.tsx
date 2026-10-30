@@ -23,6 +23,7 @@ import {
   ScanText,
   GraduationCap,
   CalendarDays,
+  Kanban,
 } from 'lucide-react';
 import type { Note, Folder, AppLanguage } from '../../types';
 
@@ -61,6 +62,8 @@ interface CommandPaletteModalProps {
   onOpenOCR?: () => void;
   onOpenSRS?: () => void;
   onOpenDailyCalendar?: () => void;
+  onOpenKanban?: () => void;
+  onNewKanban?: () => void;
   language?: AppLanguage;
 }
 
@@ -73,6 +76,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onSelectNote,
   onNewNote,
   onNewTodo,
+  onNewKanban,
   onOpenDailyNote,
   onOpenGraphView,
   onOpenTemplates,
@@ -90,6 +94,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
   onOpenOCR,
   onOpenSRS,
   onOpenDailyCalendar,
+  onOpenKanban,
   language = 'id',
 }) => {
   const [query, setQuery] = useState('');
@@ -130,6 +135,13 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       shortcut: 'Ctrl+T',
       action: () => { onClose(); onNewTodo(); },
     },
+    ...(onNewKanban ? [{
+      id: 'new_kanban',
+      title: isId ? 'Buat Papan Kanban Proyek Baru' : 'Create New Project Kanban Board',
+      category: isId ? 'Aksi Cepat' : 'Quick Actions',
+      icon: Kanban,
+      action: () => { onClose(); onNewKanban(); },
+    }] : []),
     {
       id: 'graph_view',
       title: isId ? 'Buka Grafik Pengetahuan (Knowledge Graph)' : 'Open Knowledge Graph View',
@@ -246,7 +258,15 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       icon: CalendarDays,
       action: () => { onClose(); onOpenDailyCalendar(); },
     }] : []),
-  ], [isId, onClose, onNewNote, onNewTodo, onOpenDailyNote, onOpenGraphView, onOpenTemplates, onExportPdf, onExportMarkdown, onOpenVoiceRecorder, onOpenDrawingCanvas, onOpenRevisionHistory, onToggleReadingMode, onToggleTheme, onSync, onToggleVaultLock, onOpenSettings, onToggleSplitScreen, onOpenOCR, onOpenSRS, onOpenDailyCalendar]);
+    ...(onOpenKanban ? [{
+      id: 'kanban_board',
+      title: isId ? 'Buka Papan Kanban (Kanban Board)' : 'Open Kanban Board',
+      category: isId ? 'Navigasi & Visual' : 'Navigation & Views',
+      icon: Kanban,
+      shortcut: 'Ctrl+Shift+K',
+      action: () => { onClose(); onOpenKanban(); },
+    }] : []),
+  ], [isId, onClose, onNewNote, onNewTodo, onOpenDailyNote, onOpenGraphView, onOpenTemplates, onExportPdf, onExportMarkdown, onOpenVoiceRecorder, onOpenDrawingCanvas, onOpenRevisionHistory, onToggleReadingMode, onToggleTheme, onSync, onToggleVaultLock, onOpenSettings, onToggleSplitScreen, onOpenOCR, onOpenSRS, onOpenDailyCalendar, onOpenKanban]);
 
   // Filter actions and notes based on search query
   const filteredActions = useMemo(() => {

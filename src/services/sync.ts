@@ -77,6 +77,9 @@ export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', 
     if (note.is_rtl) meta.is_rtl = 1;
     if (note.text_direction) meta.text_direction = note.text_direction;
     if (note.order !== undefined) meta.order = note.order;
+    if (note.is_kanban) meta.is_kanban = 1;
+    if (note.kanban_data) meta.kanban_data = JSON.stringify(note.kanban_data);
+    if (note.kanban_status) meta.kanban_status = note.kanban_status;
     if (note.encrypted_data) meta.encrypted_data = JSON.stringify(note.encrypted_data);
     if (note.attachments && note.attachments.length > 0) {
       meta.attachments = JSON.stringify(note.attachments);
@@ -1332,6 +1335,9 @@ export async function executeSync(
           sync_time: Date.now(),
           sync_status: 'synced',
           order: Number(parsed.meta.order || 0),
+          is_kanban: parsed.meta.is_kanban === '1',
+          kanban_data: parsed.meta.kanban_data ? JSON.parse(parsed.meta.kanban_data) : undefined,
+          kanban_status: (parsed.meta.kanban_status as any) || undefined,
         });
 
         if (!localNote) {

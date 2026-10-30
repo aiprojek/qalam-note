@@ -13,12 +13,14 @@ import {
   Share2,
   AlertTriangle,
   Calendar,
+  Kanban,
 } from 'lucide-react';
-import type { Note, GASConfig, AppLanguage } from '../../types';
+import type { Note, GASConfig, AppLanguage, KanbanBoardData } from '../../types';
 import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
 import { encodePublishCipher } from '../../services/publishCipher';
 import { markdownToHtml } from '../../utils/markdown';
 import { getNoteDirection } from '../../utils/rtl';
+import { calculateKanbanStats, markdownToKanbanData, kanbanDataToHtml } from '../../utils/kanbanSerializer';
 import DOMPurify from 'dompurify';
 
 interface PublishModalProps {
@@ -60,21 +62,31 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     (typeof document !== 'undefined' && document.documentElement.classList.contains('light'));
 
   const isPublished = !!note.published_info?.is_published;
+  const isKanban = Boolean(note.is_kanban);
+
+  const kanbanData: KanbanBoardData | null = useMemo(() => {
+    if (!isKanban) return null;
+    return note.kanban_data || markdownToKanbanData(note.body || '');
+  }, [isKanban, note.kanban_data, note.body]);
+
+  const kanbanStats = useMemo(() => calculateKanbanStats(kanbanData), [kanbanData]);
+
   const publicUrl = useMemo(() => {
     if (!isPublished) return '';
     const baseUrl = typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`
       : '';
-    // Encode compact URL-safe cipher
+    // Encode compact URL-safe cipher with isKanban flag
     const cipher = encodePublishCipher({
       id: note.id,
       gasUrl: note.published_info?.gas_url || gasUrl || undefined,
       title: note.title,
       author: authorName,
       publishedAt: note.published_info?.published_at,
+      isKanban,
     });
     return `${baseUrl}/?k=${cipher}`;
-  }, [isPublished, note.published_info, note.id, note.title, authorName, gasUrl]);
+  }, [isPublished, note.published_info, note.id, note.title, authorName, gasUrl, isKanban]);
 
   // Automatic natural text direction (RTL if note contains Arabic/Hebrew, otherwise LTR)
   const noteDirection = getNoteDirection(note);
@@ -260,6 +272,17 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                     <strong>{isId ? 'Panjang' : 'Length'}:</strong> {note.body.length} {isId ? 'karakter' : 'chars'}
                   </span>
                 </div>
+
+                {isKanban && (
+                  <div className="mt-3 flex items-center gap-2 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-400 text-xs font-semibold">
+                    <Kanban className="w-4 h-4 shrink-0 text-indigo-500" />
+                    <span>
+                      {isId
+                        ? `Papan Proyek Interaktif Klien (${kanbanStats.totalCards} Tugas • Selesai: ${kanbanStats.doneCount} • Progres: ${kanbanStats.percentage}%)`
+                        : `Client Live Project Board (${kanbanStats.totalCards} Tasks • Done: ${kanbanStats.doneCount} • Progress: ${kanbanStats.percentage}%)`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Status Banner */}
@@ -591,34 +614,42 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </div>
                 </div>
 
-                {/* Article Body: Rendered with Light Theme and rich typography */}
-                <div
-                  className={`qalam-markdown-preview prose max-w-none text-slate-900 text-sm sm:text-[15px] leading-relaxed break-words ${
-                    isRtl ? 'text-right' : 'text-left'
-                  }`}
-                  dangerouslySetInnerHTML={{
-                    __html: (note.body_html && note.body_html.trim())
-                      ? DOMPurify.sanitize(note.body_html, {
-                          ADD_TAGS: [
-                            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                            'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                            'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
-                            'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
-                            'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
-                          ],
-                          ADD_ATTR: [
-                            'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
-                            'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
-                            'allow', 'allowfullscreen', 'align', 'valign'
-                          ],
-                          ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
-                        })
-                      : markdownToHtml(note.body, {
-                          theme: 'light',
-                          direction: noteDirection,
-                        }),
-                  }}
-                />
+                {/* Article Body: Rendered with Light Theme and rich typography / Kanban Board */}
+                {isKanban && kanbanData ? (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: kanbanDataToHtml(kanbanData, note.title),
+                    }}
+                  />
+                ) : (
+                  <div
+                    className={`qalam-markdown-preview prose max-w-none text-slate-900 text-sm sm:text-[15px] leading-relaxed break-words ${
+                      isRtl ? 'text-right' : 'text-left'
+                    }`}
+                    dangerouslySetInnerHTML={{
+                      __html: (note.body_html && note.body_html.trim())
+                        ? DOMPurify.sanitize(note.body_html, {
+                            ADD_TAGS: [
+                              'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                              'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                              'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+                              'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+                              'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+                            ],
+                            ADD_ATTR: [
+                              'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+                              'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+                              'allow', 'allowfullscreen', 'align', 'valign'
+                            ],
+                            ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+                          })
+                        : markdownToHtml(note.body, {
+                            theme: 'light',
+                            direction: noteDirection,
+                          }),
+                    }}
+                  />
+                )}
 
                 {/* Article Footer */}
                 <div className="border-t border-slate-200 mt-8 pt-4 text-xs text-center text-slate-500 font-medium">

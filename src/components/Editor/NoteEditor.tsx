@@ -15,6 +15,8 @@ import {
   Share2,
   ExternalLink,
   Download,
+  Kanban,
+  Eye,
 } from 'lucide-react';
 import type { Note, Folder, Attachment, AppLanguage } from '../../types';
 import { EditorToolbar } from './EditorToolbar';
@@ -26,6 +28,9 @@ import { MarkdownCheatSheetModal } from '../Modals/MarkdownCheatSheetModal';
 import { LinkModal } from '../Modals/LinkModal';
 import { ImageModal } from '../Modals/ImageModal';
 import { FileAttachmentModal } from '../Modals/FileAttachmentModal';
+import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
+import { ProjectKanbanEditor } from '../Kanban/ProjectKanbanEditor';
+import { markdownToKanbanData } from '../../utils/kanbanSerializer';
 import { getT } from '../../utils/i18n';
 import { getNoteDirection } from '../../utils/rtl';
 import { htmlToMarkdown, markdownToHtml } from '../../utils/markdown';
@@ -157,6 +162,71 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const isRtl = getNoteDirection(note) === 'rtl';
 
   const currentFolder = folders.find((f) => f.id === note.folder_id) || folders[0];
+
+  // Right-click contextual menu state
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    selectedText: string;
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    selectedText: '',
+  });
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    // If user holds Shift, allow browser native context menu
+    if (e.shiftKey) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    let selected = '';
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      selected = sel.toString();
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    } else {
+      const activeEl = document.activeElement;
+      if (activeEl instanceof HTMLTextAreaElement) {
+        selected = activeEl.value.substring(activeEl.selectionStart, activeEl.selectionEnd);
+      }
+    }
+
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      selectedText: selected,
+    });
+  };
+
+  const handleInsertDateTime = () => {
+    const now = new Date();
+    const formatted = now.toLocaleString(language === 'id' ? 'id-ID' : 'en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    if (settingsEditorMode === 'wysiwyg') {
+      document.execCommand('insertHTML', false, `<span>${formatted}</span>&nbsp;`);
+    } else {
+      const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const updated = textarea.value.substring(0, start) + formatted + textarea.value.substring(end);
+        handleBodyChange(updated);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd = start + formatted.length;
+        }, 10);
+      } else {
+        handleBodyChange(note.body + '\n' + formatted);
+      }
+    }
+  };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateNote({ title: e.target.value, updated_time: Date.now() });
@@ -1230,19 +1300,48 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const isEncryptedAndLocked = note.is_encrypted && !isVaultUnlocked;
+  const isReadOnlyMode = Boolean(isMobile && mobileReadingMode);
+
+  // Convert note to project Kanban board
+  const handleConvertToKanban = () => {
+    const initialData = markdownToKanbanData(note.body, note.kanban_data);
+    onUpdateNote({
+      is_kanban: true,
+      kanban_data: initialData,
+      updated_time: Date.now(),
+    });
+  };
+
+  // If note is marked as a project Kanban board, render dedicated ProjectKanbanEditor
+  if (note.is_kanban) {
+    return (
+      <ProjectKanbanEditor
+        note={note}
+        onUpdateNote={onUpdateNote}
+        onOpenPublish={onOpenPublish}
+        onCopyMarkdown={handleCopyMarkdown}
+        onExportPdf={onExportPdf}
+        language={language}
+        theme={theme}
+        isMobile={isMobile}
+        isReadOnly={isReadOnlyMode}
+      />
+    );
+  }
 
   return (
     <div className={`flex flex-col h-full w-full select-none transition-colors ${isLight ? 'bg-white text-slate-900' : 'bg-[#1e2738] text-slate-100'}`}>
       {/* Top Note Meta Bar: Title, Notebook Selector, Tag Chips */}
-      <div className={`px-4 sm:px-6 pt-2.5 pb-2 border-b transition-colors ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#202b3f] border-slate-700/70'}`}>
+      <div className={`px-3 sm:px-4 py-2 border-b transition-colors ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#202b3f] border-slate-700/70'}`}>
         {/* Row 1: Title input & completion checkbox */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           {/* If To-Do, display completion checkbox */}
           {note.is_todo && (
             <button
-              onClick={handleToggleTodo}
-              title={note.todo_completed ? t.mark_incomplete : t.mark_complete}
-              className={`transition shrink-0 ${isLight ? 'text-slate-500 hover:text-blue-600' : 'text-slate-400 hover:text-blue-400'}`}
+              onClick={isReadOnlyMode ? undefined : handleToggleTodo}
+              disabled={isReadOnlyMode}
+              title={isReadOnlyMode ? (language === 'id' ? 'Mode Pratinjau (Hanya Lihat)' : 'Preview Mode (Read Only)') : note.todo_completed ? t.mark_incomplete : t.mark_complete}
+              className={`transition shrink-0 ${isReadOnlyMode ? 'opacity-80 cursor-default' : isLight ? 'text-slate-500 hover:text-blue-600' : 'text-slate-400 hover:text-blue-400'}`}
             >
               {note.todo_completed ? (
                 <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-100 dark:fill-emerald-950/40" />
@@ -1252,159 +1351,222 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             </button>
           )}
 
-          <input
-            type="text"
-            dir={isRtl ? 'rtl' : 'ltr'}
-            value={note.title}
-            onChange={handleTitleChange}
-            placeholder={t.note_title_placeholder}
-            className={`flex-1 bg-transparent text-lg sm:text-xl font-bold focus:outline-none tracking-tight select-text ${
-              isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-white placeholder:text-slate-500'
-            } ${isRtl ? 'text-right' : 'text-left'}`}
-          />
-
-          {onOpenGraphView && (
-            <button
-              type="button"
-              onClick={onOpenGraphView}
-              title={language === 'id' ? 'Lihat dalam Grafik Pengetahuan (Ctrl+G)' : 'View in Knowledge Graph (Ctrl+G)'}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium transition shrink-0 active:scale-95 ${
-                isLight
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
-                  : 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-800/60'
-              }`}
+          {isReadOnlyMode ? (
+            <h1
+              dir={isRtl ? 'rtl' : 'ltr'}
+              className={`flex-1 min-w-0 text-base sm:text-lg font-bold tracking-tight select-text truncate py-0.5 ${
+                isLight ? 'text-slate-900' : 'text-white'
+              } ${isRtl ? 'text-right' : 'text-left'}`}
             >
-              <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden md:inline">{language === 'id' ? 'Grafik' : 'Graph'}</span>
-            </button>
+              {note.title || (language === 'id' ? 'Catatan Tanpa Judul' : 'Untitled Note')}
+            </h1>
+          ) : (
+            <input
+              type="text"
+              dir={isRtl ? 'rtl' : 'ltr'}
+              value={note.title}
+              onChange={handleTitleChange}
+              placeholder={t.note_title_placeholder}
+              className={`flex-1 min-w-0 bg-transparent text-base sm:text-lg font-bold focus:outline-none tracking-tight select-text truncate ${
+                isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-white placeholder:text-slate-500'
+              } ${isRtl ? 'text-right' : 'text-left'}`}
+            />
           )}
+
+          <div className="flex items-center gap-1 shrink-0">
+            {!isReadOnlyMode && onOpenGraphView && (
+              <button
+                type="button"
+                onClick={onOpenGraphView}
+                title={language === 'id' ? 'Lihat dalam Grafik Pengetahuan (Ctrl+G)' : 'View in Knowledge Graph (Ctrl+G)'}
+                className={`flex items-center gap-1 p-1.5 sm:px-2 sm:py-1 rounded-lg border text-xs font-medium transition shrink-0 active:scale-95 ${
+                  isLight
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
+                    : 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-800/60'
+                }`}
+              >
+                <Share2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="hidden lg:inline">{language === 'id' ? 'Grafik' : 'Graph'}</span>
+              </button>
+            )}
+
+            {/* Convert to Kanban Board button */}
+            {!isReadOnlyMode && (
+              <button
+                type="button"
+                onClick={handleConvertToKanban}
+                title={language === 'id' ? 'Ubah menjadi Papan Kanban Proyek' : 'Convert to Project Kanban Board'}
+                className={`flex items-center gap-1 p-1.5 sm:px-2 sm:py-1 rounded-lg border text-xs font-medium transition shrink-0 active:scale-95 ${
+                  isLight
+                    ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300 shadow-xs'
+                    : 'bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border-blue-800/80'
+                }`}
+              >
+                <Kanban className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span className="hidden lg:inline">{language === 'id' ? 'Papan Kanban' : 'Kanban'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Row 2: Compact Metadata Strip (Folder, Due Date, Tags) */}
         <div className="flex items-center gap-2 mt-2 text-xs overflow-x-auto custom-scrollbar flex-nowrap pb-0.5">
-          {/* Folder selector chip */}
+          {/* Elegant Folder selector chip */}
           <div
-            className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border shrink-0 transition-colors ${
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md shrink-0 transition-colors ${
               isLight
-                ? 'bg-slate-200/90 text-slate-800 border-slate-300'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700/80'
+                ? 'bg-slate-100 hover:bg-slate-200/70 text-slate-700 font-medium'
+                : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 font-medium'
             }`}
           >
-            <FolderIcon className="w-3 h-3 text-blue-500 shrink-0" />
-            <select
-              value={note.folder_id}
-              onChange={handleFolderChange}
-              className={`bg-transparent text-[11px] font-medium outline-none cursor-pointer max-w-[130px] truncate ${
-                isLight ? 'text-slate-900' : 'text-slate-200'
-              }`}
-            >
-              {folders.map((f) => (
-                <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                  {f.title}
-                </option>
-              ))}
-            </select>
+            <FolderIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            {isReadOnlyMode ? (
+              <span className="font-medium max-w-[150px] truncate">
+                {folders.find((f) => f.id === note.folder_id)?.title || (language === 'id' ? 'Buku Catatan' : 'Notebook')}
+              </span>
+            ) : (
+              <select
+                value={note.folder_id}
+                onChange={handleFolderChange}
+                className={`bg-transparent border-0 border-none outline-none text-xs font-medium cursor-pointer max-w-[150px] truncate ${
+                  isLight ? 'text-slate-800' : 'text-slate-200'
+                }`}
+              >
+                {folders.map((f) => (
+                  <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    {f.title}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* To-Do Due Date */}
           {note.is_todo && (
             <div
-              className={`flex items-center gap-1 px-2 py-0.5 rounded border shrink-0 text-[11px] transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md shrink-0 text-xs transition-colors ${
                 isLight
-                  ? 'bg-slate-200/80 text-slate-800 border-slate-300'
-                  : 'bg-slate-800/60 text-slate-300 border-slate-700/60'
+                  ? 'bg-amber-50 text-amber-900 font-medium'
+                  : 'bg-amber-950/40 text-amber-300 font-medium'
               }`}
             >
-              <Calendar className="w-3 h-3 text-amber-500 shrink-0" />
-              <input
-                type="date"
-                value={note.todo_due ? new Date(note.todo_due).toISOString().split('T')[0] : ''}
-                onChange={handleDueDateChange}
-                className={`bg-transparent text-[11px] font-medium outline-none cursor-pointer ${
-                  isLight ? 'text-slate-900' : 'text-slate-200'
-                }`}
-              />
-              {note.todo_due > 0 && (
-                <button
-                  onClick={() => onUpdateNote({ todo_due: 0, updated_time: Date.now() })}
-                  title={t.clear_due_date}
-                  className={`ml-0.5 transition ${isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
+              <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              {isReadOnlyMode ? (
+                <span className="font-medium">
+                  {note.todo_due ? new Date(note.todo_due).toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US') : '-'}
+                </span>
+              ) : (
+                <>
+                  <input
+                    type="date"
+                    value={note.todo_due ? new Date(note.todo_due).toISOString().split('T')[0] : ''}
+                    onChange={handleDueDateChange}
+                    className="bg-transparent text-xs font-medium outline-none cursor-pointer"
+                  />
+                  {note.todo_due > 0 && (
+                    <button
+                      onClick={() => onUpdateNote({ todo_due: 0, updated_time: Date.now() })}
+                      title={t.clear_due_date}
+                      className="ml-0.5 text-amber-700 dark:text-amber-400 hover:text-red-600 transition"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {/* Tags list */}
-          <div className="flex items-center gap-1 shrink-0">
-            <TagIcon className={`w-3 h-3 shrink-0 ${isLight ? 'text-slate-600' : 'text-slate-400'}`} />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <TagIcon className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
             {note.tags && note.tags.length > 0 ? (
               note.tags.map((tName) => (
                 <span
                   key={tName}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border shrink-0 ${
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium shrink-0 transition-colors ${
                     isLight
-                      ? 'bg-blue-100 text-blue-800 border-blue-300'
-                      : 'bg-blue-950/60 text-blue-300 border-blue-800/50'
+                      ? 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                      : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300'
                   }`}
                 >
+                  <span className="opacity-40 text-[10px] select-none font-mono">#</span>
                   <span>{tName}</span>
-                  <button
-                    onClick={() => handleRemoveTag(tName)}
-                    className={isLight ? 'hover:text-red-700 transition' : 'hover:text-red-300 transition'}
-                  >
-                    <X className="w-2 h-2" />
-                  </button>
+                  {!isReadOnlyMode && (
+                    <button
+                      onClick={() => handleRemoveTag(tName)}
+                      className={`ml-0.5 p-0.5 rounded transition ${
+                        isLight ? 'text-slate-400 hover:text-red-600 hover:bg-red-50' : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
                 </span>
               ))
             ) : (
-              <span className={`text-[10px] italic shrink-0 ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>{t.no_tags}</span>
+              <span className={`text-xs italic shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>{t.no_tags}</span>
             )}
 
             {/* Add tag button / input */}
-            {showTagInput ? (
-              <div className="flex items-center gap-1 shrink-0">
-                <input
-                  type="text"
-                  value={newTagInput}
-                  onChange={(e) => setNewTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddTag(newTagInput);
-                    if (e.key === 'Escape') setShowTagInput(false);
-                  }}
-                  placeholder="tag..."
-                  autoFocus
-                  className={`text-[11px] px-1.5 py-0.5 rounded border border-blue-500 outline-none w-16 ${
-                    isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-200'
-                  }`}
-                />
-                <button
-                  onClick={() => handleAddTag(newTagInput)}
-                  className="text-blue-600 hover:text-blue-700 font-bold text-xs"
-                >
-                  ✓
-                </button>
-                <button
-                  onClick={() => setShowTagInput(false)}
-                  className={`text-xs ${isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowTagInput(true)}
-                title={t.add_tag}
-                className={`p-0.5 rounded transition shrink-0 ${
-                  isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Plus className="w-3 h-3" />
-              </button>
+            {!isReadOnlyMode && (
+              <>
+                {showTagInput ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="text"
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddTag(newTagInput);
+                        if (e.key === 'Escape') setShowTagInput(false);
+                      }}
+                      placeholder="tag..."
+                      autoFocus
+                      className={`text-[11px] px-1.5 py-0.5 rounded border border-blue-500 outline-none w-16 ${
+                        isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-200'
+                      }`}
+                    />
+                    <button
+                      onClick={() => handleAddTag(newTagInput)}
+                      className="text-blue-600 hover:text-blue-700 font-bold text-xs"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => setShowTagInput(false)}
+                      className={`text-xs ${isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowTagInput(true)}
+                    title={t.add_tag}
+                    className={`p-0.5 rounded transition shrink-0 ${
+                      isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
+
+        {/* Read-Only Notice Banner when in Preview Mode */}
+        {isReadOnlyMode && (
+          <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 shrink-0 ${
+            isLight
+              ? 'bg-blue-50 border-blue-200 text-blue-800'
+              : 'bg-blue-950/40 border-blue-800/50 text-blue-300'
+          }`}>
+            <Eye className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>{language === 'id' ? 'Mode Pratinjau: Tampilan baca saja (hanya lihat).' : 'Preview Mode: Read-only view (view only).'}</span>
+          </div>
+        )}
 
         {/* Attachments bar (if note has attachments) - Fully theme-responsive & high contrast */}
         {note.attachments && note.attachments.length > 0 && (
@@ -1537,6 +1699,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         className="flex-1 relative overflow-hidden flex flex-col"
         onPaste={handleEditorPaste}
         onDrop={handleEditorDrop}
+        onContextMenu={handleContextMenu}
         onDragOver={(e) => {
           if (e.dataTransfer?.types?.includes('Files')) {
             e.preventDefault();
@@ -1584,10 +1747,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 }
               }
             }}
-            className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 custom-scrollbar select-text bg-[#1e2738]"
+            className={`flex-1 overflow-y-auto px-4 py-4 sm:px-6 custom-scrollbar select-text ${
+              isLight ? 'bg-white text-slate-900' : 'bg-[#1e2738] text-slate-100'
+            }`}
           >
             <div
-              className="qalam-markdown-preview prose prose-invert max-w-none text-slate-100 text-sm leading-relaxed"
+              className={`qalam-markdown-preview prose ${isLight ? 'prose-slate text-slate-900' : 'prose-invert text-slate-100'} max-w-none text-sm leading-relaxed`}
               dangerouslySetInnerHTML={{ __html: markdownToHtml(note.body, isLight ? 'light' : 'dark') }}
             />
           </div>
@@ -1700,6 +1865,24 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         onClose={() => setIsFileAttachmentModalOpen(false)}
         onInsertAttachmentFile={handleInsertAttachmentFile}
         onInsertAttachmentUrl={handleInsertAttachmentUrl}
+        language={language}
+        theme={theme}
+      />
+
+      {/* Editor Contextual Right-Click Menu */}
+      <EditorContextMenu
+        isOpen={contextMenu.isOpen}
+        position={{ x: contextMenu.x, y: contextMenu.y }}
+        onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false }))}
+        selectedText={contextMenu.selectedText}
+        onCommand={handleCommand}
+        onInsertDateTime={handleInsertDateTime}
+        onOpenImageModal={() => setIsImageModalOpen(true)}
+        onOpenAttachmentModal={() => setIsFileAttachmentModalOpen(true)}
+        onOpenOCR={onOpenOCR}
+        onOpenSRS={onOpenSRS}
+        onToggleSplitScreen={onToggleSplitScreen}
+        onCopyMarkdown={handleCopyMarkdown}
         language={language}
         theme={theme}
       />

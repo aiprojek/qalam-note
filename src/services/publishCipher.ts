@@ -1,15 +1,19 @@
 /**
  * Encrypted Publish URL Cipher Utility for Qalam Note
- * Encodes note ID and Google Apps Script endpoint into a compact, encrypted, URL-safe parameter: ?k=<encoded_cipher>
+ * Encodes note ID or Wiki ID and Google Apps Script endpoint into a compact, encrypted, URL-safe parameter:
+ * - Single Note: ?k=<encoded_cipher>
+ * - Interactive Wiki: ?w=<encoded_cipher> or ?k=<encoded_cipher> (with isWiki: true)
  */
 
 export interface PublishCipherPayload {
-  id: string;
+  id: string; // Note ID or Folder/Wiki ID
   gasUrl?: string;
   title?: string;
   author?: string;
   publishedAt?: number;
   isKanban?: boolean;
+  isWiki?: boolean; // Zim-Style Digital Garden interactive wiki
+  landingNoteId?: string; // Default landing note for Wiki
 }
 
 // Dedicated keystream seed for public published note link encryption
@@ -23,10 +27,12 @@ const CIPHER_KEY = [
  * Minimizes payload size by stripping common prefixes and omitting redundant metadata when GAS endpoint is present.
  */
 export function encodePublishCipher(payload: PublishCipherPayload): string {
-  // 1. Note ID compression: compress standard prefix 'note-' to '~'
+  // 1. ID compression: compress standard prefix 'note-' to '~', and 'folder-' to '@'
   let compactId = payload.id;
   if (compactId.startsWith('note-')) {
     compactId = '~' + compactId.slice(5);
+  } else if (compactId.startsWith('folder-')) {
+    compactId = '@' + compactId.slice(7);
   }
 
   // 2. Compress standard Google Apps Script URLs to save 43+ characters
@@ -62,6 +68,18 @@ export function encodePublishCipher(payload: PublishCipherPayload): string {
     packed.k = 1;
   }
 
+  // Wiki flag & landing note
+  if (payload.isWiki) {
+    packed.w = 1;
+    if (payload.landingNoteId) {
+      let compactLanding = payload.landingNoteId;
+      if (compactLanding.startsWith('note-')) {
+        compactLanding = '~' + compactLanding.slice(5);
+      }
+      packed.l = compactLanding;
+    }
+  }
+
   const jsonStr = JSON.stringify(packed);
   const encoder = new TextEncoder();
   const plainBytes = encoder.encode(jsonStr);
@@ -92,15 +110,15 @@ export function encodePublishCipher(payload: PublishCipherPayload): string {
 }
 
 /**
- * Decodes an encrypted cipher string (?k=...) back to PublishCipherPayload
+ * Decodes an encrypted cipher string (?k=... or ?w=...) back to PublishCipherPayload
  */
 export function decodePublishCipher(cipher: string): PublishCipherPayload | null {
   if (!cipher || typeof cipher !== 'string') return null;
 
   try {
     let clean = cipher.trim();
-    // Strip leading ?k=, k=, or #k= if passed directly
-    clean = clean.replace(/^[?&#]*k=/, '');
+    // Strip leading ?k=, k=, #k=, ?w=, w=, or #w= if passed directly
+    clean = clean.replace(/^[?&#]*(?:k|w)=/, '');
 
     // Restore standard base64 padding
     let base64 = clean.replace(/-/g, '+').replace(/_/g, '/');
@@ -131,10 +149,14 @@ export function decodePublishCipher(cipher: string): PublishCipherPayload | null
 
     if (!parsed || !parsed.i) return null;
 
-    // Restore note ID prefix if compressed with '~'
-    let noteId = parsed.i;
-    if (typeof noteId === 'string' && noteId.startsWith('~')) {
-      noteId = 'note-' + noteId.slice(1);
+    // Restore ID prefix if compressed with '~' or '@'
+    let id = parsed.i;
+    if (typeof id === 'string') {
+      if (id.startsWith('~')) {
+        id = 'note-' + id.slice(1);
+      } else if (id.startsWith('@')) {
+        id = 'folder-' + id.slice(1);
+      }
     }
 
     let fullGasUrl = '';
@@ -146,15 +168,22 @@ export function decodePublishCipher(cipher: string): PublishCipherPayload | null
       }
     }
 
+    let landingNoteId = parsed.l;
+    if (typeof landingNoteId === 'string' && landingNoteId.startsWith('~')) {
+      landingNoteId = 'note-' + landingNoteId.slice(1);
+    }
+
     return {
-      id: noteId,
+      id,
       gasUrl: fullGasUrl || undefined,
       title: parsed.t || undefined,
       author: parsed.a || undefined,
       isKanban: parsed.k === 1,
+      isWiki: parsed.w === 1,
+      landingNoteId: landingNoteId || undefined,
     };
   } catch (err) {
-    console.warn('Unable to decode publish cipher k parameter:', err);
+    console.warn('Unable to decode publish cipher parameter:', err);
     return null;
   }
 }
@@ -168,4 +197,15 @@ export function buildPublishUrl(payload: PublishCipherPayload): string {
     ? `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`
     : '';
   return `${baseUrl}/?k=${cipher}`;
+}
+
+/**
+ * Builds the canonical public wiki reader URL with ?w=<encoded_cipher>
+ */
+export function buildWikiPublishUrl(payload: PublishCipherPayload): string {
+  const cipher = encodePublishCipher({ ...payload, isWiki: true });
+  const baseUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`
+    : '';
+  return `${baseUrl}/?w=${cipher}`;
 }

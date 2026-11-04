@@ -84,7 +84,19 @@ export interface Folder {
   sync_status?: 'synced' | 'pending';
   is_deleted: boolean;
   order: number;
+  published_info?: {
+    is_published: boolean;
+    published_at: number;
+    public_url: string;
+    gas_url: string;
+    wiki_title?: string;
+    landing_note_id?: string;
+    is_encrypted?: boolean;
+    salt?: string;
+  };
 }
+
+export * from './wiki';
 
 export interface Tag {
   id: string;

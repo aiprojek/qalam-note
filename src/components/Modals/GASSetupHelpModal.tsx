@@ -89,12 +89,12 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
           >
             <h4 className={`font-bold mb-1 flex items-center gap-1.5 ${isLight ? 'text-blue-950' : 'text-blue-300'}`}>
               <HelpCircle className="w-4 h-4 text-blue-500 shrink-0" />
-              {isId ? 'Cara Kerjanya' : 'How it works'}
+              {isId ? 'Cara Kerjanya & Fitur Multi-Tab Wiki' : 'How it works & Multi-Tab Wiki'}
             </h4>
             <p className={`text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-blue-900/80' : 'text-slate-300'}`}>
               {isId
-                ? 'Qalam Note mengutamakan data lokal (serverless), Google Spreadsheet gratis milik Anda sendiri bertindak sebagai database! Google Apps Script (GAS) menjalankan API ringan yang menyimpan revisi catatan publik dan menyajikan tampilan web yang bersih bagi pembaca Anda. Jika catatan sangat panjang (lebih dari 50.000 karakter), skrip otomatis memecah konten ke kolom sel baru (auto-chunking) sehingga tidak pernah terpotong.'
-                : 'Qalam Note is a serverless, local-first app where your own free Google Sheet acts as the database! Google Apps Script (GAS) stores published note revisions and serves clean web pages to readers. For very long notes, content is auto-chunked across columns to safely bypass Google Sheets cell character limits.'}
+                ? 'Qalam Note mengutamakan data lokal (serverless), Google Spreadsheet gratis milik Anda bertindak sebagai database! Skrip ini mendukung publikasi Catatan Tunggal (tab "PublishedNotes") serta Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden) di mana tiap wiki otomatis dibuatkan tab sheet baru tersendiri ("Wiki - [Nama Folder]"). Saat catatan atau wiki dicabut/dihapus, data baris atau tab sheet-nya otomatis dihapus agar spreadsheet Anda selalu hemat kapasitas dan rapih.'
+                : 'Qalam Note is a serverless, local-first app where your own free Google Sheet acts as the database! This script supports Single Notes ("PublishedNotes" tab) and Notebooks as Interactive Wikis (Zim-Style Digital Garden) with dedicated sheet tabs ("Wiki - [FolderName]"). Unpublishing or deleting notes/wikis automatically removes their rows or sheet tabs to keep your Google Sheet clean and save capacity.'}
             </p>
           </div>
 

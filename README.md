@@ -23,14 +23,18 @@ Qalam Note adalah aplikasi pencatat catatan yang mengutamakan privasi dan kedaul
 ## ✨ Fitur Utama
 
 - 🏠 **Local-First & 100% Offline (PWA)**: Data tersimpan di IndexedDB menggunakan Dexie.js. Aplikasi dapat dipasang (*installable*) dan berjalan lancar tanpa koneksi internet.
+- 🌿 **Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden)**: Publikasikan seluruh buku catatan ke web via Google Sheets (GAS) dengan navigasi pohon folder hierarkis, WikiLink SPA instan tanpa reload, tab sheet otomatis per folder, dan proteksi kata sandi klien.
+- 📋 **Papan Kanban Multi-Proyek**: Papan tugas visual 4 kolom per proyek/klien dengan drag-and-drop halus, prioritas, tenggat waktu, dan publikasi web langsung untuk klien (*Client Live Progress View*).
 - 🔀 **Editor Dua Arah (Bidi LTR & RTL)**: Penulisan aksara Arab, Ibrani, dan Latin yang mulus dengan tombol arah per paragraf, mode Teks Kaya (WYSIWYG), Split Preview, dan Markdown.
+- 🔍 **Split View & Sinkronisasi Gulir Dua Arah**: Dilengkapi Penampil Kode Sumber (Inspector) dengan penomoran baris dan penyorotan kursor aktif, Smart Markdown Paste, serta sinkronisasi gulir dua arah halus.
+- 📖 **Layar Belah (Dual Editor), Flashcard SRS & OCR Lokal**: Buka dua catatan berdampingan, kartu belajar mandiri pengulangan bertahap (SuperMemo SM-2), dan ekstraksi teks gambar 100% lokal via Tesseract.js.
 - 📐 **Matematika & Diagram**: Dukungan penuh untuk formula matematika KaTeX ($E=mc^2$) dan diagram alur Mermaid.js.
 - 🔐 **Enkripsi End-to-End (E2EE)**: Perlindungan brankas data sisi klien menggunakan Web Crypto AES-GCM 256-bit dan derivasi kunci PBKDF2 (100.000 iterasi).
 - 🔄 **Sinkronisasi Fleksibel**:
   - WebDAV (Nextcloud, ownCloud, NAS pribadi).
   - Dropbox (OAuth 2.0 PKCE & Manual Access Token).
   - **Kode Pairing Kilat**: Hubungkan perangkat kedua (HP/laptop) dalam hitungan detik.
-- 🌐 **Publikasi Web Tanpa Server**: Publikasikan catatan ke web layaknya Simplenote melalui integrasi Google Apps Script (GAS) dan Google Sheets dengan tautan ringkas terenkripsi.
+- 🌐 **Publikasi Web Tanpa Server**: Publikasikan catatan tunggal ke web via Google Apps Script (GAS) dan Google Sheets dengan tautan ringkas terenkripsi (?k=...).
 - 🎙️ **Kreativitas & Multimedia**: Perekam memo suara langsung di catatan dan kanvas sketsa coretan tangan bebas.
 - ⏳ **Riwayat Versi (Time Machine)**: Snapshot revisi otomatis untuk membandingkan dan memulihkan catatan lampau.
 - 🕸️ **Grafik Pengetahuan 2D**: Hubungkan ide dengan WikiLinks (`[[Nama Catatan]]`) dan visualisasi grafik interaktif.

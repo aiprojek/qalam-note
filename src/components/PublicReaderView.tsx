@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import type { Note, KanbanBoardData, KanbanCardItem, KanbanPriority } from '../types';
-import { markdownToHtml } from '../utils/markdown';
+import { markdownToHtml, wrapTablesWithScrollContainer } from '../utils/markdown';
 import { getNoteDirection } from '../utils/rtl';
 import { calculateKanbanStats, markdownToKanbanData, kanbanDataToMarkdown } from '../utils/kanbanSerializer';
 import { QalamIcon } from './icons/QalamIcon';
@@ -67,6 +67,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const isLight = theme === 'light';
 
   // Determine active note data
   const title = note?.title || remoteNote?.title || 'Catatan Publik';
@@ -124,6 +125,25 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     };
   }, []);
 
+  // Synchronize document root theme class with Reader's active theme and clean up on exit
+  useEffect(() => {
+    const root = document.documentElement;
+    const prevClasses = Array.from(root.classList);
+
+    if (isLight) {
+      root.classList.remove('qalam-dark', 'dark');
+      root.classList.add('qalam-light', 'light');
+    } else {
+      root.classList.remove('qalam-light', 'light');
+      root.classList.add('qalam-dark', 'dark');
+    }
+
+    return () => {
+      root.classList.remove('qalam-dark', 'qalam-light', 'light', 'dark');
+      prevClasses.forEach((cls) => root.classList.add(cls));
+    };
+  }, [isLight]);
+
   useEffect(() => {
     if (note) {
       setIsRtl(getNoteDirection(note) === 'rtl');
@@ -138,8 +158,6 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const isLight = theme === 'light';
 
   // Determine if note is a Project Kanban Board
   const kanbanData: KanbanBoardData | null = useMemo(() => {
@@ -252,18 +270,17 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   // Format and sanitize HTML/Markdown content with support for both editor modes
   const formattedHtml = useMemo(() => {
+    let rawHtml = '';
     // If it's a Kanban board viewed in document mode, render the formatted markdown report
     if (isKanban && kanbanData) {
       const md = kanbanDataToMarkdown(kanbanData, title);
-      return markdownToHtml(md, { theme, direction: isRtl ? 'rtl' : 'ltr' });
-    }
-
-    // 1. Remote published HTML (from GAS)
-    if (remoteNote?.html && remoteNote.html.trim()) {
+      rawHtml = markdownToHtml(md, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+    } else if (remoteNote?.html && remoteNote.html.trim()) {
+      // 1. Remote published HTML (from GAS)
       const content = remoteNote.html.trim();
       const hasBlockTags = /<(?:p|h[1-6]|ul|ol|li|table|div|blockquote|pre|span|b|strong|i|em)\b[^>]*>/i.test(content);
       if (hasBlockTags) {
-        return DOMPurify.sanitize(content, {
+        rawHtml = DOMPurify.sanitize(content, {
           ADD_TAGS: [
             'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
@@ -278,13 +295,12 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
           ],
           ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
         });
+      } else {
+        rawHtml = markdownToHtml(content, { theme, direction: isRtl ? 'rtl' : 'ltr' });
       }
-      return markdownToHtml(content, { theme, direction: isRtl ? 'rtl' : 'ltr' });
-    }
-
-    // 2. Local note WYSIWYG HTML (note.body_html)
-    if (note?.body_html && note.body_html.trim()) {
-      return DOMPurify.sanitize(note.body_html.trim(), {
+    } else if (note?.body_html && note.body_html.trim()) {
+      // 2. Local note WYSIWYG HTML (note.body_html)
+      rawHtml = DOMPurify.sanitize(note.body_html.trim(), {
         ADD_TAGS: [
           'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
           'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
@@ -299,14 +315,12 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
         ],
         ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
       });
+    } else if (note?.body && note.body.trim()) {
+      // 3. Local note Markdown body (note.body)
+      rawHtml = markdownToHtml(note.body, { theme, direction: isRtl ? 'rtl' : 'ltr' });
     }
 
-    // 3. Local note Markdown body (note.body)
-    if (note?.body && note.body.trim()) {
-      return markdownToHtml(note.body, { theme, direction: isRtl ? 'rtl' : 'ltr' });
-    }
-
-    return '';
+    return wrapTablesWithScrollContainer(rawHtml);
   }, [isKanban, kanbanData, title, note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
 
   // Loading State
@@ -359,7 +373,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   return (
     <div
       className={`fixed inset-0 z-50 h-screen h-dvh w-full overflow-y-auto overflow-x-hidden flex flex-col font-sans select-text transition-colors duration-200 custom-scrollbar ${
-        isLight ? 'qalam-light bg-slate-100 text-slate-900' : 'bg-[#0a0f1d] text-slate-100'
+        isLight ? 'qalam-light bg-slate-100 text-slate-900' : 'bg-[#0a0f1d] text-slate-100 qalam-dark-reader'
       }`}
       style={{ WebkitOverflowScrolling: 'touch' }}
     >

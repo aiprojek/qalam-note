@@ -232,6 +232,7 @@ export function cleanFolderForDb(folder: Partial<Folder> & { id?: string }): Fol
     sync_status: (folder.sync_status as any) || 'pending',
     is_deleted: Boolean(folder.is_deleted),
     order: typeof folder.order === 'number' && !isNaN(folder.order) ? folder.order : 0,
+    published_info: folder.published_info || undefined,
   };
 }
 
@@ -476,9 +477,13 @@ export function getSampleNotes(lang: AppLanguage = 'id'): Note[] {
 
 ### 🧠 Core Second Brain Features:
 - **Bidirectional WikiLinks**: Type \`[[\` anywhere to link related notes instantly.
+- **Interactive Folder Wiki (Zim-Style Digital Garden)**: Publish entire notebooks to the web with automated Google Sheets tabs.
+- **Multi-Project Dedicated Kanban Boards**: 4-column visual workflow with drag-and-drop and live client web publication.
+- **Dual WYSIWYG & Markdown Editor**: Enhanced with Smart Markdown Paste, Read-Only Source Inspector, and Bi-directional Sync Scroll.
 - **Interactive Knowledge Graph (\`Ctrl+G\`)**: Explore interconnected thoughts in a 2D physics graph.
 - **Universal Command Palette (\`Ctrl+K\`)**: Instant search and rapid keyboard actions.
-- **Daily Notes (\`Alt+D\`) & Ready Templates (\`Ctrl+Shift+T\`)**: Daily planners, meeting minutes, and Cornell notes.
+- **Side-by-Side Dual Editor & Local OCR**: Split-screen editing and offline image-to-text extraction.
+- **Daily Notes (\`Alt+D\`) & Spaced Repetition Flashcards (SRS)**: Structured daily planners and self-paced study cards.
 - **Revision History Time Machine (\`Ctrl+Shift+H\`)**: Restore past note snapshots anytime.
 - **Voice Memos & Freehand Drawing**: Embed audio recordings or sketches directly in notes.
 - **1-Click Export (\`Ctrl+P\`)**: Export clean Word documents (.docx), PDFs, or ZIP archives.
@@ -785,9 +790,9 @@ Read the complete official license text at: [gnu.org/licenses/gpl-3.0.html](http
 
 ### 3. Semantic Versioning (SemVer)
 This application adheres to **Semantic Versioning 2.0.0 (MAJOR.MINOR.PATCH)**:
-- **MAJOR (1.x.x):** Foundational architecture or database schema migrations.
-- **MINOR (x.2.x):** Backwards-compatible features (e.g. Device Pairing Code, WebDAV/Dropbox sync, Voice Memos, Drawing Canvas).
-- **PATCH (x.x.1):** Bug fixes, performance optimizations, and polish.
+- **MAJOR (1.0.0):** Foundational architecture or database schema migrations.
+- **MINOR (1.3.0):** Backwards-compatible features (e.g. Folder Wiki Publication, Kanban Boards, Voice Memos, Drawing Canvas).
+- **PATCH (1.3.1):** Bug fixes, performance optimizations, and polish.
 
 Check current version details, release dates, local storage usage, and changelogs under **Settings (Ctrl+,) > About tab**!`,
         is_todo: false,
@@ -868,9 +873,13 @@ You can export this note or your entire library anytime:
 
 ### 🧠 Fitur Produktivitas Utama:
 - **Tautan Dua Arah (WikiLinks)**: Cukup ketik \`[[\` di mana saja untuk menautkan catatan secara instan.
+- **Publikasi Wiki Interaktif (Zim-Style Digital Garden)**: Terbitkan seluruh buku catatan ke web dengan tab otomatis di Google Sheets.
+- **Papan Kanban Multi-Proyek**: Alur kerja visual 4 kolom dengan drag-and-drop dan publikasi web untuk klien.
+- **Editor Teks Kaya & Markdown Ganda**: Dilengkapi Smart Markdown Paste, Penampil Kode Sumber (Inspector), dan Sinkronisasi Gulir Dua Arah.
 - **Grafik Pengetahuan Interaktif (\`Ctrl+G\`)**: Visualisasikan hubungan antar ide dalam grafik fisika 2D.
 - **Universal Command Palette (\`Ctrl+K\`)**: Akses seluruh perintah dan cari catatan layaknya Spotlight.
-- **Catatan Harian (\`Alt+D\`) & Templat Siap Pakai (\`Ctrl+Shift+T\`)**: Rencana harian, notula rapat, ringkasan buku, dan metode Cornell.
+- **Layar Belah Multi-Catatan & OCR Lokal**: Buka dua catatan berdampingan serta pindai teks dari gambar secara lokal.
+- **Catatan Harian (\`Alt+D\`) & Flashcard Pengulangan Berjarak (SRS)**: Jurnal harian otomatis dan kartu belajar mandiri.
 - **Riwayat Versi / Time Machine (\`Ctrl+Shift+H\`)**: Pulihkan snapshot catatan lampau kapan saja.
 - **Rekam Suara & Sketsa Tangan**: Sisipkan memo audio atau coretan diagram langsung ke dalam catatan.
 - **Cetak & Ekspor Dokumen (\`Ctrl+P\`)**: Unduh ke Word (.docx), PDF berformat rapi, atau arsip ZIP.
@@ -1177,9 +1186,9 @@ Teks resmi lisensi dapat dibaca di: [gnu.org/licenses/gpl-3.0.html](https://www.
 
 ### 3. Pemversian Aplikasi SemVer (Semantic Versioning)
 Aplikasi ini mengikuti standar **Semantic Versioning 2.0.0 (MAJOR.MINOR.PATCH)**:
-- **MAJOR (1.x.x):** Perubahan arsitektur besar atau perombakan skema penyimpanan.
-- **MINOR (x.2.x):** Penambahan fitur baru yang kompatibel ke belakang (seperti Kode Pairing, WebDAV/Dropbox sync, Perekam Audio, Kanvas Gambar).
-- **PATCH (x.x.1):** Perbaikan bug, peningkatan kinerja, dan penyempurnaan tampilan.
+- **MAJOR (1.0.0):** Perubahan arsitektur besar atau perombakan skema penyimpanan.
+- **MINOR (1.3.0):** Penambahan fitur baru yang kompatibel ke belakang (seperti Publikasi Wiki Folder, Papan Kanban, Memo Suara, Kanvas Gambar).
+- **PATCH (1.3.1):** Perbaikan bug, peningkatan kinerja, dan penyempurnaan tampilan.
 
 Anda dapat memeriksa versi terkini, tanggal rilis, kuota penyimpanan lokal, dan riwayat changelog lengkap di menu **Pengaturan (Ctrl+,) > Tab Tentang Aplikasi**!`,
       is_todo: false,

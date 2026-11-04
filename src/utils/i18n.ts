@@ -220,6 +220,12 @@ export const TRANSLATIONS = {
     tb_copy_markdown_tooltip: 'Salin seluruh teks catatan dalam format Markdown (siap tempel di media sosial seperti WA, Telegram, Discord, X)',
     tb_copy_markdown_success: 'Seluruh teks catatan berhasil disalin dalam format Markdown!',
     tb_copy_copied_badge: 'Tersalin!',
+    tb_wysiwyg_inspector: 'Inspektur Kode',
+    tb_wysiwyg_inspector_tooltip: 'Buka Inspektur Kode Sumber (Split View WYSIWYG)',
+    source_inspector_title: 'Inspektur Kode Sumber',
+    source_inspector_readonly: 'Hanya-Baca',
+    source_inspector_copy: 'Salin Kode',
+    source_inspector_copied: 'Kode Disalin!',
 
     // Note Editor & Properties
     title_placeholder: 'Judul catatan...',
@@ -544,6 +550,12 @@ export const TRANSLATIONS = {
     tb_copy_markdown_tooltip: 'Copy entire note in Markdown format (ready to paste on social media like WhatsApp, Telegram, Discord, X)',
     tb_copy_markdown_success: 'Entire note copied in Markdown format!',
     tb_copy_copied_badge: 'Copied!',
+    tb_wysiwyg_inspector: 'Source Inspector',
+    tb_wysiwyg_inspector_tooltip: 'Open Source Inspector (WYSIWYG Split View)',
+    source_inspector_title: 'Source Inspector',
+    source_inspector_readonly: 'Read-Only',
+    source_inspector_copy: 'Copy Code',
+    source_inspector_copied: 'Code Copied!',
 
     // Note Editor & Properties
     title_placeholder: 'Note title...',

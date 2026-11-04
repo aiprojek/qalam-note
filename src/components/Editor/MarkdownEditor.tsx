@@ -1,8 +1,9 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { FileText, CheckSquare, Link2, Plus } from 'lucide-react';
-import type { Note } from '../../types';
+import type { Note, AppLanguage } from '../../types';
 import { searchWikiLinkSuggestions } from '../../utils/wikilinks';
 import { parseListLineMarker } from '../../utils/listStyles';
+import { isMarkdownText, isValidUrl, isRichHtml, convertHtmlForMarkdown } from '../../utils/smartPaste';
 
 interface MarkdownEditorProps {
   content: string;
@@ -12,6 +13,11 @@ interface MarkdownEditorProps {
   isLight?: boolean;
   availableNotes?: Note[];
   currentNoteId?: string;
+  language?: AppLanguage;
+  onShowToast?: (message: string, type?: 'success' | 'info') => void;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  onCursorActivity?: (cursorLine: number) => void;
+  onEditorScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void;
 }
 
 export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -22,8 +28,45 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   isLight = false,
   availableNotes = [],
   currentNoteId,
+  language = 'id',
+  onShowToast,
+  textareaRef: externalTextareaRef,
+  onCursorActivity,
+  onEditorScroll,
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const localTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = (externalTextareaRef || localTextareaRef) as React.MutableRefObject<HTMLTextAreaElement | null>;
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  const calculateCursorLine = () => {
+    if (!textareaRef.current || !onCursorActivity) return;
+    const pos = textareaRef.current.selectionStart;
+    const textBefore = content.substring(0, pos);
+    const lineNum = textBefore.split('\n').length;
+    onCursorActivity(lineNum);
+  };
+
+  useEffect(() => {
+    const handleDocSelectionChange = () => {
+      if (document.activeElement === textareaRef.current) {
+        calculateCursorLine();
+      }
+    };
+    document.addEventListener('selectionchange', handleDocSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleDocSelectionChange);
+    };
+  }, [content, onCursorActivity]);
+
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = target.scrollTop;
+    }
+    if (onEditorScroll) {
+      onEditorScroll(target.scrollTop, target.scrollHeight, target.clientHeight);
+    }
+  };
 
   // WikiLink [[ autocomplete state
   const [showWikiSuggestions, setShowWikiSuggestions] = useState(false);
@@ -110,6 +153,85 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       }
     }
     setShowWikiSuggestions(false);
+  };
+
+  // Smart Clipboard Paste Handler:
+  // 1. Files & images: bubble to parent NoteEditor
+  // 2. Shift+Paste: standard unformatted plain-text
+  // 3. Selection + URL: wraps selection into [selected text](url)
+  // 4. Rich HTML: automatically converts HTML into clean Markdown syntax
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // 1. Pass file attachments to NoteEditor
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          return; // Let bubble to NoteEditor's handleEditorPaste
+        }
+      }
+    }
+
+    // 2. Shift+Paste bypass
+    const isShiftPressed = Boolean((e.nativeEvent as unknown as { shiftKey?: boolean })?.shiftKey);
+    if (isShiftPressed) {
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const plainText = e.clipboardData?.getData('text/plain') || '';
+    const htmlData = e.clipboardData?.getData('text/html') || '';
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end).trim();
+
+    // 3. Smart Linkification: if text is selected in markdown and user pastes a valid URL
+    if (selectedText && isValidUrl(plainText.trim())) {
+      e.preventDefault();
+      const url = plainText.trim();
+      const replacement = `[${selectedText}](${url})`;
+      const before = textarea.value.substring(0, start);
+      const after = textarea.value.substring(end);
+      const newContent = before + replacement + after;
+      onChange(newContent);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = start + replacement.length;
+        textarea.selectionEnd = start + replacement.length;
+      }, 0);
+      onShowToast?.(
+        language === 'id' ? 'Tautan berhasil disisipkan ke teks terpilih!' : 'Link applied to selected text!',
+        'info'
+      );
+      return;
+    }
+
+    // 4. Smart HTML to Markdown conversion:
+    // If user copied rich formatted HTML (tables, headings, lists, docs) and plainText is NOT already markdown
+    if (htmlData && isRichHtml(htmlData) && !isMarkdownText(plainText)) {
+      e.preventDefault();
+      const convertedMd = convertHtmlForMarkdown(htmlData);
+      if (convertedMd) {
+        const before = textarea.value.substring(0, start);
+        const after = textarea.value.substring(end);
+        const newContent = before + convertedMd + after;
+        onChange(newContent);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.selectionStart = start + convertedMd.length;
+          textarea.selectionEnd = start + convertedMd.length;
+        }, 0);
+        onShowToast?.(
+          language === 'id'
+            ? 'Konten HTML kaya otomatis dikonversi ke format Markdown!'
+            : 'Rich HTML automatically converted to Markdown!',
+          'info'
+        );
+        return;
+      }
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -333,7 +455,8 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     >
       {/* Line Numbers */}
       <div
-        className={`w-12 shrink-0 select-none py-4 pr-3 text-right font-mono text-xs transition-colors ${
+        ref={gutterRef}
+        className={`w-12 shrink-0 select-none py-4 pr-3 text-right font-mono text-xs overflow-hidden transition-colors ${
           isLight
             ? 'bg-slate-50 text-slate-400 border-r border-slate-200'
             : 'bg-[#121824] text-slate-600 border-r border-slate-800/80'
@@ -443,11 +566,22 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         )}
 
         <textarea
-          ref={textareaRef}
+          ref={textareaRef as unknown as React.RefObject<HTMLTextAreaElement>}
           dir={isRtl ? 'rtl' : 'auto'}
           value={content}
           onChange={handleTextChange}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
+          onKeyUp={() => {
+            calculateCursorLine();
+          }}
+          onClick={() => {
+            calculateCursorLine();
+          }}
+          onSelect={() => {
+            calculateCursorLine();
+          }}
+          onScroll={handleScroll}
           readOnly={readOnly}
           spellCheck={false}
           placeholder="Tulis catatan Anda dalam format Markdown... (Ketik [[ untuk menautkan catatan lain)"

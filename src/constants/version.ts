@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.0.6';
-export const APP_BUILD_DATE = '2026-10-30';
+export const APP_VERSION = '1.3.0';
+export const APP_BUILD_DATE = '2026-11-04';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -24,11 +24,43 @@ export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
   {
-    version: '1.0.6',
+    version: '1.3.0',
+    date: '2026-11-04',
+    title: {
+      id: 'Pembaruan v1.3.0: Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden), Smart Markdown Paste, WYSIWYG Source Inspector & Sinkronisasi Gulir Dua Arah',
+      en: 'v1.3.0 Milestone Release: Interactive Folder Wiki (Zim-Style Digital Garden), Smart Markdown Paste, WYSIWYG Source Inspector & Bi-Directional Sync Scroll',
+    },
+    highlights: {
+      id: [
+        'Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden): Publikasikan seluruh buku catatan (notebook) beserta seluruh hierarki subfolder dan catatannya ke web via Google Sheets (GAS) menjadi Digital Garden publik mandiri.',
+        'Antarmuka Pembaca Web Wiki (Public Wiki Reader SPA): Dilengkapi bilah samping kiri dengan pohon hierarki folder/catatan, kotak pencarian instan antar-halaman wiki, remah roti (breadcrumbs), dan navigasi WikiLink ([[...]]) instan sisi klien (SPA) tanpa perlu memuat ulang peramban.',
+        'Daftar Isi Otomatis (Table of Contents) pada Wiki: Otomatis memindai heading H1-H3 dengan kemampuan lompat langsung (smooth anchor scroll) dan animasi flash penyorot elemen aktif.',
+        'Opsi Perlindungan Kata Sandi Klien (Zero-Knowledge AES-GCM 256): Pengguna dapat mengunci akses publik wiki dengan kata sandi sebelum dibaca oleh audiens.',
+        'Peningkatan Google Apps Script (GAS Multi-Tab & Hemat Baris): Setiap folder wiki yang dipublikasikan secara otomatis membuat tab lembar kerja baru ("Wiki - [NamaFolder]") di Google Sheets pemilik. Saat folder/catatan dihapus atau dicabut publikasinya (unpublish), tab sheet dan baris terkait otomatis ikut terhapus dari spreadsheet untuk menghemat kuota sel Google Sheets.',
+        'Perbaikan Kontras Tinggi Tema Gelap Public Wiki Reader: Mengimplementasikan sistem isolasi CSS (Top-Specificity Shield) dan sinkronisasi kelas dokumen root (qalam-dark dark), menjamin teks judul, paragraf, daftar isi, remah roti, dan kode inline berlatar gelap tetap berteks terang tajam anti-gelap.',
+        'Smart Markdown Paste di Editor WYSIWYG: Tempel teks sintaksis Markdown langsung ke editor Teks Kaya (WYSIWYG) dengan konversi otomatis menjadi format kaya tanpa merusak tata letak.',
+        'Split View WYSIWYG: Penampil Kode Sumber (Read-Only Source Inspector): Panel samping kanan yang menampilkan kode HTML/Markdown bersih secara hanya-baca, dilengkapi penomoran baris (line numbers), tombol Salin Kode cepat, dan sinkronisasi penyorotan kursor aktif.',
+        'Sinkronisasi Gulir Dua Arah (Bi-directional Sync Scroll): Sinkronisasi gulir halus antara editor Markdown dan panel pratinjau dengan mekanisme penguncian debounce (isScrollingSourceRef) untuk mencegah perulangan tak terhingga (infinite loop).',
+      ],
+      en: [
+        'Interactive Folder Wiki Publication (Zim-Style Digital Garden): Publish entire notebooks and nested subfolders to the web via Google Sheets (GAS) as a standalone public Digital Garden.',
+        'Public Wiki Reader SPA Interface: Features a left sidebar with hierarchical folder/note tree, instant in-wiki page search, breadcrumbs, and instant client-side SPA WikiLink navigation without page refreshes.',
+        'Automatic Table of Contents (TOC): Scans H1-H3 headings with smooth scroll jumping and visual pulse highlight on the target block.',
+        'Client-Side Password Protection (Zero-Knowledge AES-GCM 256): Optional client-side encryption passphrase for password-gating published wiki gardens.',
+        'GAS Multi-Tab Engine & Automatic Resource Cleanup: Creates dedicated spreadsheet tabs ("Wiki - [FolderName]") per published notebook. Automatically deletes sheet tabs and note rows when folders/notes are deleted or unpublished to conserve Google Sheets quotas.',
+        'Dark Theme High-Contrast CSS Shield for Wiki Reader: Top-specificity CSS isolation and root document class synchronization ensuring headings, paragraphs, TOC, breadcrumbs, and code spans remain crisp and legible in dark mode.',
+        'Smart Markdown Paste in WYSIWYG: Intelligently converts copied raw Markdown syntax into rich formatted blocks on paste without losing structure.',
+        'Split View WYSIWYG: Read-Only Source Inspector: Right-hand sidebar inspector displaying clean HTML/Markdown with line numbers, 1-click code copying, and cursor position synchronization highlight.',
+        'Bi-Directional Sync Scroll: Smooth dual-direction scroll synchronization between the Markdown editor and preview panel with anti-loop debounce locking.',
+      ],
+    },
+  },
+  {
+    version: '1.2.1',
     date: '2026-10-30',
     title: {
-      id: 'Pembaruan v1.0.6: Optimalisasi Kontras Tema Terang, Disiplin Zero-Pill, Perbaikan Total Grafik Pengetahuan & Peningkatan Navigasi WikiLink',
-      en: 'v1.0.6 Update: Light Theme Contrast Polish, Zero-Pill Discipline, Knowledge Graph Parity & WikiLink Navigation Polish',
+      id: 'Pembaruan v1.2.1: Optimalisasi Kontras Tema Terang, Disiplin Zero-Pill, Perbaikan Total Grafik Pengetahuan & Peningkatan Navigasi WikiLink',
+      en: 'v1.2.1 Update: Light Theme Contrast Polish, Zero-Pill Discipline, Knowledge Graph Parity & WikiLink Navigation Polish',
     },
     highlights: {
       id: [
@@ -60,11 +92,11 @@ export const APP_CHANGELOG: ChangelogItem[] = [
     },
   },
   {
-    version: '1.0.5',
+    version: '1.2.0',
     date: '2026-10-25',
     title: {
-      id: 'Pembaruan v1.0.5: Papan Kanban Multi-Proyek, Publikasi Web Klien & Menu Kontekstual Lengkap',
-      en: 'v1.0.5 Update: Multi-Project Kanban Boards, Live Client Web Publication & Context Menus',
+      id: 'Pembaruan v1.2.0: Papan Kanban Multi-Proyek, Publikasi Web Klien & Menu Kontekstual Lengkap',
+      en: 'v1.2.0 Update: Multi-Project Kanban Boards, Live Client Web Publication & Context Menus',
     },
     highlights: {
       id: [
@@ -86,11 +118,11 @@ export const APP_CHANGELOG: ChangelogItem[] = [
     },
   },
   {
-    version: '1.0.4',
+    version: '1.1.0',
     date: '2026-10-23',
     title: {
-      id: 'Pembaruan v1.0.4: Tombol Salin Markdown Sosmed, Sinkronisasi GAS, Split-Screen, OCR & Fitur Unggulan Rilis GitHub',
-      en: 'v1.0.4 Milestone Release: Social Markdown Copy, GAS Sync, Dual Editor, Client OCR & Pre-Push Audit',
+      id: 'Pembaruan v1.1.0: Tombol Salin Markdown Sosmed, Sinkronisasi GAS, Split-Screen, OCR & Fitur Unggulan Rilis GitHub',
+      en: 'v1.1.0 Milestone Release: Social Markdown Copy, GAS Sync, Dual Editor, Client OCR & Pre-Push Audit',
     },
     highlights: {
       id: [

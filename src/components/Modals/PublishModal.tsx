@@ -18,7 +18,7 @@ import {
 import type { Note, GASConfig, AppLanguage, KanbanBoardData } from '../../types';
 import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
 import { encodePublishCipher } from '../../services/publishCipher';
-import { markdownToHtml } from '../../utils/markdown';
+import { markdownToHtml, wrapTablesWithScrollContainer } from '../../utils/markdown';
 import { getNoteDirection } from '../../utils/rtl';
 import { calculateKanbanStats, markdownToKanbanData, kanbanDataToHtml } from '../../utils/kanbanSerializer';
 import DOMPurify from 'dompurify';
@@ -627,26 +627,28 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       isRtl ? 'text-right' : 'text-left'
                     }`}
                     dangerouslySetInnerHTML={{
-                      __html: (note.body_html && note.body_html.trim())
-                        ? DOMPurify.sanitize(note.body_html, {
-                            ADD_TAGS: [
-                              'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                              'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                              'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
-                              'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
-                              'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
-                            ],
-                            ADD_ATTR: [
-                              'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
-                              'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
-                              'allow', 'allowfullscreen', 'align', 'valign'
-                            ],
-                            ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
-                          })
-                        : markdownToHtml(note.body, {
-                            theme: 'light',
-                            direction: noteDirection,
-                          }),
+                      __html: wrapTablesWithScrollContainer(
+                        (note.body_html && note.body_html.trim())
+                          ? DOMPurify.sanitize(note.body_html, {
+                              ADD_TAGS: [
+                                'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                                'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                                'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+                                'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+                                'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+                              ],
+                              ADD_ATTR: [
+                                'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+                                'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+                                'allow', 'allowfullscreen', 'align', 'valign'
+                              ],
+                              ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+                            })
+                          : markdownToHtml(note.body, {
+                              theme: 'light',
+                              direction: noteDirection,
+                            })
+                      ),
                     }}
                   />
                 )}

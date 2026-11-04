@@ -693,32 +693,61 @@ html.light .bg-black\/80 {
   text-underline-offset: 3px !important;
 }
 
-/* Tables */
-[contenteditable="true"] table,
-.qalam-markdown-preview table {
+/* Tables & Responsive Scrollable Wrapper */
+.qalam-table-wrapper {
   width: 100% !important;
-  border-collapse: collapse !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
   margin: 1rem 0 !important;
+  border-radius: 0.5rem;
+}
+
+[contenteditable="true"] table,
+.qalam-markdown-preview table,
+.qalam-table-wrapper table {
+  border-collapse: collapse !important;
   border: 1px solid #334155 !important;
+  max-width: 100%;
+}
+
+.qalam-markdown-preview table,
+.qalam-table-wrapper table {
+  min-width: 460px;
+}
+
+[contenteditable="true"] table:not([style*="width"]),
+.qalam-markdown-preview table:not([style*="width"]) {
+  width: 100%;
 }
 
 [contenteditable="true"] th,
-.qalam-markdown-preview th {
+.qalam-markdown-preview th,
+.qalam-table-wrapper th {
   background: #1e293b !important;
   border: 1px solid #334155 !important;
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.5rem 0.75rem;
   text-align: left !important;
   font-weight: 600 !important;
   font-size: 0.85rem !important;
   color: #e2e8f0 !important;
+  position: relative;
+  min-width: 70px;
+  word-break: normal;
+  white-space: normal;
 }
 
 [contenteditable="true"] td,
-.qalam-markdown-preview td {
+.qalam-markdown-preview td,
+.qalam-table-wrapper td {
   border: 1px solid #334155 !important;
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.5rem 0.75rem;
   font-size: 0.85rem !important;
   color: #cbd5e1 !important;
+  position: relative;
+  min-width: 70px;
+  word-break: normal;
+  white-space: normal;
 }
 
 /* Horizontal Rule */
@@ -840,31 +869,36 @@ html.light .qalam-markdown-preview mark {
 }
 
 .qalam-light [contenteditable="true"] table,
-.qalam-light [contenteditable="true"] table,
+.qalam-light .qalam-markdown-preview table,
+.qalam-light .qalam-table-wrapper table,
 html.light [contenteditable="true"] table,
-.qalam-light .qalam-markdown-preview table,
-.qalam-light .qalam-markdown-preview table,
-html.light .qalam-markdown-preview table {
+html.light .qalam-markdown-preview table,
+html.light .qalam-table-wrapper table {
   border: 1px solid #cbd5e1 !important;
 }
 
+.qalam-light .qalam-table-wrapper,
+html.light .qalam-table-wrapper {
+  border-color: #cbd5e1 !important;
+}
+
 .qalam-light [contenteditable="true"] th,
-.qalam-light [contenteditable="true"] th,
+.qalam-light .qalam-markdown-preview th,
+.qalam-light .qalam-table-wrapper th,
 html.light [contenteditable="true"] th,
-.qalam-light .qalam-markdown-preview th,
-.qalam-light .qalam-markdown-preview th,
-html.light .qalam-markdown-preview th {
+html.light .qalam-markdown-preview th,
+html.light .qalam-table-wrapper th {
   background-color: #f8fafc !important;
   border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
 .qalam-light [contenteditable="true"] td,
-.qalam-light [contenteditable="true"] td,
+.qalam-light .qalam-markdown-preview td,
+.qalam-light .qalam-table-wrapper td,
 html.light [contenteditable="true"] td,
-.qalam-light .qalam-markdown-preview td,
-.qalam-light .qalam-markdown-preview td,
-html.light .qalam-markdown-preview td {
+html.light .qalam-markdown-preview td,
+html.light .qalam-table-wrapper td {
   border: 1px solid #e2e8f0 !important;
   color: #1e293b !important;
 }
@@ -943,5 +977,387 @@ html.light .qalam-markdown-preview p {
 /* System Arabic Typography Stack (100% Offline Compatible) */
 .font-arabic {
   font-family: 'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Noto Naskh Arabic', 'Geeza Pro', 'Al Bayan', 'DejaVu Sans', serif, system-ui;
+}
+
+/* Source Inspector Synchronisation Flash Pulse */
+@keyframes qalamBlockPulse {
+  0% {
+    outline: 2px solid rgba(59, 130, 246, 0.9);
+    background-color: rgba(59, 130, 246, 0.16);
+  }
+  50% {
+    outline: 2px solid rgba(59, 130, 246, 0.6);
+    background-color: rgba(59, 130, 246, 0.08);
+  }
+  100% {
+    outline: 2px solid transparent;
+    background-color: transparent;
+  }
+}
+
+.qalam-block-target-flash {
+  animation: qalamBlockPulse 1.5s ease-out;
+  border-radius: 4px;
+}
+
+/* Markdown Split View Bi-directional Sync Active Highlight */
+.qalam-sync-active {
+  position: relative;
+  transition: background-color 0.25s ease, outline 0.25s ease;
+  border-radius: 4px;
+  background-color: rgba(59, 130, 246, 0.08);
+  outline: 1.5px solid rgba(59, 130, 246, 0.45);
+}
+
+.qalam-light .qalam-sync-active {
+  background-color: rgba(37, 99, 235, 0.08);
+  outline: 1.5px solid rgba(37, 99, 235, 0.4);
+}
+
+/* ==========================================================================
+   HIGH-CONTRAST CRISP DARK MODE DOCUMENT & WIKI READER SYSTEM
+   Full Specificity Shield: Overrides any html.light / qalam-light parent classes
+   ========================================================================== */
+
+/* 1. Base Container & Surfaces in Dark Reader */
+html.light .qalam-dark-reader,
+html.qalam-light .qalam-dark-reader,
+.qalam-light .qalam-dark-reader,
+.qalam-dark-reader {
+  color: #f1f5f9 !important;
+  background-color: #0b0f19 !important;
+}
+
+html.light .qalam-dark-reader .bg-\[\#0b0f19\],
+html.qalam-light .qalam-dark-reader .bg-\[\#0b0f19\],
+.qalam-light .qalam-dark-reader .bg-\[\#0b0f19\],
+.qalam-dark-reader .bg-\[\#0b0f19\] {
+  background-color: #0b0f19 !important;
+}
+
+html.light .qalam-dark-reader .bg-\[\#0c1322\],
+html.qalam-light .qalam-dark-reader .bg-\[\#0c1322\],
+.qalam-light .qalam-dark-reader .bg-\[\#0c1322\],
+.qalam-dark-reader .bg-\[\#0c1322\] {
+  background-color: #0c1322 !important;
+}
+
+html.light .qalam-dark-reader .bg-\[\#0f172a\],
+html.qalam-light .qalam-dark-reader .bg-\[\#0f172a\],
+.qalam-light .qalam-dark-reader .bg-\[\#0f172a\],
+.qalam-dark-reader .bg-\[\#0f172a\] {
+  background-color: #0f172a !important;
+}
+
+html.light .qalam-dark-reader .bg-\[\#141d2e\],
+html.qalam-light .qalam-dark-reader .bg-\[\#141d2e\],
+.qalam-light .qalam-dark-reader .bg-\[\#141d2e\],
+.qalam-dark-reader .bg-\[\#141d2e\] {
+  background-color: #141d2e !important;
+}
+
+html.light .qalam-dark-reader .bg-\[\#1e293b\],
+html.qalam-light .qalam-dark-reader .bg-\[\#1e293b\],
+.qalam-light .qalam-dark-reader .bg-\[\#1e293b\],
+.qalam-dark-reader .bg-\[\#1e293b\] {
+  background-color: #1e293b !important;
+}
+
+/* 2. Text Colors inside Dark Reader (Shielding against .qalam-light .text-* rules) */
+html.light .qalam-dark-reader .text-white,
+html.qalam-light .qalam-dark-reader .text-white,
+.qalam-light .qalam-dark-reader .text-white,
+.qalam-dark-reader .text-white {
+  color: #ffffff !important;
+}
+
+html.light .qalam-dark-reader .text-slate-100,
+html.qalam-light .qalam-dark-reader .text-slate-100,
+.qalam-light .qalam-dark-reader .text-slate-100,
+.qalam-dark-reader .text-slate-100 {
+  color: #f1f5f9 !important;
+}
+
+html.light .qalam-dark-reader .text-slate-200,
+html.qalam-light .qalam-dark-reader .text-slate-200,
+.qalam-light .qalam-dark-reader .text-slate-200,
+.qalam-dark-reader .text-slate-200 {
+  color: #e2e8f0 !important;
+}
+
+html.light .qalam-dark-reader .text-slate-300,
+html.qalam-light .qalam-dark-reader .text-slate-300,
+.qalam-light .qalam-dark-reader .text-slate-300,
+.qalam-dark-reader .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+html.light .qalam-dark-reader .text-slate-400,
+html.qalam-light .qalam-dark-reader .text-slate-400,
+.qalam-light .qalam-dark-reader .text-slate-400,
+.qalam-dark-reader .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* 3. Buttons & Interactive Elements inside Dark Reader */
+html.light .qalam-dark-reader button.bg-\[\#1e293b\],
+html.qalam-light .qalam-dark-reader button.bg-\[\#1e293b\],
+.qalam-light .qalam-dark-reader button.bg-\[\#1e293b\],
+.qalam-dark-reader button.bg-\[\#1e293b\] {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.light .qalam-dark-reader button.bg-slate-800,
+html.qalam-light .qalam-dark-reader button.bg-slate-800,
+.qalam-light .qalam-dark-reader button.bg-slate-800,
+.qalam-dark-reader button.bg-slate-800 {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.light .qalam-dark-reader button.bg-slate-800:hover,
+html.qalam-light .qalam-dark-reader button.bg-slate-800:hover,
+.qalam-light .qalam-dark-reader button.bg-slate-800:hover,
+.qalam-dark-reader button.bg-slate-800:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+/* 4. Complete High-Contrast Markdown Preview in Dark Reader */
+html.light .qalam-dark-reader .qalam-markdown-preview,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview,
+.qalam-dark-reader .qalam-markdown-preview {
+  color: #f1f5f9 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
+  line-height: 1.8 !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview h1,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h1,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h1,
+.qalam-dark-reader .qalam-markdown-preview h1 {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 2rem !important;
+  border-bottom: 1px solid #334155 !important;
+  padding-bottom: 0.5rem !important;
+  margin-top: 2rem !important;
+  margin-bottom: 1.25rem !important;
+  letter-spacing: -0.025em !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview h2,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h2,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h2,
+.qalam-dark-reader .qalam-markdown-preview h2 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 1.5rem !important;
+  border-bottom: 1px solid #334155 !important;
+  padding-bottom: 0.4rem !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 1rem !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview h3,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h3,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h3,
+.qalam-dark-reader .qalam-markdown-preview h3 {
+  color: #f8fafc !important;
+  font-weight: 700 !important;
+  font-size: 1.25rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview h4,
+html.light .qalam-dark-reader .qalam-markdown-preview h5,
+html.light .qalam-dark-reader .qalam-markdown-preview h6,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h4,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h5,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview h6,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h4,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h5,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview h6,
+.qalam-dark-reader .qalam-markdown-preview h4,
+.qalam-dark-reader .qalam-markdown-preview h5,
+.qalam-dark-reader .qalam-markdown-preview h6 {
+  color: #f1f5f9 !important;
+  font-weight: 600 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview p,
+html.light .qalam-dark-reader .qalam-markdown-preview li,
+html.light .qalam-dark-reader .qalam-markdown-preview span,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview p,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview li,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview span,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview p,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview li,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview span,
+.qalam-dark-reader .qalam-markdown-preview p,
+.qalam-dark-reader .qalam-markdown-preview li,
+.qalam-dark-reader .qalam-markdown-preview span {
+  color: #f1f5f9 !important;
+  font-size: 1rem !important;
+  line-height: 1.8 !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview strong,
+html.light .qalam-dark-reader .qalam-markdown-preview b,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview strong,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview b,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview strong,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview b,
+.qalam-dark-reader .qalam-markdown-preview strong,
+.qalam-dark-reader .qalam-markdown-preview b {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview a,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview a,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview a,
+.qalam-dark-reader .qalam-markdown-preview a {
+  color: #60a5fa !important;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(96, 165, 250, 0.6) !important;
+  text-underline-offset: 3px !important;
+  font-weight: 500 !important;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+html.light .qalam-dark-reader .qalam-markdown-preview a:hover,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview a:hover,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview a:hover,
+.qalam-dark-reader .qalam-markdown-preview a:hover {
+  color: #93c5fd !important;
+  text-decoration-color: #93c5fd !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview blockquote,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview blockquote,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview blockquote,
+.qalam-dark-reader .qalam-markdown-preview blockquote {
+  border-left: 4px solid #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #e2e8f0 !important;
+  padding: 0.65rem 1.15rem !important;
+  border-radius: 0 8px 8px 0 !important;
+  margin: 1.25rem 0 !important;
+  font-size: 0.975rem !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview code,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview code,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview code,
+.qalam-dark-reader .qalam-markdown-preview code {
+  background-color: #1e293b !important;
+  border: 1px solid #475569 !important;
+  border-radius: 6px !important;
+  padding: 0.15rem 0.4rem !important;
+  color: #fde047 !important;
+  font-size: 0.875em !important;
+  font-weight: 500 !important;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview pre,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview pre,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview pre,
+.qalam-dark-reader .qalam-markdown-preview pre {
+  background-color: #0c1220 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 10px !important;
+  padding: 1.15rem 1.35rem !important;
+  color: #f8fafc !important;
+  margin: 1.25rem 0 !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview pre code,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview pre code,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview pre code,
+.qalam-dark-reader .qalam-markdown-preview pre code {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: #f8fafc !important;
+  font-size: 0.875rem !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview table,
+html.light .qalam-dark-reader .qalam-table-wrapper table,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview table,
+html.qalam-light .qalam-dark-reader .qalam-table-wrapper table,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview table,
+.qalam-light .qalam-dark-reader .qalam-table-wrapper table,
+.qalam-dark-reader .qalam-markdown-preview table,
+.qalam-dark-reader .qalam-table-wrapper table {
+  border-collapse: collapse !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+  margin: 1.25rem 0 !important;
+}
+
+html.light .qalam-dark-reader .qalam-table-wrapper,
+html.qalam-light .qalam-dark-reader .qalam-table-wrapper,
+.qalam-light .qalam-dark-reader .qalam-table-wrapper,
+.qalam-dark-reader .qalam-table-wrapper {
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview th,
+html.light .qalam-dark-reader .qalam-table-wrapper th,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview th,
+html.qalam-light .qalam-dark-reader .qalam-table-wrapper th,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview th,
+.qalam-light .qalam-dark-reader .qalam-table-wrapper th,
+.qalam-dark-reader .qalam-markdown-preview th,
+.qalam-dark-reader .qalam-table-wrapper th {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 0.75rem 1rem !important;
+  text-align: left !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview td,
+html.light .qalam-dark-reader .qalam-table-wrapper td,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview td,
+html.qalam-light .qalam-dark-reader .qalam-table-wrapper td,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview td,
+.qalam-light .qalam-dark-reader .qalam-table-wrapper td,
+.qalam-dark-reader .qalam-markdown-preview td,
+.qalam-dark-reader .qalam-table-wrapper td {
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+  padding: 0.65rem 1rem !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview tr:nth-child(even),
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview tr:nth-child(even),
+.qalam-light .qalam-dark-reader .qalam-markdown-preview tr:nth-child(even),
+.qalam-dark-reader .qalam-markdown-preview tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.45) !important;
+}
+
+html.light .qalam-dark-reader .qalam-markdown-preview hr,
+html.qalam-light .qalam-dark-reader .qalam-markdown-preview hr,
+.qalam-light .qalam-dark-reader .qalam-markdown-preview hr,
+.qalam-dark-reader .qalam-markdown-preview hr {
+  border: none !important;
+  border-top: 1px solid #334155 !important;
+  margin: 2rem 0 !important;
 }
 

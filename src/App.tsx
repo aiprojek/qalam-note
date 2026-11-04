@@ -55,8 +55,17 @@ import { DrawingModal } from './components/Modals/DrawingModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { PublicReaderView } from './components/PublicReaderView';
 import type { RemotePublishedNote } from './components/PublicReaderView';
+import { PublicWikiReaderView } from './components/PublicWikiReaderView';
+import { PublishWikiModal } from './components/Modals/PublishWikiModal';
+import type { WikiBundle, WikiNoteItem } from './types/wiki';
 import { decodePublishCipher } from './services/publishCipher';
-import { fetchPublishedNoteFromGAS, publishNoteToGAS } from './services/gas';
+import {
+  fetchPublishedNoteFromGAS,
+  publishNoteToGAS,
+  unpublishNoteFromGAS,
+  fetchPublishedWikiFromGAS,
+  unpublishWikiFromGAS,
+} from './services/gas';
 import { executeSync, exportAllData, importData } from './services/sync';
 import { isVaultUnlocked, lockVault } from './services/crypto';
 import { saveAttachment, dataUrlToBlob, migrateAllNotesInlineAttachments } from './utils/attachments';
@@ -155,6 +164,8 @@ export default function App() {
   const [isDrawingModalOpen, setIsDrawingModalOpen] = useState(false);
   const [exportNoteModalTarget, setExportNoteModalTarget] = useState<Note | null>(null);
   const [exportFolderModalTarget, setExportFolderModalTarget] = useState<Folder | null>(null);
+  const [isPublishWikiOpen, setIsPublishWikiOpen] = useState(false);
+  const [publishWikiTargetFolder, setPublishWikiTargetFolder] = useState<Folder | null>(null);
 
   // Split Screen Dual Note State
   const [isDualEditorOpen, setIsDualEditorOpen] = useState(false);
@@ -217,19 +228,51 @@ export default function App() {
     errorMessage: null,
   });
 
-  // Check URL query parameters and hash for public reader mode (?k=<cipher>)
+  // Public Wiki Reader Mode (via ?w=<cipher>, #w=<cipher>, or ?k=<cipher> with isWiki: true)
+  const [publicWikiState, setPublicWikiState] = useState<{
+    active: boolean;
+    wikiId: string | null;
+    gasUrl?: string;
+    bundle: WikiBundle | null;
+    isLoading: boolean;
+    errorMessage: string | null;
+  }>({
+    active: false,
+    wikiId: null,
+    bundle: null,
+    isLoading: false,
+    errorMessage: null,
+  });
+
+  // Check URL query parameters and hash for public reader mode (?k=<cipher> or ?w=<cipher>)
   useEffect(() => {
     let isCancelled = false;
 
     const checkUrlForReader = async () => {
       let cipher: string | null = null;
+      let isExplicitWiki = false;
+
       if (typeof window !== 'undefined') {
         const searchParams = new URLSearchParams(window.location.search);
-        cipher = searchParams.get('k');
+        const wikiParam = searchParams.get('w');
+        const noteParam = searchParams.get('k');
+
+        if (wikiParam) {
+          cipher = wikiParam;
+          isExplicitWiki = true;
+        } else if (noteParam) {
+          cipher = noteParam;
+        }
 
         if (!cipher && window.location.hash) {
           const hash = window.location.hash;
-          if (hash.includes('k=')) {
+          if (hash.includes('w=')) {
+            const match = hash.match(/w=([^&]+)/);
+            if (match && match[1]) {
+              cipher = match[1];
+              isExplicitWiki = true;
+            }
+          } else if (hash.includes('k=')) {
             const match = hash.match(/k=([^&]+)/);
             if (match && match[1]) {
               cipher = match[1];
@@ -251,6 +294,95 @@ export default function App() {
       if (cipher) {
         const decoded = decodePublishCipher(cipher);
         if (decoded && decoded.id) {
+          // 1. Interactive Wiki Reader Flow
+          if (decoded.isWiki || isExplicitWiki) {
+            if (!isCancelled) {
+              setPublicWikiState({
+                active: true,
+                wikiId: decoded.id,
+                gasUrl: decoded.gasUrl,
+                bundle: null,
+                isLoading: !!decoded.gasUrl,
+                errorMessage: null,
+              });
+            }
+
+            if (decoded.gasUrl) {
+              try {
+                const remoteWiki = await fetchPublishedWikiFromGAS(decoded.gasUrl, decoded.id);
+                if (isCancelled) return;
+                if (remoteWiki) {
+                  setPublicWikiState({
+                    active: true,
+                    wikiId: decoded.id,
+                    gasUrl: decoded.gasUrl,
+                    bundle: remoteWiki,
+                    isLoading: false,
+                    errorMessage: null,
+                  });
+                } else {
+                  setPublicWikiState((prev) => ({
+                    ...prev,
+                    isLoading: false,
+                    errorMessage:
+                      settings.language === 'id'
+                        ? 'Wiki tidak ditemukan di Google Sheets atau publikasi telah dicabut oleh penulis.'
+                        : 'Wiki not found in Google Sheets or has been unpublished by the author.',
+                  }));
+                }
+              } catch (err) {
+                if (isCancelled) return;
+                setPublicWikiState((prev) => ({
+                  ...prev,
+                  isLoading: false,
+                  errorMessage:
+                    settings.language === 'id'
+                      ? 'Gagal memuat Wiki dari Google Apps Script. Periksa koneksi internet Anda.'
+                      : 'Failed to fetch Wiki from Google Apps Script. Please check your internet connection.',
+                }));
+              }
+            } else {
+              // Local preview fallback
+              const localFolder = folders.find((f) => f.id === decoded.id);
+              const folderNotes = notes.filter(
+                (n) => !n.is_deleted && (n.folder_id === decoded.id || localFolder?.id === n.folder_id)
+              );
+              const wikiNotes: WikiNoteItem[] = folderNotes.map((n) => ({
+                id: n.id,
+                folder_id: n.folder_id,
+                title: n.title,
+                slug: n.title.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/[\s_-]+/g, '-'),
+                body: n.body,
+                body_html: n.body_html,
+                html: n.body_html || markdownToHtml(n.body),
+                tags: n.tags,
+                created_time: n.created_time,
+                updated_time: n.updated_time,
+                is_kanban: n.is_kanban,
+                kanban_data: n.kanban_data,
+              }));
+              const fallbackBundle: WikiBundle = {
+                version: 1,
+                id: decoded.id,
+                title: decoded.title || localFolder?.title || 'Wiki',
+                author: decoded.author || settings.gas.author_name || 'Anonymous',
+                published_at: decoded.publishedAt || Date.now(),
+                landing_note_id: decoded.landingNoteId || (wikiNotes[0]?.id || ''),
+                folders: localFolder ? [{ id: localFolder.id, title: localFolder.title, parent_id: '', order: 0 }] : [],
+                notes: wikiNotes,
+              };
+              setPublicWikiState({
+                active: true,
+                wikiId: decoded.id,
+                bundle: fallbackBundle,
+                isLoading: false,
+                errorMessage: null,
+              });
+            }
+            return;
+          }
+
+          // 2. Single Note Reader Flow
           if (!isCancelled) {
             setPublicReaderState({
               active: true,
@@ -324,6 +456,17 @@ export default function App() {
                 noteId: null,
                 remoteNote: null,
                 isLoadingRemote: false,
+                errorMessage: null,
+              }
+            : prev
+        );
+        setPublicWikiState((prev) =>
+          prev.active
+            ? {
+                active: false,
+                wikiId: null,
+                bundle: null,
+                isLoading: false,
                 errorMessage: null,
               }
             : prev
@@ -899,6 +1042,9 @@ export default function App() {
       cancelLabel: isId ? 'Batal' : 'Cancel',
       isDanger: true,
       onConfirm: async () => {
+        if (note.published_info?.is_published) {
+          unpublishNoteFromGAS(noteId, note.published_info.gas_url || settings.gas.web_app_url);
+        }
         setNotes((prev) => prev.filter((n) => n.id !== noteId));
         await db.notes.delete(noteId);
         await addDeletedSyncId(noteId);
@@ -937,6 +1083,9 @@ export default function App() {
       isDanger: true,
       onConfirm: async () => {
         for (const n of trashed) {
+          if (n.published_info?.is_published) {
+            unpublishNoteFromGAS(n.id, n.published_info.gas_url || settings.gas.web_app_url);
+          }
           await db.notes.delete(n.id);
           await addDeletedSyncId(n.id);
         }
@@ -1046,6 +1195,33 @@ export default function App() {
       isDanger: true,
       onConfirm: async () => {
         const now = Date.now();
+
+        // Auto-unpublish Wiki from Google Sheets to clean up sheet tab
+        if (targetFolder.published_info?.is_published) {
+          unpublishWikiFromGAS(
+            targetFolder.id,
+            targetFolder.title,
+            targetFolder.published_info.gas_url || settings.gas.web_app_url
+          );
+        }
+        for (const fId of allFolderIdsToDelete) {
+          const fObj = folders.find((f) => f.id === fId);
+          if (fObj?.published_info?.is_published && fId !== targetFolder.id) {
+            unpublishWikiFromGAS(
+              fId,
+              fObj.title,
+              fObj.published_info.gas_url || settings.gas.web_app_url
+            );
+          }
+        }
+
+        // Auto-unpublish published notes inside to delete rows from Google Sheets
+        for (const n of notesInside) {
+          if (n.published_info?.is_published) {
+            unpublishNoteFromGAS(n.id, n.published_info.gas_url || settings.gas.web_app_url);
+          }
+        }
+
         // 1. Soft-delete folders in IndexedDB so sync can propagate deletion to cloud & record tombstones
         for (const fId of allFolderIdsToDelete) {
           const updatedCount = await db.folders.update(fId, { is_deleted: true, updated_time: now, sync_status: 'pending' });
@@ -1592,6 +1768,12 @@ export default function App() {
     exportNoteToMarkdown(note);
   };
 
+  // Open Publish as Interactive Wiki Modal for a folder
+  const handleOpenPublishWikiModal = (folder: Folder) => {
+    setPublishWikiTargetFolder(folder);
+    setIsPublishWikiOpen(true);
+  };
+
   // Apply Template
   const handleApplyTemplate = async (
     content: string,
@@ -1883,6 +2065,33 @@ export default function App() {
   // Selected folder and tag titles for note list header
   const currentFolderTitle = folders.find((f) => f.id === selectedFolderId)?.title;
 
+  // If in public Zim-Style Interactive Wiki reader mode (?w=... or ?k=... with isWiki: true)
+  if (publicWikiState.active) {
+    const handleBackToAppFromWiki = () => {
+      if (typeof window !== 'undefined') {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        window.location.hash = '';
+      }
+      setPublicWikiState({
+        active: false,
+        wikiId: null,
+        bundle: null,
+        isLoading: false,
+        errorMessage: null,
+      });
+    };
+
+    return (
+      <PublicWikiReaderView
+        wikiBundle={publicWikiState.bundle}
+        isLoading={publicWikiState.isLoading}
+        errorMessage={publicWikiState.errorMessage}
+        onBackToApp={handleBackToAppFromWiki}
+      />
+    );
+  }
+
   // If in public reader mode (?k=... or #public-preview-...)
   if (publicReaderState.active) {
     const localNote = publicReaderState.noteId
@@ -2137,6 +2346,7 @@ export default function App() {
                   onMoveNoteToFolder={handleMoveNoteToFolder}
                   onOpenGraphView={() => setIsGraphViewOpen(true)}
                   onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                  onOpenPublishWiki={handleOpenPublishWikiModal}
                   onOpenDailyNote={() => handleOpenDailyNote()}
                   onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                   onOpenKanban={() => setIsKanbanOpen(true)}
@@ -2557,6 +2767,7 @@ export default function App() {
                       onMoveNoteToFolder={handleMoveNoteToFolder}
                       onOpenGraphView={() => setIsGraphViewOpen(true)}
                       onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                      onOpenPublishWiki={handleOpenPublishWikiModal}
                       onOpenDailyNote={() => handleOpenDailyNote()}
                       onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                       onOpenKanban={() => setIsKanbanOpen(true)}
@@ -2769,6 +2980,68 @@ export default function App() {
           onUpdateGASConfig={(cfg) => handleSaveSettings({ gas: { ...settings.gas, ...cfg } })}
           onOpenGASHelp={() => setIsGASHelpOpen(true)}
           onClose={() => setIsPublishOpen(false)}
+          language={settings.language}
+          theme={settings.theme}
+        />
+      )}
+
+      {/* Publish Notebook as Zim-Style Interactive Wiki Modal */}
+      {isPublishWikiOpen && publishWikiTargetFolder && (
+        <PublishWikiModal
+          initialFolder={publishWikiTargetFolder}
+          allFolders={folders}
+          allNotes={notes}
+          gasConfig={settings.gas}
+          onUpdateFolder={async (updatedFolder) => {
+            setFolders((prev) => prev.map((f) => (f.id === updatedFolder.id ? updatedFolder : f)));
+            await db.folders.put(cleanFolderForDb(updatedFolder));
+            requestAutoSync(4000);
+          }}
+          onUpdateGASConfig={(cfg) => handleSaveSettings({ gas: { ...settings.gas, ...cfg } })}
+          onOpenGASHelp={() => setIsGASHelpOpen(true)}
+          onOpenWikiReader={(wikiId, gasUrl) => {
+            setIsPublishWikiOpen(false);
+            const target = folders.find((f) => f.id === wikiId) || publishWikiTargetFolder;
+            const targetNotes = notes.filter(
+              (n) => !n.is_deleted && (n.folder_id === wikiId || target.id === n.folder_id)
+            );
+            const wikiNotes: WikiNoteItem[] = targetNotes.map((n) => ({
+              id: n.id,
+              folder_id: n.folder_id,
+              title: n.title,
+              slug: n.title.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/[\s_-]+/g, '-'),
+              body: n.body,
+              body_html: n.body_html,
+              html: n.body_html || markdownToHtml(n.body),
+              tags: n.tags,
+              created_time: n.created_time,
+              updated_time: n.updated_time,
+              is_kanban: n.is_kanban,
+              kanban_data: n.kanban_data,
+            }));
+            const bundle: WikiBundle = {
+              version: 1,
+              id: target.id,
+              title: target.published_info?.wiki_title || target.title,
+              author: settings.gas.author_name || 'Anonymous',
+              published_at: target.published_info?.published_at || Date.now(),
+              landing_note_id: target.published_info?.landing_note_id || (wikiNotes[0]?.id || ''),
+              folders: [{ id: target.id, title: target.title, parent_id: '', order: 0 }],
+              notes: wikiNotes,
+            };
+            setPublicWikiState({
+              active: true,
+              wikiId: target.id,
+              gasUrl,
+              bundle,
+              isLoading: false,
+              errorMessage: null,
+            });
+          }}
+          onClose={() => {
+            setIsPublishWikiOpen(false);
+            setPublishWikiTargetFolder(null);
+          }}
           language={settings.language}
           theme={settings.theme}
         />

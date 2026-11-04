@@ -20,9 +20,10 @@ import {
 } from 'lucide-react';
 import type { Note, Folder, Attachment, AppLanguage } from '../../types';
 import { EditorToolbar } from './EditorToolbar';
-import { WYSIWYGEditor } from './WYSIWYGEditor';
+import { WYSIWYGEditor, ActiveBlockInfo } from './WYSIWYGEditor';
 import { MarkdownEditor } from './MarkdownEditor';
 import { SplitEditor } from './SplitEditor';
+import { SourceInspector } from './SourceInspector';
 import { MobileEditorRibbon } from './MobileEditorRibbon';
 import { MarkdownCheatSheetModal } from '../Modals/MarkdownCheatSheetModal';
 import { LinkModal } from '../Modals/LinkModal';
@@ -116,6 +117,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [linkInitialText, setLinkInitialText] = useState('');
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isFileAttachmentModalOpen, setIsFileAttachmentModalOpen] = useState(false);
+  const [isSourceInspectorOpen, setIsSourceInspectorOpen] = useState(false);
+  const [activeWysiwygBlock, setActiveWysiwygBlock] = useState<ActiveBlockInfo | null>(null);
+  const [targetedWysiwygBlockIndex, setTargetedWysiwygBlockIndex] = useState<number | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const t = getT(language);
 
@@ -228,18 +232,37 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
+  const historyDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateNote({ title: e.target.value, updated_time: Date.now() });
   };
 
-  const handleBodyChange = (markdown: string, html?: string) => {
+  const handleBodyChange = (markdown: string, html?: string, immediateHistory = false) => {
     if (!isUndoRedoAction.current) {
-      const curIndex = historyIndexRef.current;
-      const newHist = historyRef.current.slice(0, curIndex + 1);
-      newHist.push({ body: markdown, body_html: html });
-      if (newHist.length > 50) newHist.shift();
-      historyRef.current = newHist;
-      historyIndexRef.current = newHist.length - 1;
+      if (historyDebounceTimer.current) {
+        clearTimeout(historyDebounceTimer.current);
+        historyDebounceTimer.current = null;
+      }
+
+      const saveSnapshot = () => {
+        const curIndex = historyIndexRef.current;
+        const curItem = curIndex >= 0 ? historyRef.current[curIndex] : null;
+        if (curItem && curItem.body === markdown && curItem.body_html === html) return;
+
+        const newHist = historyRef.current.slice(0, curIndex + 1);
+        newHist.push({ body: markdown, body_html: html });
+        if (newHist.length > 50) newHist.shift();
+        historyRef.current = newHist;
+        historyIndexRef.current = newHist.length - 1;
+      };
+
+      if (immediateHistory) {
+        saveSnapshot();
+      } else {
+        // Debounce continuous typing by 400ms so words are grouped rather than character by character
+        historyDebounceTimer.current = setTimeout(saveSnapshot, 400);
+      }
     }
     onUpdateNote({
       body: markdown,
@@ -456,25 +479,41 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
-      if (isCtrlOrMeta && e.key.toLowerCase() === 'z') {
-        if (e.shiftKey) {
-          e.preventDefault();
-          handleCommand('redo');
-        } else {
-          e.preventDefault();
-          handleCommand('undo');
+      if (!isCtrlOrMeta) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'z' || key === 'y') {
+        const target = e.target as HTMLElement | null;
+        const activeTag = target?.tagName?.toLowerCase();
+        const isEditable =
+          target?.getAttribute('contenteditable') === 'true' ||
+          target?.closest('[contenteditable="true"]') !== null ||
+          activeTag === 'textarea' ||
+          activeTag === 'input';
+
+        // When user is typing inside contenteditable or textarea, allow browser to perform native undo/redo!
+        if (isEditable) {
+          return;
         }
-      } else if (isCtrlOrMeta && e.key.toLowerCase() === 'y') {
+
         e.preventDefault();
-        handleCommand('redo');
-      } else if (isCtrlOrMeta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'l') {
+        if (key === 'z') {
+          if (e.shiftKey) {
+            handleCommand('redo');
+          } else {
+            handleCommand('undo');
+          }
+        } else if (key === 'y') {
+          handleCommand('redo');
+        }
+      } else if (!e.shiftKey && !e.altKey && key === 'l') {
         e.preventDefault();
         handleCommand('link');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [settingsEditorMode]);
 
   // Insert link from LinkModal
   const handleInsertLink = (linkText: string, linkUrl: string, openInNewTab: boolean) => {
@@ -535,6 +574,68 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const handleCommand = (cmd: string, val?: string) => {
     if (settingsEditorMode === 'wysiwyg') {
       const editorRoot = document.querySelector('[contenteditable="true"]') as HTMLElement | null;
+
+      // Handle Undo and Redo with priority to native browser engine and non-destructive fallback
+      if (cmd === 'undo') {
+        if (editorRoot) {
+          editorRoot.focus();
+          const prevHtml = editorRoot.innerHTML;
+          const executed = document.execCommand('undo', false);
+          if (executed && editorRoot.innerHTML !== prevHtml) {
+            editorRoot.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+        }
+        if (historyIndexRef.current > 0) {
+          historyIndexRef.current--;
+          const prev = historyRef.current[historyIndexRef.current];
+          isUndoRedoAction.current = true;
+          onUpdateNote({
+            body: prev.body,
+            body_html: prev.body_html,
+            updated_time: Date.now(),
+            sync_status: 'pending',
+          });
+          if (editorRoot && prev.body_html !== undefined) {
+            editorRoot.innerHTML = prev.body_html;
+          }
+          setTimeout(() => {
+            isUndoRedoAction.current = false;
+          }, 60);
+        }
+        return;
+      }
+
+      if (cmd === 'redo') {
+        if (editorRoot) {
+          editorRoot.focus();
+          const prevHtml = editorRoot.innerHTML;
+          const executed = document.execCommand('redo', false);
+          if (executed && editorRoot.innerHTML !== prevHtml) {
+            editorRoot.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+        }
+        if (historyIndexRef.current < historyRef.current.length - 1) {
+          historyIndexRef.current++;
+          const next = historyRef.current[historyIndexRef.current];
+          isUndoRedoAction.current = true;
+          onUpdateNote({
+            body: next.body,
+            body_html: next.body_html,
+            updated_time: Date.now(),
+            sync_status: 'pending',
+          });
+          if (editorRoot && next.body_html !== undefined) {
+            editorRoot.innerHTML = next.body_html;
+          }
+          setTimeout(() => {
+            isUndoRedoAction.current = false;
+          }, 60);
+        }
+        return;
+      }
+
       if (editorRoot) {
         const sel = window.getSelection();
         // If focus is not inside editorRoot or no selection exists, place caret inside editorRoot
@@ -549,48 +650,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       }
 
       switch (cmd) {
-        case 'undo': {
-          document.execCommand('undo', false);
-          if (historyIndexRef.current > 0) {
-            historyIndexRef.current--;
-            const prev = historyRef.current[historyIndexRef.current];
-            isUndoRedoAction.current = true;
-            onUpdateNote({
-              body: prev.body,
-              body_html: prev.body_html,
-              updated_time: Date.now(),
-              sync_status: 'pending',
-            });
-            if (editorRoot && prev.body_html !== undefined) {
-              editorRoot.innerHTML = prev.body_html;
-            }
-            setTimeout(() => {
-              isUndoRedoAction.current = false;
-            }, 60);
-          }
-          return;
-        }
-        case 'redo': {
-          document.execCommand('redo', false);
-          if (historyIndexRef.current < historyRef.current.length - 1) {
-            historyIndexRef.current++;
-            const next = historyRef.current[historyIndexRef.current];
-            isUndoRedoAction.current = true;
-            onUpdateNote({
-              body: next.body,
-              body_html: next.body_html,
-              updated_time: Date.now(),
-              sync_status: 'pending',
-            });
-            if (editorRoot && next.body_html !== undefined) {
-              editorRoot.innerHTML = next.body_html;
-            }
-            setTimeout(() => {
-              isUndoRedoAction.current = false;
-            }, 60);
-          }
-          return;
-        }
         case 'bold':
           document.execCommand('bold', false);
           break;
@@ -919,7 +978,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           document.execCommand(
             'insertHTML',
             false,
-            '<table class="border border-slate-700 w-full my-3 border-collapse"><thead><tr class="bg-slate-800"><th class="border border-slate-700 p-2 text-left font-bold">Kolom 1</th><th class="border border-slate-700 p-2 text-left font-bold">Kolom 2</th><th class="border border-slate-700 p-2 text-left font-bold">Kolom 3</th></tr></thead><tbody><tr><td class="border border-slate-700 p-2">Nilai 1</td><td class="border border-slate-700 p-2">Nilai 2</td><td class="border border-slate-700 p-2">Nilai 3</td></tr><tr><td class="border border-slate-700 p-2">Data A</td><td class="border border-slate-700 p-2">Data B</td><td class="border border-slate-700 p-2">Data C</td></tr></tbody></table><p>&#8203;</p>'
+            '<table class="qalam-editor-table w-full my-3 border-collapse"><thead><tr><th class="p-2 text-left font-bold">Kolom 1</th><th class="p-2 text-left font-bold">Kolom 2</th><th class="p-2 text-left font-bold">Kolom 3</th></tr></thead><tbody><tr><td class="p-2">Nilai 1</td><td class="p-2">Nilai 2</td><td class="p-2">Nilai 3</td></tr><tr><td class="p-2">Data A</td><td class="p-2">Data B</td><td class="p-2">Data C</td></tr></tbody></table><p>&#8203;</p>'
           );
           break;
         case 'math':
@@ -1007,6 +1066,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
         switch (cmd) {
           case 'undo': {
+            if (textarea) {
+              textarea.focus();
+              const prevVal = textarea.value;
+              const executed = document.execCommand('undo');
+              if (executed && textarea.value !== prevVal) {
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+              }
+            }
             if (historyIndexRef.current > 0) {
               historyIndexRef.current--;
               const prev = historyRef.current[historyIndexRef.current];
@@ -1015,15 +1083,25 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 body: prev.body,
                 updated_time: Date.now(),
               });
+              if (textarea) {
+                textarea.value = prev.body;
+              }
               setTimeout(() => {
                 isUndoRedoAction.current = false;
               }, 60);
-            } else {
-              document.execCommand('undo');
             }
             return;
           }
           case 'redo': {
+            if (textarea) {
+              textarea.focus();
+              const prevVal = textarea.value;
+              const executed = document.execCommand('redo');
+              if (executed && textarea.value !== prevVal) {
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+              }
+            }
             if (historyIndexRef.current < historyRef.current.length - 1) {
               historyIndexRef.current++;
               const next = historyRef.current[historyIndexRef.current];
@@ -1032,11 +1110,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 body: next.body,
                 updated_time: Date.now(),
               });
+              if (textarea) {
+                textarea.value = next.body;
+              }
               setTimeout(() => {
                 isUndoRedoAction.current = false;
               }, 60);
-            } else {
-              document.execCommand('redo');
             }
             return;
           }
@@ -1690,6 +1769,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           onOpenSRS={onOpenSRS}
           onToggleSplitScreen={onToggleSplitScreen}
           isSplitScreen={isSplitScreen}
+          isSourceInspectorOpen={isSourceInspectorOpen}
+          onToggleSourceInspector={() => setIsSourceInspectorOpen((prev) => !prev)}
           language={language}
         />
       )}
@@ -1760,18 +1841,57 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <>
             <div className="flex-1 relative overflow-hidden">
               {settingsEditorMode === 'wysiwyg' && (
-                <WYSIWYGEditor
-                  noteId={note.id}
-                  content={note.body}
-                  htmlContent={note.body_html}
-                  onChange={handleBodyChange}
-                  isRtl={isRtl}
-                  language={language}
-                  isLight={isLight}
-                  onOpenWikiLink={onOpenWikiLink}
-                  availableNotes={allNotes}
-                  currentNoteId={note.id}
-                />
+                isSourceInspectorOpen ? (
+                  <div className={`flex h-full w-full divide-x transition-colors ${isLight ? 'divide-slate-200' : 'divide-slate-800'}`}>
+                    {/* Left Pane: WYSIWYG Editor */}
+                    <div className="flex-1 h-full overflow-hidden relative">
+                      <WYSIWYGEditor
+                        noteId={note.id}
+                        content={note.body}
+                        htmlContent={note.body_html}
+                        onChange={handleBodyChange}
+                        isRtl={isRtl}
+                        language={language}
+                        isLight={isLight}
+                        onOpenWikiLink={onOpenWikiLink}
+                        availableNotes={allNotes}
+                        currentNoteId={note.id}
+                        onShowToast={onShowToast}
+                        onActiveBlockChange={setActiveWysiwygBlock}
+                        targetedBlockIndex={targetedWysiwygBlockIndex}
+                      />
+                    </div>
+
+                    {/* Right Pane: Read-Only Source Inspector */}
+                    <div className="w-1/2 min-w-[320px] max-w-[55%] h-full overflow-hidden relative">
+                      <SourceInspector
+                        htmlContent={note.body_html || markdownToHtml(note.body, { theme: isLight ? 'light' : 'dark', direction: isRtl ? 'rtl' : 'ltr' })}
+                        markdownContent={note.body}
+                        activeBlockIndex={activeWysiwygBlock?.index ?? null}
+                        activeBlockTag={activeWysiwygBlock?.tagName ?? null}
+                        isLight={isLight}
+                        language={language}
+                        onShowToast={onShowToast}
+                        onClose={() => setIsSourceInspectorOpen(false)}
+                        onSelectBlock={(idx) => setTargetedWysiwygBlockIndex(idx)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <WYSIWYGEditor
+                    noteId={note.id}
+                    content={note.body}
+                    htmlContent={note.body_html}
+                    onChange={handleBodyChange}
+                    isRtl={isRtl}
+                    language={language}
+                    isLight={isLight}
+                    onOpenWikiLink={onOpenWikiLink}
+                    availableNotes={allNotes}
+                    currentNoteId={note.id}
+                    onShowToast={onShowToast}
+                  />
+                )
               )}
               {settingsEditorMode === 'markdown' && markdownViewMode === 'raw' && (
                 <MarkdownEditor
@@ -1779,8 +1899,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                   onChange={(md) => handleBodyChange(md)}
                   isRtl={isRtl}
                   isLight={isLight}
+                  language={language}
                   availableNotes={allNotes}
                   currentNoteId={note.id}
+                  onShowToast={onShowToast}
                 />
               )}
               {settingsEditorMode === 'markdown' && markdownViewMode === 'split' && (
@@ -1789,9 +1911,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                   onChange={(md) => handleBodyChange(md)}
                   isRtl={isRtl}
                   isLight={isLight}
+                  language={language}
                   onOpenWikiLink={onOpenWikiLink}
                   availableNotes={allNotes}
                   currentNoteId={note.id}
+                  onShowToast={onShowToast}
                 />
               )}
             </div>

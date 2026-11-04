@@ -10,6 +10,7 @@ import {
   Download,
   FolderTree,
   Kanban,
+  Globe,
 } from 'lucide-react';
 import { useContextMenuPosition } from './useContextMenuPosition';
 import type { Folder as FolderType, AppLanguage } from '../../types';
@@ -27,6 +28,7 @@ export interface FolderContextMenuProps {
   onDeleteFolder: (folderId: string) => void;
   onMoveToRoot?: (folderId: string) => void;
   onOpenExportFolderModal?: (folder: FolderType) => void;
+  onOpenPublishWiki?: (folder: FolderType) => void;
   language?: AppLanguage;
   theme?: string;
 }
@@ -44,6 +46,7 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
   onDeleteFolder,
   onMoveToRoot,
   onOpenExportFolderModal,
+  onOpenPublishWiki,
   language = 'id',
   theme,
 }) => {
@@ -51,7 +54,7 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
     isOpen,
     position,
     onClose,
-    menuWidth: 230,
+    menuWidth: 240,
     menuHeight: 300,
   });
 
@@ -76,7 +79,7 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
         maxHeight: coords.maxHeight ? `${coords.maxHeight}px` : '85vh',
         zIndex: 9999,
       }}
-      className={`w-56 rounded-xl shadow-2xl border text-xs overflow-y-auto custom-scrollbar select-none py-1.5 animate-in fade-in zoom-in-95 duration-100 ${
+      className={`w-60 rounded-xl shadow-2xl border text-xs overflow-y-auto custom-scrollbar select-none py-1.5 animate-in fade-in zoom-in-95 duration-100 ${
         isLight
           ? 'bg-white/95 backdrop-blur-md border-slate-200 text-slate-800 shadow-slate-900/15'
           : 'bg-[#1b2434]/95 backdrop-blur-md border-slate-700/80 text-slate-200 shadow-black/40'
@@ -99,12 +102,12 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
         <button
           type="button"
           onClick={() => handleAction(() => onSelectFolder(folder.id))}
-          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
             isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
           }`}
         >
-          <FolderTree className="w-3.5 h-3.5 text-blue-400" />
-          <span>{isId ? 'Buka Buku Catatan' : 'Open Notebook'}</span>
+          <FolderTree className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="truncate text-left">{isId ? 'Buka Buku Catatan' : 'Open Notebook'}</span>
         </button>
 
         {/* Quick create note inside this folder */}
@@ -113,35 +116,35 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
             <button
               type="button"
               onClick={() => handleAction(() => onCreateNoteInFolder(folder.id, false))}
-              className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+              className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
                 isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
               }`}
             >
-              <FilePlus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{isId ? 'Catatan Baru di Sini' : 'New Note Here'}</span>
+              <FilePlus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate text-left">{isId ? 'Catatan Baru di Sini' : 'New Note Here'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleAction(() => onCreateNoteInFolder(folder.id, true))}
-              className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+              className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
                 isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
               }`}
             >
-              <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isId ? 'To-Do Baru di Sini' : 'New To-Do Here'}</span>
+              <CheckSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate text-left">{isId ? 'To-Do Baru di Sini' : 'New To-Do Here'}</span>
             </button>
 
             {onCreateKanbanInFolder && (
               <button
                 type="button"
                 onClick={() => handleAction(() => onCreateKanbanInFolder(folder.id))}
-                className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+                className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
                   isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
-                <Kanban className="w-3.5 h-3.5 text-indigo-400" />
-                <span>{isId ? 'Papan Kanban Baru di Sini' : 'New Kanban Board Here'}</span>
+                <Kanban className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span className="truncate text-left">{isId ? 'Papan Kanban Baru di Sini' : 'New Kanban Board Here'}</span>
               </button>
             )}
           </>
@@ -151,12 +154,12 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
         <button
           type="button"
           onClick={() => handleAction(() => onCreateSubFolder(folder.id))}
-          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
             isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
           }`}
         >
-          <FolderPlus className="w-3.5 h-3.5 text-blue-400" />
-          <span>{isId ? 'Buat Sub-Buku Catatan' : 'New Sub-Notebook'}</span>
+          <FolderPlus className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="truncate text-left">{isId ? 'Buat Sub-Buku Catatan' : 'New Sub-Notebook'}</span>
         </button>
       </div>
 
@@ -167,12 +170,12 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
         <button
           type="button"
           onClick={() => handleAction(() => onRenameFolder(folder))}
-          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
             isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
           }`}
         >
-          <Edit2 className="w-3.5 h-3.5 text-slate-400" />
-          <span>{isId ? 'Ganti Nama Buku Catatan' : 'Rename Notebook'}</span>
+          <Edit2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="truncate text-left">{isId ? 'Ganti Nama Buku Catatan' : 'Rename Notebook'}</span>
         </button>
 
         {/* Move to Root if nested */}
@@ -180,12 +183,12 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
           <button
             type="button"
             onClick={() => handleAction(() => onMoveToRoot(folder.id))}
-            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
               isLight ? 'hover:bg-slate-100 text-blue-600' : 'hover:bg-slate-800/80 text-blue-300'
             }`}
           >
-            <ArrowUp className="w-3.5 h-3.5 text-blue-400" />
-            <span>{isId ? 'Pindahkan ke Induk Utama' : 'Move to Root'}</span>
+            <ArrowUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="truncate text-left">{isId ? 'Pindahkan ke Induk Utama' : 'Move to Root'}</span>
           </button>
         )}
 
@@ -194,12 +197,36 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
           <button
             type="button"
             onClick={() => handleAction(() => onOpenExportFolderModal(folder))}
-            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
               isLight ? 'hover:bg-slate-100 hover:text-slate-900' : 'hover:bg-slate-800/80 hover:text-white'
             }`}
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{isId ? 'Ekspor Buku Catatan (ZIP)...' : 'Export Notebook (ZIP)...'}</span>
+            <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate text-left">{isId ? 'Ekspor Buku Catatan (ZIP)...' : 'Export Notebook (ZIP)...'}</span>
+          </button>
+        )}
+
+        {/* Publish Folder as Interactive Wiki */}
+        {onOpenPublishWiki && (
+          <button
+            type="button"
+            onClick={() => handleAction(() => onOpenPublishWiki(folder))}
+            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
+              isLight
+                ? 'hover:bg-emerald-50 text-emerald-700 font-medium'
+                : 'hover:bg-emerald-950/40 text-emerald-300 font-medium'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate text-left">
+              {isId
+                ? folder.published_info?.is_published
+                  ? 'Pengaturan Publikasi Wiki'
+                  : 'Publikasikan sebagai Wiki'
+                : folder.published_info?.is_published
+                ? 'Wiki Publishing Settings'
+                : 'Publish as Wiki'}
+            </span>
           </button>
         )}
       </div>
@@ -211,12 +238,12 @@ export const FolderContextMenu: React.FC<FolderContextMenuProps> = ({
         <button
           type="button"
           onClick={() => handleAction(() => onDeleteFolder(folder.id))}
-          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition text-left ${
             isLight ? 'hover:bg-rose-50 text-rose-600' : 'hover:bg-rose-950/40 text-rose-400'
           }`}
         >
-          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-          <span>{isId ? 'Hapus Buku Catatan' : 'Delete Notebook'}</span>
+          <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+          <span className="truncate text-left">{isId ? 'Hapus Buku Catatan' : 'Delete Notebook'}</span>
         </button>
       </div>
     </div>

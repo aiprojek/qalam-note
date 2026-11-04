@@ -12,6 +12,7 @@ import { toRoman, toAlpha } from './listStyles';
 export interface MarkdownOptions {
   theme?: 'dark' | 'light';
   direction?: 'ltr' | 'rtl';
+  withLineNumbers?: boolean;
 }
 
 /**
@@ -273,17 +274,185 @@ export function renderMultilevelLists(content: string, isLight: boolean): string
   return out.join('\n');
 }
 
+/**
+ * Renders Markdown into HTML with [data-line] line markers for Bi-directional Sync Scrolling
+ */
+export function renderMarkdownWithLineNumbers(
+  md: string,
+  options?: 'dark' | 'light' | MarkdownOptions
+): string {
+  if (!md) return '';
+
+  const lines = md.split('\n');
+  const blocks: { startLine: number; lines: string[] }[] = [];
+  let currentBlock: { startLine: number; lines: string[] } | null = null;
+  let inFencedCode = false;
+  let inMathBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    const trimmed = line.trim();
+
+    // Check code fence toggle ```
+    if (trimmed.startsWith('```')) {
+      if (!inFencedCode) {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+          currentBlock = null;
+        }
+        inFencedCode = true;
+        currentBlock = { startLine: lineNum, lines: [line] };
+        continue;
+      } else {
+        inFencedCode = false;
+        currentBlock?.lines.push(line);
+        if (currentBlock) blocks.push(currentBlock);
+        currentBlock = null;
+        continue;
+      }
+    }
+
+    if (inFencedCode) {
+      currentBlock?.lines.push(line);
+      continue;
+    }
+
+    // Check math block toggle $$
+    if (trimmed.startsWith('$$')) {
+      if (!inMathBlock) {
+        if (currentBlock) {
+          blocks.push(currentBlock);
+          currentBlock = null;
+        }
+        inMathBlock = true;
+        currentBlock = { startLine: lineNum, lines: [line] };
+        continue;
+      } else {
+        inMathBlock = false;
+        currentBlock?.lines.push(line);
+        if (currentBlock) blocks.push(currentBlock);
+        currentBlock = null;
+        continue;
+      }
+    }
+
+    if (inMathBlock) {
+      currentBlock?.lines.push(line);
+      continue;
+    }
+
+    // Blank line ends current block
+    if (!trimmed) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      continue;
+    }
+
+    // Headings, HR, Table start, Blockquote start, List item start
+    const isHeading = /^#{1,6}\s/.test(trimmed);
+    const isHr = /^(?:---|\*\*\*|___)\s*$/.test(trimmed);
+    const isTable = /^\|.+\|/.test(trimmed);
+    const isBlockquote = /^>\s?/.test(trimmed);
+    const isListItem = /^([-*+]|\d+\.)\s|^-\s*\[[ xX]\]\s/.test(trimmed);
+
+    if (isHeading || isHr) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+      }
+      blocks.push({ startLine: lineNum, lines: [line] });
+      currentBlock = null;
+      continue;
+    }
+
+    if (isTable) {
+      if (currentBlock && !currentBlock.lines[0].trim().startsWith('|')) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      if (!currentBlock) {
+        currentBlock = { startLine: lineNum, lines: [line] };
+      } else {
+        currentBlock.lines.push(line);
+      }
+      continue;
+    }
+
+    if (isBlockquote) {
+      if (currentBlock && !currentBlock.lines[0].trim().startsWith('>')) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      if (!currentBlock) {
+        currentBlock = { startLine: lineNum, lines: [line] };
+      } else {
+        currentBlock.lines.push(line);
+      }
+      continue;
+    }
+
+    if (isListItem) {
+      if (currentBlock && !/^([-*+]|\d+\.)\s|^-\s*\[[ xX]\]\s/.test(currentBlock.lines[0].trim())) {
+        blocks.push(currentBlock);
+        currentBlock = null;
+      }
+      if (!currentBlock) {
+        currentBlock = { startLine: lineNum, lines: [line] };
+      } else {
+        currentBlock.lines.push(line);
+      }
+      continue;
+    }
+
+    // Standard paragraph or continued list/blockquote text
+    if (!currentBlock) {
+      currentBlock = { startLine: lineNum, lines: [line] };
+    } else {
+      currentBlock.lines.push(line);
+    }
+  }
+
+  if (currentBlock) {
+    blocks.push(currentBlock);
+  }
+
+  const baseOpts = typeof options === 'object' ? options : { theme: options };
+  const renderedParts = blocks.map((b) => {
+    const rawText = b.lines.join('\n');
+    const blockHtml = markdownToHtml(rawText, {
+      ...baseOpts,
+      withLineNumbers: false,
+    });
+    if (!blockHtml.trim()) return '';
+
+    // Inject data-line attribute into the opening tag of top-level element(s)
+    return blockHtml.replace(
+      /^<([a-zA-Z0-9\-]+)([^>]*)>/,
+      `<$1 data-line="${b.startLine}"$2>`
+    );
+  });
+
+  return renderedParts.filter(Boolean).join('\n');
+}
+
 export function markdownToHtml(
   md: string,
   options?: 'dark' | 'light' | MarkdownOptions
 ): string {
   if (!md) return '';
 
-  const theme: 'dark' | 'light' =
+  const opts: MarkdownOptions =
     typeof options === 'string'
-      ? options
-      : options?.theme || 'dark';
+      ? { theme: options }
+      : options || { theme: 'dark' };
 
+  if (opts.withLineNumbers) {
+    return renderMarkdownWithLineNumbers(md, { ...opts, withLineNumbers: false });
+  }
+
+  const theme: 'dark' | 'light' = opts.theme || 'dark';
   const isLight = theme === 'light';
 
   // Process emoticons and shortcodes first
@@ -595,7 +764,7 @@ export function markdownToHtml(
       )
       .join('');
 
-    return `<div class="my-4 overflow-x-auto"><table class="w-full border-collapse border ${isLight ? 'border-slate-300' : 'border-slate-700'} text-sm"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+    return `<div class="qalam-table-wrapper my-4 w-full overflow-x-auto custom-scrollbar rounded-lg border ${isLight ? 'border-slate-300' : 'border-slate-700/80'} shadow-2xs"><table class="w-full border-collapse ${isLight ? 'border-slate-300' : 'border-slate-700'} text-sm"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
   });
 
   // Directional blocks: <div dir="rtl"> or <div dir="ltr">
@@ -684,7 +853,7 @@ export function markdownToHtml(
 
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['div', 'span', 'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins', 'audio', 'source', 'figure', 'figcaption'],
-    ADD_ATTR: ['target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id', 'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height'],
+    ADD_ATTR: ['target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id', 'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height', 'data-line'],
     ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data|blob|attachment):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
@@ -934,3 +1103,46 @@ export function htmlToMarkdown(html: string): string {
   const result = traverse(div);
   return result.replace(/\n{3,}/g, '\n\n').trim();
 }
+
+/**
+ * Automatically wraps all <table> elements in a responsive, horizontally-scrollable
+ * container (.qalam-table-wrapper) with smooth scrollbars to prevent clipping,
+ * squishing, and overflow on mobile devices and narrow publisher viewers.
+ */
+export function wrapTablesWithScrollContainer(html: string): string {
+  if (!html || !html.includes('<table')) return html;
+
+  if (typeof document !== 'undefined') {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+    const root = doc.body.firstElementChild;
+    if (!root) return html;
+
+    const tables = Array.from(root.querySelectorAll('table'));
+    tables.forEach((table) => {
+      const parent = table.parentElement;
+      if (
+        parent &&
+        (parent.classList.contains('qalam-table-wrapper') ||
+          parent.classList.contains('overflow-x-auto'))
+      ) {
+        parent.classList.add('qalam-table-wrapper', 'custom-scrollbar', 'w-full', 'overflow-x-auto');
+        return;
+      }
+      const wrapper = doc.createElement('div');
+      wrapper.className =
+        'qalam-table-wrapper my-4 w-full overflow-x-auto custom-scrollbar rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-2xs';
+      table.parentNode?.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    });
+
+    return root.innerHTML;
+  }
+
+  // Fallback for SSR/node environments
+  return html.replace(
+    /(<table\b[^>]*>[\s\S]*?<\/table>)/gi,
+    '<div class="qalam-table-wrapper my-4 w-full overflow-x-auto custom-scrollbar rounded-lg border border-slate-200 dark:border-slate-700/80 shadow-2xs">$1</div>'
+  );
+}
+

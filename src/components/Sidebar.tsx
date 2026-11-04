@@ -27,6 +27,7 @@ import {
   Calendar,
   CalendarDays,
   Kanban,
+  Globe,
 } from 'lucide-react';
 import type { Folder, Tag, AppLanguage, Note } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -69,6 +70,7 @@ interface SidebarProps {
   onEmptyTrash: () => void;
   onOpenGraphView?: () => void;
   onOpenExportFolderModal?: (folder: Folder) => void;
+  onOpenPublishWiki?: (folder: Folder) => void;
   onOpenDailyNote?: () => void;
   onOpenDailyCalendar?: () => void;
   onOpenKanban?: () => void;
@@ -100,6 +102,7 @@ interface FolderTreeItemProps {
   onMoveFolder: (folderId: string, newParentId: string) => void;
   onMoveNoteToFolder: (noteId: string, targetFolderId: string) => void;
   onOpenExportFolderModal?: (folder: Folder) => void;
+  onOpenPublishWiki?: (folder: Folder) => void;
   activeFolderMenuId: string | null;
   setActiveFolderMenuId: (id: string | null) => void;
   draggedFolderId: string | null;
@@ -133,6 +136,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
   onMoveFolder,
   onMoveNoteToFolder,
   onOpenExportFolderModal,
+  onOpenPublishWiki,
   activeFolderMenuId,
   setActiveFolderMenuId,
   draggedFolderId,
@@ -289,6 +293,14 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
           {/* Folder Title */}
           <span className="truncate text-xs">{folder.title}</span>
 
+          {/* Wiki published badge */}
+          {folder.published_info?.is_published && (
+            <span
+              title={language === 'id' ? 'Dipublikasikan sebagai Wiki Interaktif' : 'Published as Interactive Wiki'}
+              className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-xs shrink-0 animate-pulse"
+            />
+          )}
+
           {/* Drop helper tag */}
           {isDragOver && (
             <span className="text-[10px] text-blue-300 font-normal shrink-0 bg-blue-900/60 px-1 py-0.2 rounded">
@@ -373,6 +385,26 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
                     <span>{language === 'id' ? 'Ekspor Folder (ZIP)...' : 'Export Notebook (ZIP)...'}</span>
                   </button>
                 )}
+                {onOpenPublishWiki && (
+                  <button
+                    onClick={() => {
+                      onOpenPublishWiki(folder);
+                      setActiveFolderMenuId(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-600 hover:text-white flex items-center gap-2 text-emerald-300"
+                  >
+                    <Globe className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="truncate text-left">
+                      {language === 'id'
+                        ? folder.published_info?.is_published
+                          ? 'Pengaturan Publikasi Wiki'
+                          : 'Publikasikan sebagai Wiki'
+                        : folder.published_info?.is_published
+                        ? 'Wiki Publishing Settings'
+                        : 'Publish as Wiki'}
+                    </span>
+                  </button>
+                )}
                 <div className="border-t border-slate-700 my-1" />
                 <button
                   onClick={() => {
@@ -421,6 +453,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
               onMoveFolder={onMoveFolder}
               onMoveNoteToFolder={onMoveNoteToFolder}
               onOpenExportFolderModal={onOpenExportFolderModal}
+              onOpenPublishWiki={onOpenPublishWiki}
               activeFolderMenuId={activeFolderMenuId}
               setActiveFolderMenuId={setActiveFolderMenuId}
               draggedFolderId={draggedFolderId}
@@ -583,6 +616,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onEmptyTrash,
   onOpenGraphView,
   onOpenExportFolderModal,
+  onOpenPublishWiki,
   onOpenDailyNote,
   onOpenDailyCalendar,
   onOpenKanban,
@@ -844,6 +878,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onMoveFolder={onMoveFolder}
                   onMoveNoteToFolder={onMoveNoteToFolder}
                   onOpenExportFolderModal={onOpenExportFolderModal}
+                  onOpenPublishWiki={onOpenPublishWiki}
                   activeFolderMenuId={activeFolderMenuId}
                   setActiveFolderMenuId={setActiveFolderMenuId}
                   draggedFolderId={draggedFolderId}
@@ -987,6 +1022,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onDeleteFolder={onDeleteFolder}
           onMoveToRoot={(folderId) => onMoveFolder(folderId, '')}
           onOpenExportFolderModal={onOpenExportFolderModal}
+          onOpenPublishWiki={onOpenPublishWiki}
           language={language}
           theme={theme}
         />

@@ -180,3 +180,30 @@ export async function decryptText(
   const dec = new TextDecoder();
   return dec.decode(decryptedBuffer);
 }
+
+/**
+ * Encrypts arbitrary plaintext with a standalone passphrase (PBKDF2 + AES-GCM 256)
+ * Ideal for password-protected published notes or digital garden wikis.
+ */
+export async function encryptWithPassword(
+  plaintext: string,
+  passphrase: string
+): Promise<{ ciphertext: string; iv: string; salt: string }> {
+  const salt = generateSalt();
+  const key = await deriveKey(passphrase, base64ToUint8Array(salt));
+  const res = await encryptText(plaintext, key);
+  return { ...res, salt };
+}
+
+/**
+ * Decrypts ciphertext with a standalone passphrase (PBKDF2 + AES-GCM 256)
+ */
+export async function decryptWithPassword(
+  ciphertextBase64: string,
+  ivBase64: string,
+  saltBase64: string,
+  passphrase: string
+): Promise<string> {
+  const key = await deriveKey(passphrase, base64ToUint8Array(saltBase64));
+  return decryptText(ciphertextBase64, ivBase64, key);
+}

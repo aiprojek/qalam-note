@@ -84,6 +84,8 @@ interface EditorToolbarProps {
   onOpenSRS?: () => void;
   onToggleSplitScreen?: () => void;
   isSplitScreen?: boolean;
+  isSourceInspectorOpen?: boolean;
+  onToggleSourceInspector?: () => void;
   language?: AppLanguage;
 }
 
@@ -114,6 +116,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onOpenSRS,
   onToggleSplitScreen,
   isSplitScreen = false,
+  isSourceInspectorOpen = false,
+  onToggleSourceInspector,
   language = 'id',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -776,10 +780,34 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </button>
         )}
 
-        {/* Editor Mode Control:
-            - If in WYSIWYG mode (Settings): DO NOT show split or markdown switcher buttons!
-            - If in Markdown mode (Settings): Show option to switch between Split Preview and Raw Markdown!
-        */}
+        {/* WYSIWYG Split View: Read-Only Source Inspector Toggle */}
+        {settingsEditorMode === 'wysiwyg' && onToggleSourceInspector && (
+          <>
+            <span className="w-px h-4 bg-slate-700 mx-0.5" />
+            <button
+              type="button"
+              onClick={onToggleSourceInspector}
+              title={
+                isSourceInspectorOpen
+                  ? (isId ? 'Tutup Inspektur Kode Sumber (Split View Aktif)' : 'Close Source Inspector (Split View Active)')
+                  : (isId ? 'Buka Inspektur Kode Sumber (Split View WYSIWYG - Penampil Kode Read-Only)' : 'Open Source Inspector (WYSIWYG Split View - Read-Only Source)')
+              }
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border transition shrink-0 active:scale-95 ${
+                isSourceInspectorOpen
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                  : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border-slate-700'
+              }`}
+            >
+              <Code className="w-3.5 h-3.5 text-blue-400" />
+              <span>{isId ? 'Inspektur Kode' : 'Source'}</span>
+              {isSourceInspectorOpen && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+              )}
+            </button>
+          </>
+        )}
+
+        {/* Editor Mode Control for Markdown: Split vs Raw */}
         {settingsEditorMode === 'markdown' && (
           <>
             <span className="w-px h-4 bg-slate-700 mx-0.5" />

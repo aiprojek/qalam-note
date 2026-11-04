@@ -1,8 +1,17 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { FileText, CheckSquare, Link2, Plus } from 'lucide-react';
-import { markdownToHtml, htmlToMarkdown } from '../../utils/markdown';
+import { markdownToHtml, htmlToMarkdown, wrapTablesWithScrollContainer } from '../../utils/markdown';
 import { searchWikiLinkSuggestions } from '../../utils/wikilinks';
+import { isMarkdownText, isValidUrl, convertMarkdownForWysiwyg } from '../../utils/smartPaste';
+import { TableControls } from './TableControls';
 import type { Note, AppLanguage } from '../../types';
+
+export interface ActiveBlockInfo {
+  index: number;
+  tagName: string;
+  html: string;
+  text: string;
+}
 
 interface WYSIWYGEditorProps {
   noteId: string;
@@ -16,6 +25,9 @@ interface WYSIWYGEditorProps {
   onOpenWikiLink?: (targetTitle: string) => void;
   availableNotes?: Note[];
   currentNoteId?: string;
+  onShowToast?: (message: string, type?: 'success' | 'info') => void;
+  onActiveBlockChange?: (info: ActiveBlockInfo | null) => void;
+  targetedBlockIndex?: number | null;
 }
 
 export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
@@ -30,12 +42,33 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
   onOpenWikiLink,
   availableNotes = [],
   currentNoteId,
+  onShowToast,
+  onActiveBlockChange,
+  targetedBlockIndex,
 }) => {
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const currentNoteIdRef = useRef<string | null>(null);
   const prevIsLightRef = useRef<boolean>(isLight);
   const lastPropContentRef = useRef<string>(content);
   const isUpdatingFromProps = useRef(false);
+
+  // Active Table & Cell context state
+  const [activeTable, setActiveTable] = useState<HTMLTableElement | null>(null);
+  const [activeCell, setActiveCell] = useState<HTMLTableCellElement | null>(null);
+
+  // Table resizing drag state
+  const resizeStateRef = useRef<{
+    type: 'col' | 'row';
+    table: HTMLTableElement;
+    cell: HTMLTableCellElement;
+    row: HTMLTableRowElement;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    colIndex: number;
+  } | null>(null);
 
   // WikiLink autocomplete suggestions state
   const [showWikiSuggestions, setShowWikiSuggestions] = useState(false);
@@ -107,10 +140,216 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
 
     // Detect if cursor is typing [[
     checkWikiLinkTrigger();
+    checkActiveBlock();
 
     setTimeout(() => {
       isUpdatingFromProps.current = false;
     }, 50);
+  };
+
+  const focusTableCell = (targetCell: HTMLTableCellElement) => {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(targetCell);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    targetCell.focus();
+    setActiveCell(targetCell);
+  };
+
+  const checkTableContext = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !editorRef.current) {
+      setActiveTable(null);
+      setActiveCell(null);
+      return;
+    }
+    let node: Node | null = sel.getRangeAt(0).startContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const cell = (node as HTMLElement | null)?.closest('th, td') as HTMLTableCellElement | null;
+    const table = (node as HTMLElement | null)?.closest('table') as HTMLTableElement | null;
+    if (table && editorRef.current.contains(table)) {
+      setActiveTable(table);
+      setActiveCell(cell);
+    } else {
+      setActiveTable(null);
+      setActiveCell(null);
+    }
+  };
+
+  const checkActiveBlock = () => {
+    if (!editorRef.current || !onActiveBlockChange) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) {
+      onActiveBlockChange(null);
+      return;
+    }
+    let node: Node | null = sel.getRangeAt(0).startContainer;
+    if (!editorRef.current.contains(node)) {
+      onActiveBlockChange(null);
+      return;
+    }
+
+    let curr: Node | null = node;
+    while (curr && curr.parentElement && curr.parentElement !== editorRef.current) {
+      curr = curr.parentElement;
+    }
+
+    if (!curr || curr.parentElement !== editorRef.current) {
+      onActiveBlockChange(null);
+      return;
+    }
+
+    const element = curr.nodeType === Node.ELEMENT_NODE ? (curr as HTMLElement) : (curr.parentElement as HTMLElement);
+    if (!element) {
+      onActiveBlockChange(null);
+      return;
+    }
+
+    const children = Array.from(editorRef.current.children);
+    const index = children.indexOf(element);
+
+    if (index === -1) {
+      onActiveBlockChange(null);
+      return;
+    }
+
+    const tableInside = element.tagName.toLowerCase() === 'table' ? element : element.querySelector('table');
+    const tagName = tableInside ? 'table' : element.tagName.toLowerCase();
+
+    onActiveBlockChange({
+      index,
+      tagName,
+      html: element.outerHTML,
+      text: element.textContent || '',
+    });
+  };
+
+  // Scroll to targeted block when clicked from Source Inspector
+  useEffect(() => {
+    if (targetedBlockIndex === undefined || targetedBlockIndex === null || !editorRef.current) return;
+    const children = Array.from(editorRef.current.children);
+    const target = children[targetedBlockIndex] as HTMLElement | undefined;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('qalam-block-target-flash');
+      setTimeout(() => {
+        target.classList.remove('qalam-block-target-flash');
+      }, 1500);
+    }
+  }, [targetedBlockIndex]);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      checkTableContext();
+      checkActiveBlock();
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [onActiveBlockChange]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (resizeStateRef.current) return;
+    const target = e.target as HTMLElement;
+    const cell = target.closest('th, td') as HTMLTableCellElement | null;
+    if (!cell || !editorRef.current?.contains(cell)) {
+      if (editorRef.current) editorRef.current.style.cursor = '';
+      return;
+    }
+
+    const rect = cell.getBoundingClientRect();
+    const isNearRightEdge = e.clientX >= rect.right - 6 && e.clientX <= rect.right + 4;
+    const isNearBottomEdge = e.clientY >= rect.bottom - 6 && e.clientY <= rect.bottom + 4;
+
+    if (isNearRightEdge) {
+      editorRef.current.style.cursor = 'col-resize';
+    } else if (isNearBottomEdge) {
+      editorRef.current.style.cursor = 'row-resize';
+    } else {
+      editorRef.current.style.cursor = '';
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const cell = target.closest('th, td') as HTMLTableCellElement | null;
+    if (!cell || !editorRef.current?.contains(cell)) return;
+
+    const rect = cell.getBoundingClientRect();
+    const isNearRightEdge = e.clientX >= rect.right - 6 && e.clientX <= rect.right + 4;
+    const isNearBottomEdge = e.clientY >= rect.bottom - 6 && e.clientY <= rect.bottom + 4;
+
+    if (isNearRightEdge || isNearBottomEdge) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const row = cell.closest('tr') as HTMLTableRowElement;
+      const table = cell.closest('table') as HTMLTableElement;
+      if (!row || !table) return;
+
+      const rowCells = Array.from(row.querySelectorAll('th, td'));
+      const colIndex = rowCells.indexOf(cell);
+
+      resizeStateRef.current = {
+        type: isNearRightEdge ? 'col' : 'row',
+        table,
+        cell,
+        row,
+        startX: e.clientX,
+        startY: e.clientY,
+        startWidth: rect.width,
+        startHeight: rect.height,
+        colIndex,
+      };
+
+      const onWindowMouseMove = (moveEvent: MouseEvent) => {
+        const state = resizeStateRef.current;
+        if (!state) return;
+
+        if (state.type === 'col') {
+          const deltaX = moveEvent.clientX - state.startX;
+          const newWidth = Math.max(40, state.startWidth + deltaX);
+          state.table.style.tableLayout = 'fixed';
+          const allRows = state.table.querySelectorAll('tr');
+          allRows.forEach((r) => {
+            const c = r.children[state.colIndex] as HTMLElement | undefined;
+            if (c) {
+              c.style.width = `${newWidth}px`;
+              c.style.minWidth = `${newWidth}px`;
+            }
+          });
+        } else {
+          const deltaY = moveEvent.clientY - state.startY;
+          const newHeight = Math.max(26, state.startHeight + deltaY);
+          state.row.style.height = `${newHeight}px`;
+          Array.from(state.row.querySelectorAll('th, td')).forEach((c) => {
+            (c as HTMLElement).style.height = `${newHeight}px`;
+          });
+        }
+      };
+
+      const onWindowMouseUp = () => {
+        window.removeEventListener('mousemove', onWindowMouseMove);
+        window.removeEventListener('mouseup', onWindowMouseUp);
+        if (editorRef.current) editorRef.current.style.cursor = '';
+        resizeStateRef.current = null;
+        handleInput();
+        checkTableContext();
+      };
+
+      window.addEventListener('mousemove', onWindowMouseMove);
+      window.addEventListener('mouseup', onWindowMouseUp);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (!resizeStateRef.current && editorRef.current) {
+      editorRef.current.style.cursor = '';
+    }
   };
 
   const checkWikiLinkTrigger = () => {
@@ -313,46 +552,112 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
       e.preventDefault();
       document.execCommand('insertUnorderedList', false);
       handleInput();
-    } else if (
-      (e.key === 'Tab' && !e.shiftKey) ||
-      (isMetaOrCtrl && e.key === ']')
-    ) {
+    } else if (e.key === 'Tab') {
       e.preventDefault();
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
         if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+
+        // Check Table navigation and auto-row creation first
+        const cell = (node as HTMLElement | null)?.closest('th, td') as HTMLTableCellElement | null;
+        if (cell && editorRef.current?.contains(cell)) {
+          const tr = cell.closest('tr');
+          const table = cell.closest('table');
+          if (tr && table) {
+            const allCells = Array.from(tr.querySelectorAll('th, td'));
+            const cellIdx = allCells.indexOf(cell);
+
+            if (!e.shiftKey) {
+              // Tab forward
+              if (cellIdx < allCells.length - 1) {
+                focusTableCell(allCells[cellIdx + 1] as HTMLTableCellElement);
+              } else {
+                // Next row
+                const nextTr = tr.nextElementSibling as HTMLTableRowElement | null;
+                if (nextTr) {
+                  const nextCells = Array.from(nextTr.querySelectorAll('th, td'));
+                  if (nextCells.length > 0) {
+                    focusTableCell(nextCells[0] as HTMLTableCellElement);
+                  }
+                } else if (tr.parentElement?.tagName.toLowerCase() === 'thead' && table.querySelector('tbody tr')) {
+                  const firstBodyTr = table.querySelector('tbody tr') as HTMLTableRowElement;
+                  const firstCell = firstBodyTr?.querySelector('th, td') as HTMLTableCellElement;
+                  if (firstCell) focusTableCell(firstCell);
+                } else {
+                  // Last cell of table: append new row!
+                  const colsCount = allCells.length;
+                  const tbody = table.querySelector('tbody') || table;
+                  const newTr = document.createElement('tr');
+                  for (let c = 0; c < colsCount; c++) {
+                    const newTd = document.createElement('td');
+                    newTd.className = isLight
+                      ? 'border border-slate-300 p-2 text-slate-800'
+                      : 'border border-slate-700 p-2 text-slate-200';
+                    newTd.innerHTML = '&nbsp;';
+                    newTr.appendChild(newTd);
+                  }
+                  tbody.appendChild(newTr);
+                  handleInput();
+                  const firstNewCell = newTr.querySelector('td') as HTMLTableCellElement;
+                  if (firstNewCell) focusTableCell(firstNewCell);
+                }
+              }
+            } else {
+              // Shift+Tab backward
+              if (cellIdx > 0) {
+                focusTableCell(allCells[cellIdx - 1] as HTMLTableCellElement);
+              } else {
+                const prevTr = tr.previousElementSibling as HTMLTableRowElement | null;
+                if (prevTr) {
+                  const prevCells = Array.from(prevTr.querySelectorAll('th, td'));
+                  if (prevCells.length > 0) {
+                    focusTableCell(prevCells[prevCells.length - 1] as HTMLTableCellElement);
+                  }
+                } else if (tr.parentElement?.tagName.toLowerCase() === 'tbody' && table.querySelector('thead tr')) {
+                  const theadTr = table.querySelector('thead tr') as HTMLTableRowElement;
+                  const theadCells = Array.from(theadTr?.querySelectorAll('th, td') || []);
+                  if (theadCells.length > 0) {
+                    focusTableCell(theadCells[theadCells.length - 1] as HTMLTableCellElement);
+                  }
+                }
+              }
+            }
+            checkTableContext();
+            return;
+          }
+        }
+
+        // Checklist indentation
         const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
         if (todoItem) {
           const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
-          const nextIndent = Math.min(currentIndent + 1, 6);
-          todoItem.setAttribute('data-indent', String(nextIndent));
-          todoItem.style.marginLeft = `${nextIndent * 1.5}rem`;
+          if (!e.shiftKey) {
+            const nextIndent = Math.min(currentIndent + 1, 6);
+            todoItem.setAttribute('data-indent', String(nextIndent));
+            todoItem.style.marginLeft = `${nextIndent * 1.5}rem`;
+          } else {
+            const nextIndent = Math.max(currentIndent - 1, 0);
+            todoItem.setAttribute('data-indent', String(nextIndent));
+            todoItem.style.marginLeft = nextIndent > 0 ? `${nextIndent * 1.5}rem` : '';
+          }
           handleInput();
           return;
         }
       }
+
+      if (!e.shiftKey) {
+        document.execCommand('indent', false);
+      } else {
+        document.execCommand('outdent', false);
+      }
+      handleInput();
+    } else if (isMetaOrCtrl && e.key === ']') {
+      e.preventDefault();
       document.execCommand('indent', false);
       handleInput();
-    } else if (
-      (e.key === 'Tab' && e.shiftKey) ||
-      (isMetaOrCtrl && e.key === '[')
-    ) {
+    } else if (isMetaOrCtrl && e.key === '[') {
       e.preventDefault();
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        let node: Node | null = selection.getRangeAt(0).commonAncestorContainer;
-        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-        const todoItem = (node as HTMLElement | null)?.closest('.qalam-todo-item') as HTMLElement | null;
-        if (todoItem) {
-          const currentIndent = parseInt(todoItem.getAttribute('data-indent') || '0', 10);
-          const nextIndent = Math.max(currentIndent - 1, 0);
-          todoItem.setAttribute('data-indent', String(nextIndent));
-          todoItem.style.marginLeft = nextIndent > 0 ? `${nextIndent * 1.5}rem` : '';
-          handleInput();
-          return;
-        }
-      }
       document.execCommand('outdent', false);
       handleInput();
     } else if (e.key === 'Enter') {
@@ -412,9 +717,11 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
     }
   };
 
-  // Handle checklist checkbox clicks and web link clicks inside editor
+  // Handle checklist checkbox clicks, table context and web link clicks inside editor
   const handleClick = (e: React.MouseEvent) => {
     checkWikiLinkTrigger();
+    checkTableContext();
+    checkActiveBlock();
     const target = e.target as HTMLElement;
 
     // Check if user clicked an anchor link or WikiLink
@@ -458,13 +765,139 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
     }
   };
 
+  // Smart Clipboard Paste Handler:
+  // 1. Files & images: bubble to parent NoteEditor
+  // 2. Shift+Paste: standard unformatted plain-text
+  // 3. Selection + URL: wraps selection into a link
+  // 4. Raw Markdown: converts markdown syntax into rich HTML directly in WYSIWYG
+  // 5. Rich HTML tables: wraps tables in responsive horizontal scroll containers
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    // 1. Pass file attachments (screenshots, images, PDFs) to NoteEditor
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+          return; // Allow bubbling to NoteEditor's handleEditorPaste
+        }
+      }
+    }
+
+    // 2. Allow standard plain-text paste if Shift is pressed (Ctrl+Shift+V / Cmd+Shift+V)
+    const isShiftPressed = Boolean((e.nativeEvent as unknown as { shiftKey?: boolean })?.shiftKey);
+    if (isShiftPressed) {
+      return;
+    }
+
+    const plainText = e.clipboardData?.getData('text/plain') || '';
+    const htmlData = e.clipboardData?.getData('text/html') || '';
+
+    // 3. Smart Linkification: if user has selected text and pastes a valid URL
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString().trim() : '';
+    if (selectedText && isValidUrl(plainText.trim())) {
+      e.preventDefault();
+      const url = plainText.trim();
+      const success = document.execCommand('createLink', false, url);
+      if (!success && selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const a = document.createElement('a');
+        a.href = url;
+        a.textContent = selectedText;
+        a.className = 'text-blue-500 underline hover:text-blue-600 transition-colors';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        range.insertNode(a);
+        range.setStartAfter(a);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      handleInput();
+      onShowToast?.(
+        language === 'id' ? 'Tautan berhasil disisipkan ke teks terpilih!' : 'Link applied to selected text!',
+        'info'
+      );
+      return;
+    }
+
+    // 4. Smart Markdown to WYSIWYG conversion:
+    // If clipboard plain text contains Markdown formatting (tables, headings, checklists, code blocks, math, etc.)
+    if (isMarkdownText(plainText)) {
+      e.preventDefault();
+      const { html: convertedHtml } = convertMarkdownForWysiwyg(plainText, {
+        theme: isLight ? 'light' : 'dark',
+        direction: isRtl ? 'rtl' : 'ltr',
+      });
+
+      // Insert the converted rich HTML
+      const inserted = document.execCommand('insertHTML', false, convertedHtml);
+      if (!inserted && selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const temp = document.createElement('div');
+        temp.innerHTML = convertedHtml;
+        const frag = document.createDocumentFragment();
+        let lastNode: Node | null = null;
+        while (temp.firstChild) {
+          lastNode = temp.firstChild;
+          frag.appendChild(temp.firstChild);
+        }
+        range.insertNode(frag);
+        if (lastNode) {
+          range.setStartAfter(lastNode);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      handleInput();
+      onShowToast?.(
+        language === 'id'
+          ? 'Teks format Markdown otomatis dikonversi ke tampilan WYSIWYG!'
+          : 'Markdown formatted text converted to rich WYSIWYG!',
+        'info'
+      );
+      return;
+    }
+
+    // 5. Rich HTML with tables pasted from web: ensure responsive scroll container
+    if (htmlData && htmlData.includes('<table')) {
+      e.preventDefault();
+      const wrapped = wrapTablesWithScrollContainer(htmlData);
+      document.execCommand('insertHTML', false, wrapped);
+      handleInput();
+      return;
+    }
+  };
+
   const placeholderText =
     language === 'id'
       ? 'Mulai menulis catatan Anda dalam teks kaya (WYSIWYG)...'
       : 'Start typing your note in rich text (WYSIWYG)...';
 
   return (
-    <div className="h-full w-full relative overflow-y-auto px-4 sm:px-6 py-4 focus:outline-none custom-scrollbar bg-transparent">
+    <div
+      ref={editorContainerRef}
+      className="h-full w-full relative overflow-y-auto px-4 sm:px-6 py-4 focus:outline-none custom-scrollbar bg-transparent"
+    >
+      {/* Interactive Table Controls Overlay */}
+      {activeTable && (
+        <TableControls
+          activeTable={activeTable}
+          activeCell={activeCell}
+          editorContainer={editorContainerRef.current}
+          isLight={isLight}
+          language={language}
+          onTableModified={handleInput}
+          onClose={() => {
+            setActiveTable(null);
+            setActiveCell(null);
+          }}
+        />
+      )}
+
       {/* Floating WikiLink Suggestion Dropdown */}
       {showWikiSuggestions && (
         <div
@@ -565,12 +998,18 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
         contentEditable={!readOnly}
         suppressContentEditableWarning
         onInput={handleInput}
+        onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         onKeyUp={(e) => {
+          checkTableContext();
+          checkActiveBlock();
           if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab', 'Escape'].includes(e.key)) return;
           checkWikiLinkTrigger();
         }}
         onClick={handleClick}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
         data-placeholder={placeholderText}
         className={`min-h-full w-full outline-none text-[15px] leading-relaxed select-text font-sans empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none prose max-w-none ${
           isLight ? 'text-slate-900' : 'prose-invert text-slate-100'

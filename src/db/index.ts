@@ -428,8 +428,12 @@ export function getDefaultTags(lang: AppLanguage = 'id'): Tag[] {
       { id: 'tag-welcome', title: 'welcome', created_time: now, updated_time: now },
       { id: 'tag-sync', title: 'sync', created_time: now, updated_time: now },
       { id: 'tag-security', title: 'security', created_time: now, updated_time: now },
+      { id: 'tag-wiki', title: 'wiki', created_time: now, updated_time: now },
       { id: 'tag-publish', title: 'publish', created_time: now, updated_time: now },
+      { id: 'tag-kanban', title: 'kanban', created_time: now, updated_time: now },
+      { id: 'tag-editor', title: 'editor', created_time: now, updated_time: now },
       { id: 'tag-format', title: 'formatting', created_time: now, updated_time: now },
+      { id: 'tag-productivity', title: 'productivity', created_time: now, updated_time: now },
       { id: 'tag-multimedia', title: 'multimedia', created_time: now, updated_time: now },
       { id: 'tag-license', title: 'license', created_time: now, updated_time: now },
       { id: 'tag-todo', title: 'todo', created_time: now, updated_time: now },
@@ -440,8 +444,12 @@ export function getDefaultTags(lang: AppLanguage = 'id'): Tag[] {
     { id: 'tag-welcome', title: 'welcome', created_time: now, updated_time: now },
     { id: 'tag-sync', title: 'sinkronisasi', created_time: now, updated_time: now },
     { id: 'tag-security', title: 'keamanan', created_time: now, updated_time: now },
+    { id: 'tag-wiki', title: 'wiki', created_time: now, updated_time: now },
     { id: 'tag-publish', title: 'publikasi', created_time: now, updated_time: now },
+    { id: 'tag-kanban', title: 'kanban', created_time: now, updated_time: now },
+    { id: 'tag-editor', title: 'editor', created_time: now, updated_time: now },
     { id: 'tag-format', title: 'format', created_time: now, updated_time: now },
+    { id: 'tag-productivity', title: 'produktivitas', created_time: now, updated_time: now },
     { id: 'tag-multimedia', title: 'multimedia', created_time: now, updated_time: now },
     { id: 'tag-license', title: 'lisensi', created_time: now, updated_time: now },
     { id: 'tag-todo', title: 'tugas', created_time: now, updated_time: now },
@@ -462,27 +470,31 @@ export function getSampleNotes(lang: AppLanguage = 'id'): Note[] {
         title: '👋 Welcome to Qalam Note',
         body: `# Welcome to Qalam Note!
 
-**Qalam Note** is a world-class, local-first second-brain PKM application designed for writing in any world script (Latin & RTL), secured with client-side encryption, and connected with bidirectional WikiLinks.
+**Qalam Note** is a world-class, local-first second-brain and personal knowledge management (PKM) workstation designed for unrestricted writing in any world script (Latin & RTL), secured with client-side zero-knowledge encryption, and interconnected with bidirectional WikiLinks.
 
-### 📚 Getting Started Guides (Click Links to Open):
+### 📚 Complete Guide & Knowledge Base (Click Links to Open):
 1. [[☁️ Cloud Sync & Cross-Device Pairing Code]] — Connect WebDAV/Dropbox & pair a 2nd phone with 1 click.
 2. [[🔐 End-to-End Encryption (E2EE) & Vault Security]] — Protect confidential notes with AES-GCM 256-bit encryption.
-3. [[🌐 Publish Notes to the Web via Google Sheets (GAS)]] — Publish articles to the web directly using free Google Sheets.
-4. [[📊 Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL]] — Interactive tables, formulas, Mermaid diagrams, and Arabic script.
-5. [[🎙️ Voice Memos, Freehand Sketches & Version History]] — Audio recording, drawing canvas, templates & time machine.
-6. [[📜 GNU GPL v3 License, Privacy & Data Sovereignty]] — FOSS software freedoms, zero-telemetry & local-first pledge.
-7. [[✅ Workspace Setup & Task List]] — Interactive checklist, due date alarms, and multi-format exports.
+3. [[🌿 Publish Folders as Interactive Wiki (Zim-Style Digital Garden)]] — Turn notebooks & nested subfolders into a navigable public web wiki.
+4. [[🌐 Publish Notes to the Web via Google Sheets (GAS)]] — Publish single articles directly to the web with Reader View.
+5. [[📋 Multi-Project Kanban Boards & Client Live View]] — 4-column visual workflow with drag-and-drop and live client progress link.
+6. [[🔍 Advanced Editor: Smart Markdown Paste, Source Inspector & Sync Scroll]] — Smart Paste, read-only Source Inspector, and bi-directional sync scroll.
+7. [[📊 Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL]] — Interactive tables, KaTeX formulas, Mermaid diagrams, and Arabic script.
+8. [[⚡ Productivity Suite: Dual Editor, SRS Flashcards & Offline OCR]] — Split-screen dual editor (\`Ctrl+\\\`), SM-2 flashcards, offline OCR & social copy.
+9. [[🎙️ Voice Memos, Freehand Sketches & Version History]] — Audio recording, drawing canvas, templates & time machine (\`Ctrl+Shift+H\`).
+10. [[📜 GNU GPL v3 License, Privacy & Data Sovereignty]] — FOSS 4 software freedoms, zero-telemetry & SemVer 2.0.0.
+11. [[✅ Workspace Setup & Task List]] — Interactive checklist, due date alarms, shortcuts cheat sheet, and multi-format exports.
 
 ---
 
 ### 🧠 Core Second Brain Features:
 - **Bidirectional WikiLinks**: Type \`[[\` anywhere to link related notes instantly.
-- **Interactive Folder Wiki (Zim-Style Digital Garden)**: Publish entire notebooks to the web with automated Google Sheets tabs.
+- **Interactive Folder Wiki (Zim-Style Digital Garden)**: Publish entire notebooks to the web with automated Google Sheets tabs and collapsible subfolder trees.
 - **Multi-Project Dedicated Kanban Boards**: 4-column visual workflow with drag-and-drop and live client web publication.
-- **Dual WYSIWYG & Markdown Editor**: Enhanced with Smart Markdown Paste, Read-Only Source Inspector, and Bi-directional Sync Scroll.
+- **Dual WYSIWYG & Markdown Editor**: Enhanced with Smart Markdown Paste, Read-Only Source Inspector with line numbers, and Bi-directional Sync Scroll.
 - **Interactive Knowledge Graph (\`Ctrl+G\`)**: Explore interconnected thoughts in a 2D physics graph.
 - **Universal Command Palette (\`Ctrl+K\`)**: Instant search and rapid keyboard actions.
-- **Side-by-Side Dual Editor & Local OCR**: Split-screen editing and offline image-to-text extraction.
+- **Side-by-Side Dual Editor (\`Ctrl+\\\`) & Local OCR**: Split-screen editing and offline image-to-text extraction via WebAssembly.
 - **Daily Notes (\`Alt+D\`) & Spaced Repetition Flashcards (SRS)**: Structured daily planners and self-paced study cards.
 - **Revision History Time Machine (\`Ctrl+Shift+H\`)**: Restore past note snapshots anytime.
 - **Voice Memos & Freehand Drawing**: Embed audio recordings or sketches directly in notes.
@@ -497,8 +509,8 @@ Create a new note or edit this one using the **+ New note** button above!`,
         is_pinned: true,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 3600000 * 5,
-        updated_time: now - 3600000 * 5,
+        created_time: now - 3600000 * 12,
+        updated_time: now - 3600000 * 12,
         sync_status: 'synced',
         order: 1,
       },
@@ -512,7 +524,7 @@ Qalam Note adheres to a strict **Local-First** philosophy: all your notes and at
 
 ### 1. Sync Storage Targets:
 Open **Settings (\`Ctrl+,\`) > Synchronisation tab**:
-- **WebDAV**: Connect your private Nextcloud, ownCloud, Synology NAS, or any standard WebDAV server.
+- **WebDAV**: Connect your private Nextcloud, ownCloud, Synology NAS, Koofr, or any standard WebDAV server.
 - **Dropbox**: Connect directly using official Dropbox OAuth 2.0 PKCE. Your notes are stored in \`/Apps/QalamNote\`.
 - **Instant Keyboard Shortcut \`Ctrl+S\`**: Press \`Ctrl+S\` (or \`Cmd+S\` on macOS) anytime to trigger instant bidirectional sync without having to navigate menus!
 
@@ -545,8 +557,8 @@ When **End-to-End Encryption (E2EE)** is enabled, your notes are encrypted local
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 3600000 * 4,
-        updated_time: now - 3600000 * 4,
+        created_time: now - 3600000 * 11,
+        updated_time: now - 3600000 * 11,
         sync_status: 'synced',
         order: 2,
       },
@@ -580,13 +592,60 @@ Your privacy is our highest priority. Qalam Note provides client-side **AES-GCM 
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 3600000 * 3,
-        updated_time: now - 3600000 * 3,
+        created_time: now - 3600000 * 10,
+        updated_time: now - 3600000 * 10,
         sync_status: 'synced',
         order: 3,
       },
       {
-        id: 'note-04-publish-gas',
+        id: 'note-04-publish-wiki',
+        folder_id: 'folder-welcome-01',
+        title: '🌿 Publish Folders as Interactive Wiki (Zim-Style Digital Garden)',
+        body: `# Publish Folders as Interactive Wiki (Zim-Style Digital Garden)
+
+Turn an entire notebook—including all its nested subfolders and interconnected notes—into an elegant, searchable **Digital Garden** accessible to anyone on the web!
+
+---
+
+### 1. What is a Zim-Style Digital Garden?
+Inspired by the renowned Zim Desktop Wiki methodology, Qalam Note enables you to publish a structured web wiki:
+- **Hierarchical Sidebar Tree**: Readers see your entire notebook tree structure on the left bilah, with collapsible folder icons.
+- **Nested Subfolders as Sub-Topics**: If your published folder contains subfolders (and sub-subfolders), they are automatically bundled and rendered as nested sub-branches with breadcrumb trails (\`Home / Subfolder / Note Title\`).
+- **Instant Client-Side SPA Navigation**: When readers click any internal \`[[WikiLink]]\`, the page switches instantly without reloading the browser.
+- **Automatic Table of Contents (TOC)**: Automatically extracts \`H1\`–\`H3\` headings into an interactive sidebar outline that smoothly scrolls to sections.
+- **Fast Instant Search**: Pembaca can filter across all pages in the wiki simultaneously.
+
+---
+
+### 2. Dedicated Google Sheets Tabs & Auto-Cleanup:
+Unlike standard static hosts, Qalam Note publishes wikis using your own Google Apps Script (GAS) and Google Sheets:
+- **Automated Dedicated Sheet Tab**: Each published folder automatically creates a separate tab in your Google Sheet named after the folder, keeping your data tidy.
+- **Automatic Cleanup on Folder Deletion**: If you delete a folder that is published, Qalam Note automatically unpublishes it and deletes its dedicated sheet tab in Google Sheets to conserve sheet quota!
+- **1-Click Unpublish**: Unpublishing a folder via the modal removes its sheet tab immediately.
+- **Individual Note Deletion**: Deleting any note that was published removes its entry from the sheet automatically.
+
+---
+
+### 3. How to Publish a Notebook:
+1. Right-click any folder in the left sidebar (or click folder options > **"Publish as Wiki"**).
+2. Customize the **Wiki Title**, **Description**, and choose the **Landing / Home Note** (defaults to \`index\` or \`readme\`).
+3. Optional: Set a **Password Protection** (encrypted on client-side using AES-GCM) for private team wikis.
+4. Click **"Publish Wiki Now"** to generate your compact, shareable link!`,
+        is_todo: false,
+        todo_completed: 0,
+        todo_due: 0,
+        tags: ['wiki', 'publish'],
+        is_favorite: false,
+        is_pinned: false,
+        is_deleted: false,
+        is_encrypted: false,
+        created_time: now - 3600000 * 9,
+        updated_time: now - 3600000 * 9,
+        sync_status: 'synced',
+        order: 4,
+      },
+      {
+        id: 'note-05-publish-gas',
         folder_id: 'folder-welcome-01',
         title: '🌐 Publish Notes to the Web via Google Sheets (GAS)',
         body: `# Publishing Notes to the Web
@@ -611,7 +670,7 @@ With **GAS (Google Apps Script)** publishing in Qalam Note:
 
 ### Updating & Unpublishing:
 - **Update Note:** Edit this note, re-open the publish modal, and click **"Update Note"**.
-- **Unpublish:** Click **"Unpublish Note"** anytime to remove it from public access.`,
+- **Unpublish:** Click **"Unpublish Note"** anytime to remove it from public access and delete its row from the sheet.`,
         is_todo: false,
         todo_completed: 0,
         todo_due: 0,
@@ -620,13 +679,110 @@ With **GAS (Google Apps Script)** publishing in Qalam Note:
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 3600000 * 2,
-        updated_time: now - 3600000 * 2,
+        created_time: now - 3600000 * 8,
+        updated_time: now - 3600000 * 8,
         sync_status: 'synced',
-        order: 4,
+        order: 5,
       },
       {
-        id: 'note-05-formatting-tables',
+        id: 'note-06-kanban',
+        folder_id: 'folder-welcome-01',
+        title: '📋 Multi-Project Kanban Boards & Client Live View',
+        body: `# Multi-Project Kanban Boards & Client Live View
+
+Manage projects, task pipelines, and client deliverables visually without leaving Qalam Note!
+
+---
+
+### 1. 4-Column Visual Agile Workflow
+Switch between standard note writing and Kanban board mode:
+- **Backlog**: New tasks, ideas, and incoming backlog items.
+- **In Progress**: Active work currently being tackled.
+- **Review**: Tasks undergoing quality assurance or client feedback.
+- **Done**: Completed deliverables and archived tasks.
+
+---
+
+### 2. Task Cards & Drag-and-Drop:
+- **Drag-and-Drop**: Smoothly drag cards between columns as work progresses.
+- **Priority Badges**: Set High, Medium, or Low urgency.
+- **Due Dates & Sub-Checklists**: Track milestones with progress percentages.
+
+---
+
+### 3. 🌐 Client Live Progress View:
+Need to provide clients or stakeholders with a real-time progress update?
+- Click **"Publish Board"** on the Kanban header.
+- Generates a read-only live web link showing an interactive progress bar, column states, and completed milestones.
+- As you move cards in Qalam Note, the client view stays up to date!
+
+---
+
+### 4. 1-Click Note <-> Kanban Conversion:
+- Any regular checklist note with \`- [ ]\` items can be converted into a Kanban board with 1 click.
+- Need plain text again? Convert the Kanban board back into a clean Markdown checklist anytime.`,
+        is_todo: false,
+        todo_completed: 0,
+        todo_due: 0,
+        tags: ['kanban'],
+        is_favorite: false,
+        is_pinned: false,
+        is_deleted: false,
+        is_encrypted: false,
+        created_time: now - 3600000 * 7,
+        updated_time: now - 3600000 * 7,
+        sync_status: 'synced',
+        order: 6,
+      },
+      {
+        id: 'note-07-editor-splitview',
+        folder_id: 'folder-welcome-01',
+        title: '🔍 Advanced Editor: Smart Markdown Paste, Source Inspector & Sync Scroll',
+        body: `# Advanced Editor: Smart Markdown Paste, Source Inspector & Sync Scroll
+
+Qalam Note features a precision-engineered dual-engine editor designed for writing speed, clarity, and structural accuracy.
+
+---
+
+### 1. Flexible Three-State Editor Modes:
+Toggle easily using the top bar buttons or shortcut \`Ctrl+Shift+E\`:
+- **Rich Text (WYSIWYG)**: Word-processor visual editing with instant formatting.
+- **Pure Markdown**: Distraction-free plain-text code view.
+- **Markdown Split View**: Side-by-side editing pane with live rendered preview.
+
+---
+
+### 2. ⚡ Smart Markdown Paste Engine:
+Pasting content from the web or other applications is completely frictionless:
+- **Raw Markdown Detection**: Paste raw markdown text into WYSIWYG mode, and Qalam Note instantly parses headings, bold text, code blocks, and lists into live elements.
+- **Clean HTML Stripping**: Paste rich articles from websites without getting messy bloated styles—clean semantic markdown is automatically preserved.
+
+---
+
+### 3. 🔬 Read-Only Source Inspector:
+Need to verify the exact HTML/Markdown structure behind your visual document?
+- Open the **Source Inspector** drawer.
+- Features line numbering, syntax highlighting, and live bidirectional cursor tracking: click any paragraph in the visual editor, and the Inspector highlights the matching source code line!
+
+---
+
+### 4. ↕️ Bi-directional Synchronized Scrolling:
+In Split View mode, scrolling the editor smoothly and proportionally synchronizes the preview pane to the exact matching paragraph, preventing you from losing context in long documents!`,
+        is_todo: false,
+        todo_completed: 0,
+        todo_due: 0,
+        tags: ['editor'],
+        is_favorite: false,
+        is_pinned: false,
+        is_deleted: false,
+        is_encrypted: false,
+        created_time: now - 3600000 * 6,
+        updated_time: now - 3600000 * 6,
+        sync_status: 'synced',
+        order: 7,
+      },
+      {
+        id: 'note-08-formatting-tables',
         folder_id: 'folder-welcome-01',
         title: '📊 Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL',
         body: `# Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL
@@ -695,13 +851,72 @@ Use the **LTR** and **RTL** buttons on the toolbar to control direction per para
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 3600000,
-        updated_time: now - 3600000,
+        created_time: now - 3600000 * 5,
+        updated_time: now - 3600000 * 5,
         sync_status: 'synced',
-        order: 5,
+        order: 8,
       },
       {
-        id: 'note-07-multimedia-productivity',
+        id: 'note-09-productivity-tools',
+        folder_id: 'folder-welcome-01',
+        title: '⚡ Productivity Suite: Dual Editor, SRS Flashcards & Offline OCR',
+        body: `# Productivity Suite: Dual Editor, SRS Flashcards & Offline OCR
+
+Power-user tools built directly into Qalam Note to accelerate learning, research, and content publishing.
+
+---
+
+### 1. 🪟 Side-by-Side Dual Note Editor (\`Ctrl+\\\`):
+Work on two different notes at the same time:
+- Press \`Ctrl+\\\` (or click the Split Editor icon).
+- Open reference materials or research notes on the left while drafting your final document on the right.
+- Both editor panes remain fully responsive and automatically save in real time!
+
+---
+
+### 2. 📇 Spaced Repetition System (SRS) Flashcards:
+Master your study materials using the proven SuperMemo SM-2 algorithm:
+- Turn key concepts or Q&A pairs into flashcards directly from your notes.
+- Study cards with active recall intervals: **Again**, **Hard**, **Good**, and **Easy**.
+- Review cards on schedule to commit knowledge to long-term memory.
+
+---
+
+### 3. 📷 100% Local Offline OCR (Tesseract.js):
+Extract text from images, textbook photos, and screenshots:
+- Drop or paste any image into the OCR tool.
+- Text is recognized and extracted directly inside your browser using WebAssembly.
+- **Zero Cloud Transmission**: Your private photos never leave your device!
+
+---
+
+### 4. 🔍 Advanced Search Operators:
+Find any note in milliseconds:
+- \`tag:wiki\` — Find notes tagged with wiki.
+- \`folder:"My Project"\` — Filter by specific notebook.
+- \`is:todo\` or \`is:favorite\` — Filter tasks or bookmarked notes.
+
+---
+
+### 5. 📢 Social Markdown Copy:
+Publish ready-to-share summaries to social media:
+- Click **Social Copy** on the note menu.
+- Generates clean, properly formatted text ready for Twitter/X threads, LinkedIn posts, Discord, or WhatsApp without manual re-editing!`,
+        is_todo: false,
+        todo_completed: 0,
+        todo_due: 0,
+        tags: ['productivity'],
+        is_favorite: false,
+        is_pinned: false,
+        is_deleted: false,
+        is_encrypted: false,
+        created_time: now - 3600000 * 4,
+        updated_time: now - 3600000 * 4,
+        sync_status: 'synced',
+        order: 9,
+      },
+      {
+        id: 'note-10-multimedia-productivity',
         folder_id: 'folder-welcome-01',
         title: '🎙️ Voice Memos, Freehand Sketches & Version History',
         body: `# Voice Memos, Freehand Sketches & Version History
@@ -752,13 +967,13 @@ Save time with structured productivity frameworks:
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 1800000,
-        updated_time: now - 1800000,
+        created_time: now - 3600000 * 3,
+        updated_time: now - 3600000 * 3,
         sync_status: 'synced',
-        order: 6,
+        order: 10,
       },
       {
-        id: 'note-08-license-sovereignty',
+        id: 'note-11-license-sovereignty',
         folder_id: 'folder-welcome-01',
         title: '📜 GNU GPL v3 License, Privacy & Data Sovereignty',
         body: `# GNU GPL v3 License, Privacy & Data Sovereignty
@@ -803,13 +1018,13 @@ Check current version details, release dates, local storage usage, and changelog
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 1200000,
-        updated_time: now - 1200000,
+        created_time: now - 3600000 * 2,
+        updated_time: now - 3600000 * 2,
         sync_status: 'synced',
-        order: 7,
+        order: 11,
       },
       {
-        id: 'note-06-todo-workspace',
+        id: 'note-12-todo-workspace',
         folder_id: 'folder-welcome-01',
         title: '✅ Workspace Setup & Task List',
         body: `# Workspace Setup & Task List
@@ -820,11 +1035,11 @@ Notes in **Qalam Note** support an integrated To-Do checklist mode with due date
 - [x] Explore the 3-panel Qalam Note workspace
 - [x] Review the welcome guide and WikiLinks
 - [ ] Create your first notebook in the left sidebar
-- [ ] Toggle editor modes: Rich Text (WYSIWYG), Pure Markdown, or Split View
+- [ ] Toggle editor modes: Rich Text (WYSIWYG), Pure Markdown, or Split View (\`Ctrl+Shift+E\`)
 - [ ] Try \`Ctrl+K\` to open the Universal Command Palette
 - [ ] View note relationship connections by pressing \`Ctrl+G\`
 - [ ] Set up WebDAV or Dropbox sync and try the Device Pairing Code
-- [ ] Test publishing this note to the web using the globe button
+- [ ] Test publishing a notebook as an interactive Zim Wiki
 - [ ] Install the PWA to your device home screen or desktop
 
 ---
@@ -842,10 +1057,10 @@ You can export this note or your entire library anytime:
         is_pinned: false,
         is_deleted: false,
         is_encrypted: false,
-        created_time: now - 900000,
-        updated_time: now - 900000,
+        created_time: now - 3600000,
+        updated_time: now - 3600000,
         sync_status: 'synced',
-        order: 8,
+        order: 12,
       },
     ];
   }
@@ -863,23 +1078,27 @@ You can export this note or your entire library anytime:
 ### 📚 Panduan Lengkap Memulai (Klik Tautan untuk Membuka):
 1. [[☁️ Sinkronisasi Cloud & Kode Pairing Antar-Perangkat]] — Hubungkan WebDAV/Dropbox & sambungkan HP kedua dengan 1 klik.
 2. [[🔐 Enkripsi End-to-End (E2EE) & Keamanan Brankas]] — Amankan catatan rahasia dengan AES-GCM 256-bit berbasis Web Crypto.
-3. [[🌐 Publikasi Catatan ke Web via Google Sheets (GAS)]] — Terbitkan artikel ke web gratis secara instan.
-4. [[📊 Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL]] — Contoh tabel interaktif, matematika, Mermaid, dan Arab.
-5. [[🎙️ Memo Suara, Sketsa Gambar & Riwayat Versi]] — Panduan audio memo, kanvas coretan, templat & time machine.
-6. [[📜 Lisensi GNU GPL v3, Privasi & Kedaulatan Data]] — Panduan lisensi FOSS, 4 kebebasan software & zero-telemetry.
-7. [[✅ Rencana Memulai & Daftar Tugas]] — Coba checklist To-Do dan ekspor multi-format (DOCX, PDF, ZIP).
+3. [[🌿 Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden)]] — Terbitkan buku catatan & subfoldernya menjadi situs wiki publik interaktif.
+4. [[🌐 Publikasi Catatan ke Web via Google Sheets (GAS)]] — Terbitkan artikel tunggal ke web gratis secara instan dengan Reader View.
+5. [[📋 Papan Kanban Multi-Proyek & Progres Klien]] — Alur kerja visual 4 kolom dengan drag-and-drop dan tautan progres web untuk klien.
+6. [[🔍 Editor Lanjut: Smart Markdown Paste, Source Inspector & Sync Scroll]] — Smart Paste, penilik kode sumber (Inspector), dan sinkronisasi gulir dua arah.
+7. [[📊 Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL]] — Contoh tabel interaktif, matematika KaTeX, diagram Mermaid, dan aksara Arab.
+8. [[⚡ Alat Produktivitas: Layar Belah Dual Editor, Flashcard SRS & OCR Lokal]] — Buka dua catatan berdampingan (\`Ctrl+\\\`), kartu belajar SM-2, OCR lokal & salin medsos.
+9. [[🎙️ Memo Suara, Sketsa Gambar & Riwayat Versi]] — Panduan audio memo, kanvas coretan, templat & mesin waktu (\`Ctrl+Shift+H\`).
+10. [[📜 Lisensi GNU GPL v3, Privasi & Kedaulatan Data]] — Panduan lisensi FOSS, 4 kebebasan software & zero-telemetry.
+11. [[✅ Rencana Memulai & Daftar Tugas]] — Coba checklist To-Do, daftar pintasan kibor, dan ekspor multi-format (DOCX, PDF, ZIP).
 
 ---
 
 ### 🧠 Fitur Produktivitas Utama:
 - **Tautan Dua Arah (WikiLinks)**: Cukup ketik \`[[\` di mana saja untuk menautkan catatan secara instan.
-- **Publikasi Wiki Interaktif (Zim-Style Digital Garden)**: Terbitkan seluruh buku catatan ke web dengan tab otomatis di Google Sheets.
-- **Papan Kanban Multi-Proyek**: Alur kerja visual 4 kolom dengan drag-and-drop dan publikasi web untuk klien.
-- **Editor Teks Kaya & Markdown Ganda**: Dilengkapi Smart Markdown Paste, Penampil Kode Sumber (Inspector), dan Sinkronisasi Gulir Dua Arah.
+- **Publikasi Wiki Interaktif (Zim-Style Digital Garden)**: Terbitkan seluruh buku catatan ke web dengan tab otomatis di Google Sheets dan pohon hierarki subfolder.
+- **Papan Kanban Multi-Proyek**: Alur kerja visual 4 kolom dengan drag-and-drop dan publikasi web untuk pemantauan klien.
+- **Editor Teks Kaya & Markdown Ganda**: Dilengkapi Smart Markdown Paste, Penampil Kode Sumber (Inspector) dengan nomor baris, dan Sinkronisasi Gulir Dua Arah.
 - **Grafik Pengetahuan Interaktif (\`Ctrl+G\`)**: Visualisasikan hubungan antar ide dalam grafik fisika 2D.
 - **Universal Command Palette (\`Ctrl+K\`)**: Akses seluruh perintah dan cari catatan layaknya Spotlight.
-- **Layar Belah Multi-Catatan & OCR Lokal**: Buka dua catatan berdampingan serta pindai teks dari gambar secara lokal.
-- **Catatan Harian (\`Alt+D\`) & Flashcard Pengulangan Berjarak (SRS)**: Jurnal harian otomatis dan kartu belajar mandiri.
+- **Layar Belah Multi-Catatan (\`Ctrl+\\\`) & OCR Lokal**: Buka dua catatan berdampingan serta pindai teks dari gambar secara lokal tanpa kirim ke server.
+- **Catatan Harian (\`Alt+D\`) & Flashcard Pengulangan Berjarak (SRS)**: Jurnal harian otomatis dan kartu belajar mandiri dengan algoritma SM-2.
 - **Riwayat Versi / Time Machine (\`Ctrl+Shift+H\`)**: Pulihkan snapshot catatan lampau kapan saja.
 - **Rekam Suara & Sketsa Tangan**: Sisipkan memo audio atau coretan diagram langsung ke dalam catatan.
 - **Cetak & Ekspor Dokumen (\`Ctrl+P\`)**: Unduh ke Word (.docx), PDF berformat rapi, atau arsip ZIP.
@@ -893,8 +1112,8 @@ Silakan buat catatan baru atau sunting catatan ini dengan tombol **+ Catatan bar
       is_pinned: true,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 3600000 * 5,
-      updated_time: now - 3600000 * 5,
+      created_time: now - 3600000 * 12,
+      updated_time: now - 3600000 * 12,
       sync_status: 'synced',
       order: 1,
     },
@@ -941,8 +1160,8 @@ Jika Anda mengaktifkan **Enkripsi End-to-End (E2EE)**, catatan Anda dienkripsi s
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 3600000 * 4,
-      updated_time: now - 3600000 * 4,
+      created_time: now - 3600000 * 11,
+      updated_time: now - 3600000 * 11,
       sync_status: 'synced',
       order: 2,
     },
@@ -976,13 +1195,61 @@ Privasi Anda adalah prioritas utama kami. Qalam Note menghadirkan enkripsi sisi-
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 3600000 * 3,
-      updated_time: now - 3600000 * 3,
+      created_time: now - 3600000 * 10,
+      updated_time: now - 3600000 * 10,
       sync_status: 'synced',
       order: 3,
     },
     {
-      id: 'note-04-publish-gas',
+      id: 'note-04-publish-wiki',
+      folder_id: 'folder-welcome-01',
+      title: '🌿 Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden)',
+      body: `# Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden)
+
+Ubah satu buku catatan utuh—termasuk seluruh struktur subfolder bertingkat dan tautan antar-catatan di dalamnya—menjadi situs **Digital Garden** interaktif yang indah dan siap diakses siapa saja di web!
+
+---
+
+### 1. Apa itu Zim-Style Digital Garden?
+Terinspirasi dari metode dokumentasi Zim Desktop Wiki yang legendaris, Qalam Note memungkinkan Anda mempublikasikan wiki web terstruktur:
+- **Pohon Hierarki di Bilah Samping**: Pembaca dapat melihat pohon struktur folder dan catatan di bilah kiri, lengkap dengan ikon folder yang dapat dilipat (*collapsible*).
+- **Subfolder Otomatis Jadi Sub-Bahasan**: Jika di dalam folder yang Anda publikasikan terdapat subfolder (dan sub-subfolder di dalamnya), semuanya otomatis terkemas dan menjadi sub-cabang bertingkat dengan riwayat navigasi remah roti (*breadcrumb*: \`Beranda / Subfolder / Judul Catatan\`).
+- **Navigasi WikiLink Aktif (SPA)**: Setiap kali pembaca mengklik tautan \`[[Nama Catatan Lain]]\`, halaman berganti seketika (*client-side SPA*) tanpa perlu memuat ulang peramban.
+- **Daftar Isi Otomatis (TOC)**: Ekstraksi otomatis dari heading \`H1\`–\`H3\` menjadi daftar isi di bilah kanan yang dapat diklik untuk melompat mulus (*smooth scroll*) ke bab yang dituju.
+- **Pencarian Instan**: Pembaca dapat mencari kata kunci di seluruh halaman wiki secara bersamaan.
+
+---
+
+### 2. Tab Google Sheets Dinamis & Pembersihan Otomatis (Auto-Cleanup):
+Sistem publikasi Qalam Note memanfaatkan Google Apps Script (GAS) dan Google Sheets pribadi Anda sebagai basis data cloud yang rapi:
+- **Tab Sheet Otomatis Sesuai Nama Folder**: Setiap folder yang dipublikasikan secara otomatis membuat tab lembar kerja (*sheet tab*) baru dengan nama folder tersebut agar data tidak bercampur aduk.
+- **Perilaku Hemat Kuota & Bersih**:
+  1. **Jika folder dihapus saat berstatus publish**: Sistem otomatis mencabut publikasi dan **menghapus tab sheet** di Google Sheets Anda demi menghemat kuota!
+  2. **Jika catatan individu dihapus saat berstatus publish**: Baris datanya di Google Sheets otomatis dihapus.
+  3. **Tombol "Cabut Publikasi"**: Berfungsi ganda untuk menonaktifkan tautan sekaligus menghapus tab data di Google Sheets.
+
+---
+
+### 3. Cara Menerbitkan Folder:
+1. Klik kanan pada folder mana pun di bilah sisi (atau klik menu opsi folder > **"Publikasikan sebagai Wiki"**).
+2. Sesuaikan **Judul Wiki**, **Deskripsi**, dan tentukan **Catatan Beranda** (otomatis mendeteksi judul seperti \`index\` atau \`beranda\`).
+3. Opsional: Pasang **Kata Sandi Perlindungan** (dienkripsi aman di sisi klien dengan AES-GCM) jika dokumen bersifat rahasia untuk tim Anda.
+4. Klik **"Publikasikan Wiki Sekarang"** untuk mendapatkan tautan publik siap bagi!`,
+      is_todo: false,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: ['wiki', 'publikasi'],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now - 3600000 * 9,
+      updated_time: now - 3600000 * 9,
+      sync_status: 'synced',
+      order: 4,
+    },
+    {
+      id: 'note-05-publish-gas',
       folder_id: 'folder-welcome-01',
       title: '🌐 Publikasi Catatan ke Web via Google Sheets (GAS)',
       body: `# Publikasi Catatan ke Web
@@ -1001,13 +1268,13 @@ Qalam Note menghadirkan metode publikasi unik berbasis **Google Apps Script (GAS
 2. Masukkan URL Google Apps Script Anda (tersedia panduan setup & template kode 1-klik di dalam modal).
 3. Klik tombol **"Publikasikan Catatan"**.
 4. Anda akan langsung menerima tautan web ringkas terenkripsi dengan parameter tunggal (**?k=&lt;encoded_cipher&gt;**) yang rapi dan aman untuk dibagikan ke mana saja.
-5. Halaman web publik dilengkapi dengan tampilan baca (*Reader View*) yang cepat, bersih, ramah ponsel, dan bebas iklan! Pembaca dapat langsung membuka tautan tanpa perlu konfigurasi apa pun.
+5. Halaman web publik dilengkapi dengan tampilan baca (*Reader View*) yang cepat, bersih, ramah ponsel, berdaya kontras tinggi di tema Gelap maupun Terang, dan bebas iklan! Pembaca dapat langsung membuka tautan tanpa perlu konfigurasi apa pun.
 
 ---
 
 ### Memperbarui atau Mencabut Publikasi:
 - **Perbarui Catatan:** Jika Anda mengedit catatan ini, buka kembali modal publikasi dan klik **"Perbarui Catatan"**.
-- **Cabut Publikasi:** Klik **"Cabut Publikasi"** sewaktu-waktu untuk menghapus artikel dari akses publik.`,
+- **Cabut Publikasi:** Klik **"Cabut Publikasi"** sewaktu-waktu untuk menghapus artikel dari akses publik dan menghapus baris datanya dari Google Sheets.`,
       is_todo: false,
       todo_completed: 0,
       todo_due: 0,
@@ -1016,13 +1283,110 @@ Qalam Note menghadirkan metode publikasi unik berbasis **Google Apps Script (GAS
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 3600000 * 2,
-      updated_time: now - 3600000 * 2,
+      created_time: now - 3600000 * 8,
+      updated_time: now - 3600000 * 8,
       sync_status: 'synced',
-      order: 4,
+      order: 5,
     },
     {
-      id: 'note-05-formatting-tables',
+      id: 'note-06-kanban',
+      folder_id: 'folder-welcome-01',
+      title: '📋 Papan Kanban Multi-Proyek & Progres Klien',
+      body: `# Papan Kanban Multi-Proyek & Progres Klien
+
+Kelola proyek, alur kerja tugas, dan laporan progres klien secara visual langsung dari dalam Qalam Note!
+
+---
+
+### 1. 4 Kolom Alur Kerja Visual yang Lincah:
+Beralih dari mode catatan teks biasa ke mode Kanban board kapan saja:
+- **Backlog**: Daftar ide baru, tugas masuk, dan rencana yang belum dikerjakan.
+- **Dalam Proses**: Pekerjaan aktif yang sedang dikerjakan hari ini.
+- **Tinjauan**: Tugas yang sedang dalam tahap revisi atau menunggu masukan klien.
+- **Selesai**: Deliverable yang telah tuntas dikerjakan dan diarsipkan.
+
+---
+
+### 2. Fitur Kartu & Drag-and-Drop:
+- **Tarik & Lepas (Drag-and-Drop)**: Geser kartu tugas antar-kolom dengan mulus seiring berjalannya pekerjaan.
+- **Tag Prioritas**: Beri tanda urgensi Tinggi (*High*), Sedang (*Medium*), atau Rendah (*Low*).
+- **Tenggat Waktu & Sub-Checklist**: Pantau persentase kemajuan tugas di setiap kartu.
+
+---
+
+### 3. 🌐 Tampilan Progres Klien Langsung (Client Live View):
+Perlu memberikan pembaruan progres kepada klien atau atasan tanpa mereka harus mengunduh aplikasi?
+- Klik tombol **"Publikasikan Board"** di bilah atas papan Kanban.
+- Menghasilkan tautan web publik hanya-baca (*read-only*) yang memuat bilah progres persentase interaktif, kartu tugas, dan tonggak pencapaian (*milestones*).
+- Setiap kali Anda memindahkan kartu di Qalam Note, tampilan klien akan selalu mutakhir!
+
+---
+
+### 4. Konversi 1-Klik Catatan <-> Kanban:
+- Catatan daftar periksa yang memiliki format \`- [ ]\` dapat langsung diubah menjadi papan Kanban hanya dengan 1 klik.
+- Perlu teks mentah kembali? Papan Kanban dapat dikonversi balik menjadi daftar Markdown rapi kapan saja.`,
+      is_todo: false,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: ['kanban'],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now - 3600000 * 7,
+      updated_time: now - 3600000 * 7,
+      sync_status: 'synced',
+      order: 6,
+    },
+    {
+      id: 'note-07-editor-splitview',
+      folder_id: 'folder-welcome-01',
+      title: '🔍 Editor Lanjut: Smart Markdown Paste, Source Inspector & Sync Scroll',
+      body: `# Editor Lanjut: Smart Markdown Paste, Source Inspector & Sync Scroll
+
+Qalam Note dirancang dengan mesin editor ganda berpresisi tinggi untuk kecepatan menulis, kenyamanan visual, dan akurasi struktur dokumen.
+
+---
+
+### 1. Tiga Mode Tampilan Editor:
+Beralih dengan mudah melalui tombol di bilah atas atau pintasan \`Ctrl+Shift+E\`:
+- **Rich Text (WYSIWYG)**: Menulis visual layaknya aplikasi pengolah kata dengan format instan.
+- **Markdown Murni**: Tampilan kode teks polos bebas gangguan.
+- **Layar Belah Markdown (Split View)**: Panel penulisan kode di kiri dengan pratinjau hasil cetak di kanan.
+
+---
+
+### 2. ⚡ Mesin Smart Markdown Paste:
+Menempelkan tulisan dari berbagai sumber kini sangat cerdas:
+- **Deteksi Markdown Otomatis**: Tempel teks bersintaks Markdown ke mode visual WYSIWYG, dan Qalam Note langsung mengubahnya menjadi tajuk (*heading*), tebal, daftar bertitik, atau blok kode.
+- **Pembersihan HTML**: Menyalin artikel dari situs web tidak lagi membawa gaya CSS yang merusak—kode HTML yang berantakan disaring otomatis menjadi Markdown semantik yang bersih.
+
+---
+
+### 3. 🔬 Penilik Kode Sumber (Source Inspector):
+Ingin memeriksa struktur HTML atau Markdown di balik dokumen visual Anda tanpa merusak tata letak?
+- Buka laci **Source Inspector**.
+- Menampilkan nomor baris, penyorotan sintaks, dan pelacakan posisi kursor dua arah: klik paragraf di editor visual, dan Inspector langsung menyorot baris kode yang bersesuaian!
+
+---
+
+### 4. ↕️ Sinkronisasi Gulir Dua Arah (Bi-directional Sync Scroll):
+Pada mode Layar Belah (*Split View*), saat Anda menggulir panel editor, panel pratinjau otomatis bergerak secara proporsional dan presisi mengikuti paragraf aktif, sehingga Anda tidak akan pernah kehilangan konteks pada dokumen panjang!`,
+      is_todo: false,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: ['editor'],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now - 3600000 * 6,
+      updated_time: now - 3600000 * 6,
+      sync_status: 'synced',
+      order: 7,
+    },
+    {
+      id: 'note-08-formatting-tables',
       folder_id: 'folder-welcome-01',
       title: '📊 Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL',
       body: `# Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL
@@ -1091,13 +1455,72 @@ Gunakan tombol **LTR** dan **RTL** di bilah alat untuk mengatur arah baca per pa
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 3600000,
-      updated_time: now - 3600000,
+      created_time: now - 3600000 * 5,
+      updated_time: now - 3600000 * 5,
       sync_status: 'synced',
-      order: 5,
+      order: 8,
     },
     {
-      id: 'note-07-multimedia-productivity',
+      id: 'note-09-productivity-tools',
+      folder_id: 'folder-welcome-01',
+      title: '⚡ Alat Produktivitas: Layar Belah Dual Editor, Flashcard SRS & OCR Lokal',
+      body: `# Alat Produktivitas: Layar Belah Dual Editor, Flashcard SRS & OCR Lokal
+
+Koleksi alat bantu produktivitas tingkat lanjut yang dibangun langsung di dalam Qalam Note untuk mempercepat riset, belajar, dan penulisan konten.
+
+---
+
+### 1. 🪟 Layar Belah Dua Catatan Sekaligus (\`Ctrl+\\\`):
+Buka dan sunting dua catatan berbeda dalam satu layar:
+- Tekan \`Ctrl+\\\` (atau klik ikon Split Editor).
+- Buka catatan referensi atau riset di sebelah kiri sambil menyusun naskah akhir di sebelah kanan.
+- Kedua bilah editor beroperasi penuh secara mandiri dan menyimpan otomatis secara real-time!
+
+---
+
+### 2. 📇 Flashcard Pengulangan Berjarak (Spaced Repetition System / SRS):
+Kuasai materi belajar dan hafalan menggunakan algoritma SuperMemo SM-2:
+- Ubah poin penting atau pasangan tanya-jawab dari catatan menjadi kartu belajar aktif (*flashcards*).
+- Nilai tingkat pengingatan Anda: **Lagi (Again)**, **Sulit (Hard)**, **Bagus (Good)**, dan **Mudah (Easy)**.
+- Kartu akan muncul secara terjadwal untuk menanamkan pemahaman ke memori jangka panjang.
+
+---
+
+### 3. 📷 OCR Pindai Teks Lokal 100% Offline (Tesseract.js):
+Ekstrak tulisan dari gambar, foto buku fisik, atau tangkapan layar:
+- Seret atau tempel gambar apa pun ke dalam alat OCR.
+- Teks dipindai dan diekstrak langsung di dalam peramban Anda menggunakan WebAssembly.
+- **Kerahasiaan Terjamin**: Foto dan gambar Anda tidak pernah diunggah ke server mana pun!
+
+---
+
+### 4. 🔍 Operator Pencarian Canggih:
+Temukan catatan spesifik dalam hitungan milidetik:
+- \`tag:wiki\` — Menampilkan catatan dengan label wiki.
+- \`folder:"Proyek Saya"\` — Menyaring berdasarkan buku catatan tertentu.
+- \`is:todo\` atau \`is:favorite\` — Menyaring tugas atau catatan berbintang.
+
+---
+
+### 5. 📢 Salin Markdown Khusus Media Sosial:
+Bagikan intisari tulisan ke media sosial dalam satu klik:
+- Klik menu **Salin ke Media Sosial** pada opsi catatan.
+- Teks otomatis diformat rapi dan siap ditempel langsung ke utas Twitter/X, artikel LinkedIn, pesan Discord, maupun WhatsApp tanpa perlu penyuntingan manual!`,
+      is_todo: false,
+      todo_completed: 0,
+      todo_due: 0,
+      tags: ['produktivitas'],
+      is_favorite: false,
+      is_pinned: false,
+      is_deleted: false,
+      is_encrypted: false,
+      created_time: now - 3600000 * 4,
+      updated_time: now - 3600000 * 4,
+      sync_status: 'synced',
+      order: 9,
+    },
+    {
+      id: 'note-10-multimedia-productivity',
       folder_id: 'folder-welcome-01',
       title: '🎙️ Memo Suara, Sketsa Gambar & Riwayat Versi',
       body: `# Memo Suara, Sketsa Gambar & Riwayat Versi
@@ -1148,13 +1571,13 @@ Hemat waktu dengan templat terstruktur untuk berbagai kebutuhan:
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 1800000,
-      updated_time: now - 1800000,
+      created_time: now - 3600000 * 3,
+      updated_time: now - 3600000 * 3,
       sync_status: 'synced',
-      order: 6,
+      order: 10,
     },
     {
-      id: 'note-08-license-sovereignty',
+      id: 'note-11-license-sovereignty',
       folder_id: 'folder-welcome-01',
       title: '📜 Lisensi GNU GPL v3, Privasi & Kedaulatan Data',
       body: `# Lisensi GNU GPL v3, Privasi & Kedaulatan Data
@@ -1199,13 +1622,13 @@ Anda dapat memeriksa versi terkini, tanggal rilis, kuota penyimpanan lokal, dan 
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 1200000,
-      updated_time: now - 1200000,
+      created_time: now - 3600000 * 2,
+      updated_time: now - 3600000 * 2,
       sync_status: 'synced',
-      order: 7,
+      order: 11,
     },
     {
-      id: 'note-06-todo-workspace',
+      id: 'note-12-todo-workspace',
       folder_id: 'folder-welcome-01',
       title: '✅ Rencana Memulai & Daftar Tugas',
       body: `# Rencana Memulai & Daftar Tugas
@@ -1216,11 +1639,11 @@ Catatan di **Qalam Note** memiliki mode To-Do terintegrasi dengan kotak centang 
 - [x] Eksplorasi tampilan 3-panel Qalam Note
 - [x] Membaca panduan selamat datang dan WikiLinks
 - [ ] Buat buku catatan (notebook) pertama Anda di bilah kiri
-- [ ] Beralih mode editor: Rich Text (WYSIWYG), Markdown Murni, atau Split View
+- [ ] Beralih mode editor: Rich Text (WYSIWYG), Markdown Murni, atau Split View (\`Ctrl+Shift+E\`)
 - [ ] Coba pintasan \`Ctrl+K\` untuk membuka Universal Command Palette
 - [ ] Uji grafik keterhubungan catatan dengan menekan \`Ctrl+G\`
 - [ ] Hubungkan sinkronisasi WebDAV / Dropbox dan coba Kode Pairing
-- [ ] Coba publikasi catatan ini ke web dengan tombol bola dunia
+- [ ] Coba publikasi buku catatan sebagai wiki interaktif Zim
 - [ ] Pasang aplikasi ke layar utama (PWA) agar dapat dibuka seperti aplikasi desktop/mobile
 
 ---
@@ -1238,10 +1661,10 @@ Anda dapat mengekspor catatan ini sewaktu-waktu:
       is_pinned: false,
       is_deleted: false,
       is_encrypted: false,
-      created_time: now - 900000,
-      updated_time: now - 900000,
+      created_time: now - 3600000,
+      updated_time: now - 3600000,
       sync_status: 'synced',
-      order: 8,
+      order: 12,
     },
   ];
 }
@@ -1249,7 +1672,7 @@ Anda dapat mengekspor catatan ini sewaktu-waktu:
 export const SAMPLE_NOTES = getSampleNotes('id');
 
 /**
- * Deduplicates and aligns all 8 preset sample notes into the single welcome folder (folder-welcome-01),
+ * Deduplicates and aligns all 12 preset sample notes into the single welcome folder (folder-welcome-01),
  * deletes the 2 redundant pre-folders (folder-personal-02, folder-work-03), and moves any orphan notes to folder-welcome-01.
  */
 export async function alignAndDeduplicatePresetNotes(
@@ -1257,6 +1680,28 @@ export async function alignAndDeduplicatePresetNotes(
   defaultFolders: Folder[],
   defaultTags: Tag[]
 ): Promise<void> {
+  // Migrate legacy sample note IDs to new 12-curriculum IDs
+  const legacyIdMap: Record<string, string> = {
+    'note-05-formatting-tables': 'note-08-formatting-tables',
+    'note-07-multimedia-productivity': 'note-10-multimedia-productivity',
+    'note-08-license-sovereignty': 'note-11-license-sovereignty',
+    'note-06-todo-workspace': 'note-12-todo-workspace',
+  };
+
+  for (const [oldId, newId] of Object.entries(legacyIdMap)) {
+    try {
+      const oldNote = await db.notes.get(oldId);
+      const newNote = await db.notes.get(newId);
+      if (oldNote && !newNote) {
+        await db.notes.delete(oldId);
+        await db.notes.put({
+          ...oldNote,
+          id: newId,
+        });
+      }
+    } catch {}
+  }
+
   const allNotes = await db.notes.toArray();
   const sampleMap = new Map<string, Note>();
   for (const s of sampleNotes) {

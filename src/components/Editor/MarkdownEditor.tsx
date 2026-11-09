@@ -58,6 +58,18 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     };
   }, [content, onCursorActivity]);
 
+  // Reset scroll to top when opening or switching to a different note
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = 0;
+      textareaRef.current.selectionStart = 0;
+      textareaRef.current.selectionEnd = 0;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = 0;
+    }
+  }, [currentNoteId]);
+
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     if (gutterRef.current) {

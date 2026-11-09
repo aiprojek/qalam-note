@@ -111,7 +111,7 @@ export const NoteInfoModal: React.FC<NoteInfoModalProps> = ({
             <span className="text-slate-400">{language === 'id' ? 'Publikasi Web:' : 'Web Published:'}</span>
             <span className="col-span-2">
               {note.published_info?.is_published ? (
-                <span className="text-blue-400 font-semibold">{language === 'id' ? 'Aktif di Web (GAS)' : 'Active on Web (GAS)'}</span>
+                <span className="text-blue-400 font-semibold">{language === 'id' ? 'Aktif di Web' : 'Active on Web'}</span>
               ) : (
                 <span className="text-slate-400">{language === 'id' ? 'Pribadi / Belum dipublikasikan' : 'Private / Not published'}</span>
               )}

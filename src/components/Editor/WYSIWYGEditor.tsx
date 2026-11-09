@@ -106,6 +106,13 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
     }
   }, [selectedWikiIndex, showWikiSuggestions]);
 
+  // Reset scroll position to top when opening or switching to a different note
+  useEffect(() => {
+    if (editorContainerRef.current) {
+      editorContainerRef.current.scrollTop = 0;
+    }
+  }, [noteId]);
+
   // Initialize or update content when note changes ID, theme changes, or external content update (e.g. Drawing, Voice, Template)
   useEffect(() => {
     if (!editorRef.current) return;
@@ -127,6 +134,10 @@ export const WYSIWYGEditor: React.FC<WYSIWYGEditorProps> = ({
         html ||
         markdownToHtml(content, { theme: isLight ? 'light' : 'dark', direction: isRtl ? 'rtl' : 'ltr' });
       editorRef.current.innerHTML = initialHtml;
+
+      if (isDifferentNote && editorContainerRef.current) {
+        editorContainerRef.current.scrollTop = 0;
+      }
     }
   }, [noteId, content, htmlContent, isRtl, isLight]);
 

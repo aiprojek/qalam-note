@@ -45,6 +45,16 @@ export const SplitEditor: React.FC<SplitEditorProps> = ({
     }, 220);
   };
 
+  // Reset scroll to top on both editor and preview panes when switching note
+  React.useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = 0;
+    }
+    if (previewContainerRef.current) {
+      previewContainerRef.current.scrollTop = 0;
+    }
+  }, [currentNoteId]);
+
   // Render HTML with [data-line] line markers for split view synchronisation
   const renderedHtml = React.useMemo(() => {
     return markdownToHtml(content, {

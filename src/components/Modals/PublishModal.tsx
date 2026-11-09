@@ -14,6 +14,9 @@ import {
   AlertTriangle,
   Calendar,
   Kanban,
+  Zap,
+  FileSpreadsheet,
+  Server,
 } from 'lucide-react';
 import type { Note, GASConfig, AppLanguage, KanbanBoardData } from '../../types';
 import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
@@ -181,8 +184,8 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               </h3>
               <p className={`text-[11px] sm:text-xs truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 {isId
-                  ? 'Didukung oleh Google Sheets (GAS) • Tanpa server khusus'
-                  : 'Powered by Google Sheets (GAS) • Serverless publishing'}
+                  ? 'Publikasi Web Mandiri • Google Sheets, Cloudflare, atau Server Mandiri'
+                  : 'Multi-Backend Web Publishing • Google Sheets, Cloudflare, or Custom Server'}
               </p>
             </div>
           </div>
@@ -378,51 +381,66 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       }`}
                     >
                       {isId
-                        ? 'Publikasi membuat salinan snapshot catatan yang dapat dibaca siapa saja melalui tautan publik. Konten disimpan ke Google Spreadsheet Anda via Google Apps Script (GAS).'
-                        : 'Publishing makes a read-only snapshot accessible via a public shareable URL. Content is stored into your Google Sheets spreadsheet via Google Apps Script.'}
+                        ? 'Publikasi membuat salinan snapshot catatan yang dapat dibaca siapa saja melalui tautan publik. Konten disimpan ke backend pilihan Anda (Google Sheets, Cloudflare, atau Server Mandiri).'
+                        : 'Publishing makes a read-only snapshot accessible via a public shareable URL. Content is stored into your chosen backend (Google Sheets, Cloudflare, or Custom Server).'}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* GAS Configuration */}
+              {/* Publishing Backend Configuration */}
               <div className="space-y-3.5 pt-1">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                    <label className={`font-semibold text-xs sm:text-sm ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                      {isId ? 'URL Web App Google Apps Script:' : 'Google Apps Script Web App URL:'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={onOpenGASHelp}
-                      className={`text-xs flex items-center gap-1 transition font-medium ${
-                        isLight ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'
-                      }`}
-                    >
-                      <FileCode className="w-3.5 h-3.5" />
-                      <span>{isId ? 'Panduan Skrip Sheets Gratis' : 'Free Sheets Setup Guide'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="url"
-                    value={gasUrl}
-                    onChange={(e) => setGasUrl(e.target.value)}
-                    placeholder={
-                      isId
-                        ? 'https://script.google.com/macros/s/.../exec (Kosongkan untuk pratinjau internal)'
-                        : 'https://script.google.com/macros/s/.../exec (Leave blank for in-app preview)'
-                    }
-                    className={`w-full text-xs sm:text-sm px-3 py-2 rounded-lg border font-mono outline-none transition ${
-                      isLight
-                        ? 'bg-white text-slate-900 border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-400'
-                        : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500 placeholder-slate-500'
-                    }`}
-                  />
-                  <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {isId
-                      ? 'Tip: Jika URL dikosongkan, Anda tetap dapat mempublikasikan catatan dan melihat pratinjau tampilan web dengan penampil Qalam bawaan!'
-                      : 'Tip: If left blank, you can still publish and view the note in the built-in clean reader!'}
-                  </p>
+                  {(() => {
+                    const isCloudflare = gasUrl.includes('workers.dev');
+                    const isCustom = !gasUrl.includes('script.google.com') && !isCloudflare && gasUrl.trim() !== '';
+                    const providerName = isCloudflare ? 'Cloudflare Worker' : isCustom ? 'Server Mandiri' : 'Google Sheets';
+
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <label className={`font-semibold text-xs sm:text-sm ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              {isId ? 'URL Endpoint Publikasi:' : 'Publishing Endpoint URL:'}
+                            </label>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                              {providerName}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={onOpenGASHelp}
+                            className={`text-xs flex items-center gap-1 transition font-medium cursor-pointer ${
+                              isLight ? 'text-blue-600 hover:text-blue-700' : 'text-blue-400 hover:text-blue-300'
+                            }`}
+                          >
+                            <FileCode className="w-3.5 h-3.5" />
+                            <span>{isId ? 'Panduan Setup & Skrip' : 'Setup Guide & Script'}</span>
+                          </button>
+                        </div>
+                        <input
+                          type="url"
+                          value={gasUrl}
+                          onChange={(e) => setGasUrl(e.target.value)}
+                          placeholder={
+                            isId
+                              ? 'URL Google Apps Script, Cloudflare Worker, atau Server (Kosongkan untuk pratinjau)'
+                              : 'GAS URL, Cloudflare Worker, or Custom Server (Leave blank for preview)'
+                          }
+                          className={`w-full text-xs sm:text-sm px-3 py-2 rounded-lg border font-mono outline-none transition ${
+                            isLight
+                              ? 'bg-white text-slate-900 border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-400'
+                              : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500 placeholder-slate-500'
+                          }`}
+                        />
+                        <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {isId
+                            ? 'Mendukung Google Apps Script, Cloudflare Worker (KV), atau Server Mandiri. Kosongkan untuk mode pratinjau lokal.'
+                            : 'Supports Google Apps Script, Cloudflare Worker (KV), or Self-Hosted Server. Leave blank for local preview.'}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div>

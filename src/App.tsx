@@ -1413,10 +1413,29 @@ export default function App() {
     if (newSettings.language && newSettings.language !== prevLanguage) {
       await updatePresetNotesLanguage(newSettings.language);
     }
+    await refreshNotesAndFolders();
+  };
+
+  const refreshNotesAndFolders = async () => {
     const refreshedNotes = await db.notes.toArray();
     const allFolders = await db.folders.toArray();
+    const loadedTags = await db.tags.toArray();
+    const activeFolders = allFolders.filter((f) => !f.is_deleted);
+    const activeNotes = refreshedNotes.filter((n) => !n.is_deleted);
+
     setNotes(refreshedNotes);
-    setFolders(allFolders.filter((f) => !f.is_deleted));
+    setFolders(activeFolders);
+    setTags(loadedTags);
+
+    setSelectedFolderId((prev) => {
+      if (prev && activeFolders.some((f) => f.id === prev)) return prev;
+      return activeFolders.length > 0 ? activeFolders[0].id : null;
+    });
+
+    setSelectedNoteId((prev) => {
+      if (prev && activeNotes.some((n) => n.id === prev)) return prev;
+      return activeNotes.length > 0 ? activeNotes[0].id : null;
+    });
   };
 
   // Synchronisation
@@ -1612,8 +1631,8 @@ export default function App() {
   };
 
   // Open or Create Today's (or target date's) Daily Note
-  const handleOpenDailyNote = async (targetDateStr?: string) => {
-    let dateStr = targetDateStr;
+  const handleOpenDailyNote = async (targetDateStr?: string | unknown) => {
+    let dateStr = typeof targetDateStr === 'string' && targetDateStr.trim().length > 0 ? targetDateStr.trim() : undefined;
     if (!dateStr) {
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -2413,6 +2432,7 @@ export default function App() {
               <div className="w-full h-full flex-1 min-w-0 overflow-hidden">
                 {activeNote ? (
                   <NoteEditor
+                    key={`mobile-${activeNote.id}`}
                     note={activeNote}
                     folders={folders}
                     availableTags={tags.map((t) => t.title)}
@@ -2649,6 +2669,7 @@ export default function App() {
                     />
                   ) : activeNote ? (
                     <NoteEditor
+                      key={`tablet-${activeNote.id}`}
                       note={activeNote}
                       folders={folders}
                       availableTags={tags.map((t) => t.title)}
@@ -2866,6 +2887,7 @@ export default function App() {
                     />
                   ) : activeNote ? (
                     <NoteEditor
+                      key={`desktop-${activeNote.id}`}
                       note={activeNote}
                       folders={folders}
                       availableTags={tags.map((t) => t.title)}
@@ -2969,6 +2991,7 @@ export default function App() {
           onSync={handleSync}
           isSyncing={isSyncing}
           syncMessage={syncMessage}
+          onRefreshData={refreshNotesAndFolders}
         />
       )}
 
@@ -3088,6 +3111,7 @@ export default function App() {
           onClose={() => setIsGASHelpOpen(false)}
           language={settings.language}
           theme={settings.theme}
+          initialProvider={settings.gas?.provider || 'gas'}
         />
       )}
 

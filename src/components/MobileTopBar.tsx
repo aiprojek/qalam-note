@@ -527,7 +527,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                   <span>
                     {activeNote?.published_info?.is_published
                       ? isId ? 'Kelola Publikasi Web' : 'Manage Web Publish'
-                      : isId ? 'Publikasikan ke Web (GAS)' : 'Publish to Web (GAS)'}
+                      : isId ? 'Publikasikan ke Web' : 'Publish to Web'}
                   </span>
                 </button>
 

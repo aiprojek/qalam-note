@@ -13,6 +13,13 @@ import { markdownToHtml, wrapTablesWithScrollContainer } from '../utils/markdown
 import { getNoteDirection } from '../utils/rtl';
 import { kanbanDataToHtml, markdownToKanbanData } from '../utils/kanbanSerializer';
 
+export {
+  CLOUDFLARE_WORKER_SCRIPT_TEMPLATE,
+  CUSTOM_SERVERLESS_SCRIPT_TEMPLATE,
+  PUBLISH_PROVIDERS,
+} from './publishBackends';
+export type { ProviderMeta } from './publishBackends';
+
 export interface PublishResult {
   success: boolean;
   public_url: string;
@@ -102,14 +109,24 @@ export async function publishNoteToGAS(
       body: JSON.stringify(payload),
     });
 
+    const isCloudflare = gasUrl.includes('workers.dev');
+    const isCustom = !gasUrl.includes('script.google.com') && !isCloudflare;
+    const providerName = isCloudflare ? 'Cloudflare Worker' : isCustom ? 'Server Mandiri' : 'Google Sheets';
+
     if (response.ok) {
+      let customMsg = '';
+      try {
+        const json = await response.json();
+        if (json.message) customMsg = json.message;
+      } catch {}
+
       return {
         success: true,
         public_url: compactPublicUrl,
         published_at: publishedAt,
-        message: isKanban
-          ? 'Papan Kanban proyek berhasil dipublikasikan ke Google Sheets! Tautan interaktif klien siap dibagikan.'
-          : 'Catatan berhasil dipublikasikan ke Google Sheets! Tautan ringkas terenkripsi (?k=...) siap dibagikan.',
+        message: customMsg || (isKanban
+          ? `Papan Kanban proyek berhasil dipublikasikan ke ${providerName}! Tautan interaktif klien siap dibagikan.`
+          : `Catatan berhasil dipublikasikan ke ${providerName}! Tautan ringkas terenkripsi (?k=...) siap dibagikan.`),
       };
     } else {
       return {
@@ -117,8 +134,8 @@ export async function publishNoteToGAS(
         public_url: compactPublicUrl,
         published_at: publishedAt,
         message: isKanban
-          ? 'Publikasi papan proyek terkirim ke Google Sheets. Tautan interaktif klien aktif!'
-          : 'Publikasi dikirim ke Google Sheets. Tautan ringkas terenkripsi (?k=...) aktif!',
+          ? `Publikasi papan proyek terkirim ke ${providerName}. Tautan interaktif klien aktif!`
+          : `Publikasi dikirim ke ${providerName}. Tautan ringkas terenkripsi (?k=...) aktif!`,
       };
     }
   } catch (err: any) {
@@ -128,8 +145,8 @@ export async function publishNoteToGAS(
       public_url: compactPublicUrl,
       published_at: publishedAt,
       message: isKanban
-        ? 'Pembaruan papan proyek berhasil dikirim ke Google Apps Script. Tautan klien (?k=...) aktif!'
-        : 'Pembaruan catatan berhasil dikirim ke Google Apps Script. Tautan ringkas (?k=...) aktif!',
+        ? 'Pembaruan papan proyek berhasil dikirim ke endpoint publikasi. Tautan klien (?k=...) aktif!'
+        : 'Pembaruan catatan berhasil dikirim ke endpoint publikasi. Tautan ringkas (?k=...) aktif!',
     };
   }
 }
@@ -269,11 +286,17 @@ export async function publishWikiToGAS(
       body: JSON.stringify(payload),
     });
 
+    const isCloudflare = cleanGas.includes('workers.dev');
+    const isCustom = !cleanGas.includes('script.google.com') && !isCloudflare;
+    const providerName = isCloudflare ? 'Cloudflare Worker' : isCustom ? 'Server Mandiri' : 'Google Sheets';
+
     let sheetName = `Wiki - ${folderTitle}`;
+    let customMsg = '';
     if (response.ok) {
       try {
         const resData = await response.json();
         if (resData.sheet_name) sheetName = resData.sheet_name;
+        if (resData.message) customMsg = resData.message;
       } catch {}
     }
 
@@ -282,7 +305,11 @@ export async function publishWikiToGAS(
       public_url: compactPublicUrl,
       published_at: publishedAt,
       sheet_name: sheetName,
-      message: `Wiki berhasil dipublikasikan ke tab sheet "${sheetName}" di Google Sheets!`,
+      message: customMsg || (isCloudflare
+        ? 'Wiki berhasil dipublikasikan ke Cloudflare KV edge! Tautan interaktif aktif.'
+        : isCustom
+        ? 'Wiki berhasil dipublikasikan ke Server Mandiri! Tautan interaktif aktif.'
+        : `Wiki berhasil dipublikasikan ke tab sheet "${sheetName}" di Google Sheets!`),
     };
   } catch (err) {
     console.warn('Direct fetch warning on publish_wiki (likely CORS redirect):', err);
@@ -291,7 +318,7 @@ export async function publishWikiToGAS(
       public_url: compactPublicUrl,
       published_at: publishedAt,
       sheet_name: `Wiki - ${folderTitle}`,
-      message: `Data Wiki dikirim ke Google Apps Script dan tab sheet "${folderTitle}" diperbarui. Tautan interaktif aktif!`,
+      message: `Data Wiki dikirim ke endpoint publikasi dan diperbarui. Tautan interaktif aktif!`,
     };
   }
 }

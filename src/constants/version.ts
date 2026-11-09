@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.3.0';
-export const APP_BUILD_DATE = '2026-11-04';
+export const APP_VERSION = '1.4.0';
+export const APP_BUILD_DATE = '2026-11-08';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,34 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.4.0',
+    date: '2026-11-08',
+    title: {
+      id: 'Pembaruan v1.4.0: Sinkronisasi Multi-Backend (Cloudflare Worker & Server Mandiri), 4 Pilihan Hosting Publikasi Web, Kode Pairing Multi-Target & Sistem Pembaruan Prenote Otomatis',
+      en: 'v1.4.0 Milestone Release: Multi-Backend Vault Sync (Cloudflare Worker & Self-Hosted), 4 Web Publishing Providers, Multi-Target Pairing Codes & Automatic Prenote Migration',
+    },
+    highlights: {
+      id: [
+        'Sinkronisasi Vault Multi-Target (Cloudflare Worker KV & Server Mandiri): Selain WebDAV dan Dropbox, kini pengguna dapat menyinkronkan seluruh brankas catatan ke Cloudflare Worker KV (edge serverless <15ms) dan Server Mandiri (Node.js/Docker VPS pribadi) dengan enkripsi Zero-Knowledge E2EE penuh.',
+        '4 Pilihan Backend Publikasi Web & Wiki: Publikasikan catatan dan wiki interaktif ke berbagai backend hosting sesuai preferensi: Google Apps Script & Sheets (bebas server), Cloudflare Worker (edge global KV), Server Mandiri (REST API pribadi), atau GitHub Gist/Repository.',
+        'Pembaruan Skrip Worker & Server Mandiri: Skrip "worker.js" dan "server.js" terpadu untuk melayani publikasi web dan wiki sekaligus sinkronisasi berkas brankas terenkripsi (sync_list, sync_get, sync_put, sync_del) dengan proteksi token rahasia.',
+        'Kode Pairing Multi-Target (QLMSYNC1_...): Format pairing kilat antar-perangkat generasi baru yang mendukung WebDAV, Dropbox, Cloudflare Worker, dan Server Mandiri dalam satu format kode ringkas.',
+        'Sistem Migrasi & Pembaruan Prenote Otomatis: Menyelesaikan celah pembaruan prenote pada pengguna lama; aplikasi mendeteksi pembaruan kurikulum resmi (v1.4.0) dan menyuntikkan catatan panduan baru ke folder Selamat Datang secara otomatis tanpa menimpa catatan pribadi pengguna.',
+        'Tombol Pemulihan Panduan Manual di Pengaturan: Tombol "Perbarui & Pulihkan Catatan Panduan (v1.4.0)" di tab Umum memungkinkan memulihkan kembali seluruh 11 panduan resmi bawaan sewaktu-waktu.',
+        'Peningkatan Kontras & Disiplin Zero-Pill: Menghapus label latency pill pada kartu pilihan backend publikasi serta menyempurnakan kontras hover tab pengaturan sesuai standar WCAG AA.',
+      ],
+      en: [
+        'Multi-Backend Vault Synchronization (Cloudflare Worker KV & Self-Hosted): In addition to WebDAV and Dropbox, users can now sync their vaults to Cloudflare Worker KV (<15ms edge) and Self-Hosted Node.js/Docker servers with full Zero-Knowledge E2EE security.',
+        '4 Web & Wiki Publishing Backend Providers: Publish notes and interactive wikis to your preferred backend hosting: Google Apps Script & Sheets (serverless), Cloudflare Worker (global edge KV), Self-Hosted Server (private REST API), or GitHub Gist/Repository.',
+        'Unified Worker & Server Backend Scripts: The "worker.js" and "server.js" templates now serve both public web/wiki hosting and bidirectional encrypted vault synchronization with optional secret token protection.',
+        'Next-Gen Multi-Target Device Pairing Codes (QLMSYNC1_...): Universal pairing format seamlessly connects WebDAV, Dropbox, Cloudflare Worker, and Self-Hosted backends in one compact code.',
+        'Automatic Prenote Curriculum Migration: Version-driven migration automatically delivers new feature guides to existing users in the Welcome notebook without altering personal notes.',
+        'Manual Guide Restoration Button in Settings: 1-click "Update & Restore Preset Guides (v1.4.0)" button in the General tab restores all 11 canonical guides anytime.',
+        'Contrast Refinement & Zero-Pill Discipline: Removed latency pills from publication provider options and perfected hover tab contrast in settings under WCAG AA standards.',
+      ],
+    },
+  },
   {
     version: '1.3.0',
     date: '2026-11-04',

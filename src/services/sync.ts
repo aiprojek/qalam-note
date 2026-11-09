@@ -236,6 +236,101 @@ export async function testWebDAVConnection(config: SyncConfig['webdav']): Promis
 }
 
 /**
+ * Test Cloudflare Worker KV Sync Connection
+ */
+export async function testCloudflareSyncConnection(
+  url: string,
+  token?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const cleanUrl = (url || '').trim().replace(/\/+$/, '');
+    if (!cleanUrl) {
+      return { success: false, message: 'URL Cloudflare Worker belum diisi.' };
+    }
+    const cleanToken = (token || '').trim();
+    const res = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cleanToken ? { 'Authorization': `Bearer ${cleanToken}`, 'x-sync-token': cleanToken } : {}),
+      },
+      body: JSON.stringify({ action: 'sync_test', token: cleanToken || undefined }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        message: err.message || `Cloudflare Worker mengembalikan status HTTP ${res.status}`,
+      };
+    }
+    const data = await res.json();
+    if (data.success) {
+      return {
+        success: true,
+        message: data.message || 'Koneksi Cloudflare Worker KV Sync berhasil!',
+      };
+    }
+    return {
+      success: false,
+      message: data.message || 'Gagal memverifikasi Cloudflare Worker Sync.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Gagal terhubung ke Cloudflare Worker (Pastikan CORS diizinkan dan Worker aktif).',
+    };
+  }
+}
+
+/**
+ * Test Custom Self-Hosted Server Sync Connection
+ */
+export async function testCustomSyncConnection(
+  url: string,
+  token?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const cleanUrl = (url || '').trim().replace(/\/+$/, '');
+    if (!cleanUrl) {
+      return { success: false, message: 'URL Server Mandiri belum diisi.' };
+    }
+    const cleanToken = (token || '').trim();
+    const res = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cleanToken ? { 'Authorization': `Bearer ${cleanToken}`, 'x-sync-token': cleanToken } : {}),
+      },
+      body: JSON.stringify({ action: 'sync_test', token: cleanToken || undefined }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        message: err.message || `Server Mandiri mengembalikan status HTTP ${res.status}`,
+      };
+    }
+    const data = await res.json();
+    if (data.success) {
+      return {
+        success: true,
+        message: data.message || 'Koneksi Server Mandiri Sync berhasil!',
+      };
+    }
+    return {
+      success: false,
+      message: data.message || 'Gagal memverifikasi Server Mandiri Sync.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Gagal terhubung ke Server Mandiri (Periksa koneksi jaringan dan URL).',
+    };
+  }
+}
+
+
+/**
  * Dropbox OAuth PKCE Helper Utilities (Official OAuth Flow)
  */
 export function generateDropboxCodeVerifier(): string {
@@ -739,6 +834,9 @@ export async function executeSync(
     let uploadRemote: (filename: string, content: string) => Promise<void>;
     let deleteRemote: (filename: string) => Promise<void>;
 
+    let remoteFiles: RemoteSyncFile[] = [];
+    let remoteIdMap = new Map<string, RemoteSyncFile>();
+
     if (syncConfig.target === 'dropbox') {
       let token = syncConfig.dropbox.access_token;
       if (!token) {
@@ -827,6 +925,118 @@ export async function executeSync(
         );
         if (idx !== -1) remoteFiles.splice(idx, 1);
       };
+    } else if (syncConfig.target === 'cloudflare') {
+      const cfUrl = (syncConfig.cloudflare?.url || '').trim().replace(/\/+$/, '');
+      const cfToken = (syncConfig.cloudflare?.token || '').trim();
+      if (!cfUrl) {
+        throw new Error(isId ? 'URL Cloudflare Worker belum diatur.' : 'Cloudflare Worker URL is missing.');
+      }
+
+      status.message = isId
+        ? `Menghubungkan ke Cloudflare Edge Sync (${cfUrl})...`
+        : `Connecting to Cloudflare Edge Sync (${cfUrl})...`;
+      if (onProgress) onProgress(status);
+
+      const makeRequest = async (action: string, payloadExtra: Record<string, any> = {}) => {
+        const res = await fetch(cfUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(cfToken ? { 'Authorization': `Bearer ${cfToken}`, 'x-sync-token': cfToken } : {}),
+          },
+          body: JSON.stringify({
+            action,
+            token: cfToken || undefined,
+            ...payloadExtra,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `Cloudflare sync error: HTTP ${res.status}`);
+        }
+        return await res.json();
+      };
+
+      listRemote = async () => {
+        const data = await makeRequest('sync_list');
+        return (data.files || []).map((f: any) => ({
+          name: f.name,
+          pathOrUrl: f.name,
+        }));
+      };
+      downloadRemote = async (rf: RemoteSyncFile) => {
+        const data = await makeRequest('sync_get', { filename: rf.name });
+        return data.content || '';
+      };
+      uploadRemote = async (filename: string, content: string) => {
+        await makeRequest('sync_put', { filename, content });
+      };
+      deleteRemote = async (filenameOrId: string) => {
+        const lower = filenameOrId.replace(/\.md$/i, '').trim().toLowerCase();
+        const fname = filenameOrId.endsWith('.md') ? filenameOrId : `${filenameOrId}.md`;
+        await makeRequest('sync_del', { filename: fname });
+        remoteIdMap.delete(lower);
+        const idx = remoteFiles.findIndex(
+          (f) => f.name.replace(/\.md$/i, '').trim().toLowerCase() === lower
+        );
+        if (idx !== -1) remoteFiles.splice(idx, 1);
+      };
+    } else if (syncConfig.target === 'custom') {
+      const srvUrl = (syncConfig.custom?.url || '').trim().replace(/\/+$/, '');
+      const srvToken = (syncConfig.custom?.token || '').trim();
+      if (!srvUrl) {
+        throw new Error(isId ? 'URL Server Mandiri belum diatur.' : 'Custom server URL is missing.');
+      }
+
+      status.message = isId
+        ? `Menghubungkan ke Server Mandiri Sync (${srvUrl})...`
+        : `Connecting to Custom Server Sync (${srvUrl})...`;
+      if (onProgress) onProgress(status);
+
+      const makeRequest = async (action: string, payloadExtra: Record<string, any> = {}) => {
+        const res = await fetch(srvUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(srvToken ? { 'Authorization': `Bearer ${srvToken}`, 'x-sync-token': srvToken } : {}),
+          },
+          body: JSON.stringify({
+            action,
+            token: srvToken || undefined,
+            ...payloadExtra,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `Server mandiri sync error: HTTP ${res.status}`);
+        }
+        return await res.json();
+      };
+
+      listRemote = async () => {
+        const data = await makeRequest('sync_list');
+        return (data.files || []).map((f: any) => ({
+          name: f.name,
+          pathOrUrl: f.name,
+        }));
+      };
+      downloadRemote = async (rf: RemoteSyncFile) => {
+        const data = await makeRequest('sync_get', { filename: rf.name });
+        return data.content || '';
+      };
+      uploadRemote = async (filename: string, content: string) => {
+        await makeRequest('sync_put', { filename, content });
+      };
+      deleteRemote = async (filenameOrId: string) => {
+        const lower = filenameOrId.replace(/\.md$/i, '').trim().toLowerCase();
+        const fname = filenameOrId.endsWith('.md') ? filenameOrId : `${filenameOrId}.md`;
+        await makeRequest('sync_del', { filename: fname });
+        remoteIdMap.delete(lower);
+        const idx = remoteFiles.findIndex(
+          (f) => f.name.replace(/\.md$/i, '').trim().toLowerCase() === lower
+        );
+        if (idx !== -1) remoteFiles.splice(idx, 1);
+      };
     } else {
       throw new Error(`Target sinkronisasi tidak didukung: ${syncConfig.target}`);
     }
@@ -834,7 +1044,7 @@ export async function executeSync(
     // Step 1: List all remote files in the cloud storage
     status.message = isId ? 'Memeriksa berkas di cloud...' : 'Checking cloud files...';
     if (onProgress) onProgress(status);
-    const remoteFiles = await listRemote();
+    remoteFiles = await listRemote();
 
     // Step 2: Fetch all local items from Dexie and index them case-insensitively
     const localNotes = await db.notes.toArray();
@@ -855,7 +1065,7 @@ export async function executeSync(
       localTagsMap.set(t.title.toLowerCase(), t);
     }
 
-    const remoteIdMap = new Map<string, RemoteSyncFile>();
+    remoteIdMap.clear();
     for (const rf of remoteFiles) {
       const cleanId = rf.name.replace(/\.md$/i, '').trim().toLowerCase();
       remoteIdMap.set(cleanId, rf);
@@ -1536,7 +1746,7 @@ export async function importData(jsonString: string): Promise<{ notesImported: n
  */
 export interface SyncPairingPayload {
   v: 1;
-  target: 'webdav' | 'dropbox';
+  target: 'webdav' | 'dropbox' | 'cloudflare' | 'custom';
   ts: number;
   webdav?: {
     url: string;
@@ -1552,6 +1762,14 @@ export interface SyncPairingPayload {
     account_name?: string;
     account_email?: string;
     path: string;
+  };
+  cloudflare?: {
+    url: string;
+    token?: string;
+  };
+  custom?: {
+    url: string;
+    token?: string;
   };
   auto_sync_interval?: number;
   gas?: {
@@ -1606,6 +1824,22 @@ export function generateSyncPairingCode(syncConfig: SyncConfig, gasConfig?: GASC
       account_email: syncConfig.dropbox.account_email || '',
       path: syncConfig.dropbox.path || '/QalamNote',
     };
+  } else if (syncConfig.target === 'cloudflare') {
+    if (!syncConfig.cloudflare?.url) {
+      throw new Error('URL Cloudflare Worker belum diisi.');
+    }
+    payload.cloudflare = {
+      url: syncConfig.cloudflare.url,
+      token: syncConfig.cloudflare.token || '',
+    };
+  } else if (syncConfig.target === 'custom') {
+    if (!syncConfig.custom?.url) {
+      throw new Error('URL Server Mandiri belum diisi.');
+    }
+    payload.custom = {
+      url: syncConfig.custom.url,
+      token: syncConfig.custom.token || '',
+    };
   }
 
   const jsonStr = JSON.stringify(payload);
@@ -1652,6 +1886,28 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         }
       : undefined;
 
+    const defaultWebdav = {
+      url: 'https://webdav.nextcloud.com/remote.php/webdav/qalam/',
+      username: '',
+      password: '',
+      path: '/qalam',
+      cors_proxy: true,
+    };
+    const defaultDropbox = {
+      app_key: '',
+      access_token: '',
+      refresh_token: '',
+      path: '/QalamNote',
+    };
+    const defaultCloudflare = {
+      url: '',
+      token: '',
+    };
+    const defaultCustom = {
+      url: '',
+      token: '',
+    };
+
     if (payload.target === 'webdav' && payload.webdav) {
       return {
         target: 'webdav',
@@ -1665,12 +1921,9 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
           path: payload.webdav.path || '/qalam',
           cors_proxy: payload.webdav.cors_proxy !== false,
         },
-        dropbox: {
-          app_key: '',
-          access_token: '',
-          refresh_token: '',
-          path: '/QalamNote',
-        },
+        dropbox: defaultDropbox,
+        cloudflare: defaultCloudflare,
+        custom: defaultCustom,
       };
     } else if (payload.target === 'dropbox' && payload.dropbox) {
       return {
@@ -1678,13 +1931,7 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
         gas: gasConfig,
-        webdav: {
-          url: 'https://webdav.nextcloud.com/remote.php/webdav/qalam/',
-          username: '',
-          password: '',
-          path: '/qalam',
-          cors_proxy: true,
-        },
+        webdav: defaultWebdav,
         dropbox: {
           app_key: payload.dropbox.app_key || '',
           access_token: payload.dropbox.access_token,
@@ -1692,6 +1939,36 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
           account_name: payload.dropbox.account_name || '',
           account_email: payload.dropbox.account_email || '',
           path: payload.dropbox.path || '/QalamNote',
+        },
+        cloudflare: defaultCloudflare,
+        custom: defaultCustom,
+      };
+    } else if (payload.target === 'cloudflare' && payload.cloudflare) {
+      return {
+        target: 'cloudflare',
+        auto_sync_interval: payload.auto_sync_interval || 15,
+        last_sync_time: 0,
+        gas: gasConfig,
+        webdav: defaultWebdav,
+        dropbox: defaultDropbox,
+        cloudflare: {
+          url: payload.cloudflare.url,
+          token: payload.cloudflare.token || '',
+        },
+        custom: defaultCustom,
+      };
+    } else if (payload.target === 'custom' && payload.custom) {
+      return {
+        target: 'custom',
+        auto_sync_interval: payload.auto_sync_interval || 15,
+        last_sync_time: 0,
+        gas: gasConfig,
+        webdav: defaultWebdav,
+        dropbox: defaultDropbox,
+        cloudflare: defaultCloudflare,
+        custom: {
+          url: payload.custom.url,
+          token: payload.custom.token || '',
         },
       };
     }

@@ -332,6 +332,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
       access_token: '',
       path: '/QalamNote',
     },
+    cloudflare: {
+      url: '',
+      token: '',
+    },
+    custom: {
+      url: '',
+      token: '',
+    },
   },
   e2ee: {
     enabled: false,
@@ -341,6 +349,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     auto_lock_minutes: 15,
   },
   gas: {
+    provider: 'gas',
     web_app_url: '',
     author_name: 'Qalam User',
     auto_update_on_edit: true,
@@ -476,7 +485,7 @@ export function getSampleNotes(lang: AppLanguage = 'id'): Note[] {
 1. [[☁️ Cloud Sync & Cross-Device Pairing Code]] — Connect WebDAV/Dropbox & pair a 2nd phone with 1 click.
 2. [[🔐 End-to-End Encryption (E2EE) & Vault Security]] — Protect confidential notes with AES-GCM 256-bit encryption.
 3. [[🌿 Publish Folders as Interactive Wiki (Zim-Style Digital Garden)]] — Turn notebooks & nested subfolders into a navigable public web wiki.
-4. [[🌐 Publish Notes to the Web via Google Sheets (GAS)]] — Publish single articles directly to the web with Reader View.
+4. [[🌐 Web Publishing: Google Sheets, Cloudflare & Custom Server]] — Flexible hosting options with reader view.
 5. [[📋 Multi-Project Kanban Boards & Client Live View]] — 4-column visual workflow with drag-and-drop and live client progress link.
 6. [[🔍 Advanced Editor: Smart Markdown Paste, Source Inspector & Sync Scroll]] — Smart Paste, read-only Source Inspector, and bi-directional sync scroll.
 7. [[📊 Advanced Formatting: Tables, Math KaTeX, Diagrams & RTL]] — Interactive tables, KaTeX formulas, Mermaid diagrams, and Arabic script.
@@ -526,6 +535,8 @@ Qalam Note adheres to a strict **Local-First** philosophy: all your notes and at
 Open **Settings (\`Ctrl+,\`) > Synchronisation tab**:
 - **WebDAV**: Connect your private Nextcloud, ownCloud, Synology NAS, Koofr, or any standard WebDAV server.
 - **Dropbox**: Connect directly using official Dropbox OAuth 2.0 PKCE. Your notes are stored in \`/Apps/QalamNote\`.
+- **Cloudflare Worker (Edge KV)**: Ultra-fast (<15ms) global edge sync powered by Cloudflare KV. Free 100k requests/day without maintenance.
+- **Self-Hosted Server (Node.js / Docker)**: 100% data sovereignty. Runs a lightweight \`server.js\` script that stores encrypted sync files in \`sync_vault/\` on your VPS or Docker container.
 - **Instant Keyboard Shortcut \`Ctrl+S\`**: Press \`Ctrl+S\` (or \`Cmd+S\` on macOS) anytime to trigger instant bidirectional sync without having to navigate menus!
 
 ---
@@ -537,18 +548,18 @@ No need to re-type complex server URLs, credentials, or long access tokens when 
 1. **On Device 1 (Already Connected):**
    - Open **Settings > Synchronisation**.
    - Scroll down to **"Cross-Device Pairing Code"**.
-   - Click **"Generate Pairing Code"**. A compact encoded code starting with \`QLMSYNC1_...\` is generated and copied to your clipboard.
+   - Click **"Generate Pairing Code"**. A compact encoded code starting with \`QLMSYNC1_...\` is generated and copied to your clipboard (supports WebDAV, Dropbox, Cloudflare, and Self-Host).
 2. **On Device 2 (Phone / Tablet / Second Computer):**
    - Open Qalam Note on your second device.
    - Go to **Settings > Synchronisation**.
    - Paste the code into **"Connect via Pairing Code from Another Device"**.
    - Click **"Apply & Connect"**.
-3. **Done!** The second device is instantly configured, saved permanently, and ready for automatic background sync.
+3. **Done!** The second device is instantly configured, connection is verified, and ready for automatic background sync.
 
 ---
 
 ### 3. Sync + E2EE Security
-When **End-to-End Encryption (E2EE)** is enabled, your notes are encrypted locally before being transmitted to WebDAV or Dropbox. The cloud provider only stores encrypted ciphertext that cannot be read without your master password!`,
+When **End-to-End Encryption (E2EE)** is enabled, your notes are encrypted locally before being transmitted to WebDAV, Dropbox, Cloudflare, or your Self-Hosted Server. The remote storage only ever sees encrypted ciphertext that cannot be read without your master passphrase!`,
         is_todo: false,
         todo_completed: 0,
         todo_due: 0,
@@ -617,19 +628,18 @@ Inspired by the renowned Zim Desktop Wiki methodology, Qalam Note enables you to
 
 ---
 
-### 2. Dedicated Google Sheets Tabs & Auto-Cleanup:
-Unlike standard static hosts, Qalam Note publishes wikis using your own Google Apps Script (GAS) and Google Sheets:
-- **Automated Dedicated Sheet Tab**: Each published folder automatically creates a separate tab in your Google Sheet named after the folder, keeping your data tidy.
-- **Automatic Cleanup on Folder Deletion**: If you delete a folder that is published, Qalam Note automatically unpublishes it and deletes its dedicated sheet tab in Google Sheets to conserve sheet quota!
-- **1-Click Unpublish**: Unpublishing a folder via the modal removes its sheet tab immediately.
-- **Individual Note Deletion**: Deleting any note that was published removes its entry from the sheet automatically.
+### 2. Multi-Backend Publishing & Automated Cleanup:
+Qalam Note's publishing engine is designed for zero storage waste across all backend options:
+- **Google Sheets (Default)**: Automatically provisions a dedicated tab (\`Wiki - [FolderName]\`) in your spreadsheet. When you unpublish or delete a folder, its sheet tab is deleted immediately to preserve spreadsheet quota.
+- **Cloudflare Worker (Edge KV)**: High-speed edge key-value storage (\`wiki:[folder_id]\`) across 300+ global datacenters with instant global propagation and zero CORS issues.
+- **Self-Hosted Server (Node.js)**: Stores standalone JSON bundles in your private server directory with automatic file cleanup on unpublish.
 
 ---
 
 ### 3. How to Publish a Notebook:
 1. Right-click any folder in the left sidebar (or click folder options > **"Publish as Wiki"**).
 2. Customize the **Wiki Title**, **Description**, and choose the **Landing / Home Note** (defaults to \`index\` or \`readme\`).
-3. Optional: Set a **Password Protection** (encrypted on client-side using AES-GCM) for private team wikis.
+3. Optional: Set a **Password Protection** (encrypted client-side using AES-GCM 256) for private team wikis.
 4. Click **"Publish Wiki Now"** to generate your compact, shareable link!`,
         is_todo: false,
         todo_completed: 0,
@@ -647,30 +657,57 @@ Unlike standard static hosts, Qalam Note publishes wikis using your own Google A
       {
         id: 'note-05-publish-gas',
         folder_id: 'folder-welcome-01',
-        title: '🌐 Publish Notes to the Web via Google Sheets (GAS)',
-        body: `# Publishing Notes to the Web
+        title: '🌐 Web Publishing: Google Sheets, Cloudflare & Custom Server',
+        body: `# Web Publishing: Google Sheets, Cloudflare & Custom Server
 
-Want to share an article, technical guide, meeting minutes, or public documentation without expensive hosting servers?
+Want to share an article, technical guide, meeting minutes, client progress dashboard, or public documentation without expensive hosting servers?
 
-With **GAS (Google Apps Script)** publishing in Qalam Note:
-- Your own free Google Sheet acts as a private, secure cloud database.
-- A single Apps Script web app URL can host all your published notes.
-- The script automatically partitions large notes across multiple cells without hitting length limits.
+Qalam Note offers complete freedom in choosing your publishing backend according to your perspective:
 
 ---
 
-### How to Publish:
-1. Click the **Publish to Web** (globe icon 🌐) button on the editor toolbar.
-2. Enter your Google Apps Script Web App URL (a 1-click script template is available inside the setup guide).
-3. Click **"Publish Note"**.
-4. You will immediately receive a compact encrypted shareable link packed into a single parameter (**?k=&lt;encoded_cipher&gt;**) with a fast, mobile-friendly **Reader View**!
-5. Readers can open the link directly in any browser without needing to configure Google Sheets or log in.
+### Comparison of the 4 Publishing Backends:
+
+#### 1. 📊 Google Sheets & Google Apps Script (Default):
+- **Characteristics**: Your own free Google Spreadsheet acts as a private, secure, and transparent cloud database.
+- **Advantages**: 100% free with your personal Google account, zero credit card required, zero server maintenance, and data is organized neatly in readable spreadsheet rows that you can inspect anytime.
+- **Special Features**: Supports multi-tab wikis (\`Wiki - [FolderName]\`) and automated cleanup upon unpublishing notes or folders.
+
+#### 2. ⚡ Cloudflare Worker (Edge Serverless KV) — *Recommended Alternative*:
+- **Characteristics**: Serverless execution deployed across 300+ Cloudflare global edge datacenters nearest to your readers.
+- **Advantages**: Instant load times, 100,000 requests/day 100% FREE forever without needing a credit card, and native CORS headers that eliminate browser redirect delays.
+- **Long-Term Protection**: A rock-solid, future-proof alternative if Google ever restricts or discontinues Google Apps Script web apps.
+
+#### 3. 🌐 Self-Hosted Server (Node.js / Express / VPS / Docker / Railway):
+- **Characteristics**: Delivers 100% data sovereignty (*self-hosted*).
+- **Advantages**: A lightweight single-file script (\`server.js\`) that stores data cleanly in local JSON files on your own server (VPS, Raspberry Pi, Docker, Railway, Fly.io, etc.).
+- **Zero Vendor Lock-in**: Completely independent of third-party ecosystems.
+
+#### 4. 🐙 GitHub Gist / Repository:
+- **Characteristics**: Connects directly to your personal GitHub account via Personal Access Token (PAT).
+- **Advantages**: Notes are saved directly as *Secret Gists* under your personal profile without requiring any intermediary server.
+
+---
+
+### How to Configure Your Publishing Backend:
+1. Open **Settings (Ctrl+,)** > **Web Publishing** tab.
+2. Select your preferred provider card (Google Sheets, Cloudflare Worker, Self-Hosted Server, or GitHub Gist).
+3. Click the **"Open Setup Guide & Copy Script"** button in the upper-right corner to view step-by-step instructions and copy ready-to-deploy scripts (\`Code.gs\`, \`worker.js\`, or \`server.js\`) in 1 click.
+4. Paste your Web App URL, Worker endpoint, or token into the field provided, then click **"Apply & Save Settings"**.
+
+---
+
+### How to Publish Notes, Kanban Boards & Wikis:
+- **Single Note**: Click the **Publish to Web** (globe icon 🌐) button on the editor toolbar, then click **"Publish Note"**.
+- **Kanban Board (Client Live View)**: Click **"Publish Board"** to produce a real-time agile project progress dashboard for clients.
+- **Folder Wiki (Digital Garden)**: Right-click any folder > **"Publish as Wiki"** to present all nested subfolders and notes as a modern interactive web book.
+- **Compact Encrypted Links**: All generated public URLs use a clean, compact encrypted structure (**?k=\<cipher\>** or **?w=\<cipher\>**), keeping your actual backend URLs private.
 
 ---
 
 ### Updating & Unpublishing:
-- **Update Note:** Edit this note, re-open the publish modal, and click **"Update Note"**.
-- **Unpublish:** Click **"Unpublish Note"** anytime to remove it from public access and delete its row from the sheet.`,
+- **Update Note:** Edit this note or drag Kanban cards, re-open the publish modal, and click **"Update Note"**.
+- **Unpublish:** Click **"Unpublish Note"** anytime to remove it from public access and delete its data from the backend.`,
         is_todo: false,
         todo_completed: 0,
         todo_due: 0,
@@ -1006,8 +1043,8 @@ Read the complete official license text at: [gnu.org/licenses/gpl-3.0.html](http
 ### 3. Semantic Versioning (SemVer)
 This application adheres to **Semantic Versioning 2.0.0 (MAJOR.MINOR.PATCH)**:
 - **MAJOR (1.0.0):** Foundational architecture or database schema migrations.
-- **MINOR (1.3.0):** Backwards-compatible features (e.g. Folder Wiki Publication, Kanban Boards, Voice Memos, Drawing Canvas).
-- **PATCH (1.3.1):** Bug fixes, performance optimizations, and polish.
+- **MINOR (1.4.0):** Backwards-compatible features (e.g. Multi-Backend Publishing & Sync, Folder Wiki, Kanban Boards, Voice Memos).
+- **PATCH (1.4.1):** Bug fixes, performance optimizations, and polish.
 
 Check current version details, release dates, local storage usage, and changelogs under **Settings (Ctrl+,) > About tab**!`,
         is_todo: false,
@@ -1079,7 +1116,7 @@ You can export this note or your entire library anytime:
 1. [[☁️ Sinkronisasi Cloud & Kode Pairing Antar-Perangkat]] — Hubungkan WebDAV/Dropbox & sambungkan HP kedua dengan 1 klik.
 2. [[🔐 Enkripsi End-to-End (E2EE) & Keamanan Brankas]] — Amankan catatan rahasia dengan AES-GCM 256-bit berbasis Web Crypto.
 3. [[🌿 Publikasi Folder sebagai Wiki Interaktif (Zim-Style Digital Garden)]] — Terbitkan buku catatan & subfoldernya menjadi situs wiki publik interaktif.
-4. [[🌐 Publikasi Catatan ke Web via Google Sheets (GAS)]] — Terbitkan artikel tunggal ke web gratis secara instan dengan Reader View.
+4. [[🌐 Publikasi Web: Google Sheets, Cloudflare & Server Mandiri]] — Pilihan backend fleksibel dengan tampilan Reader View.
 5. [[📋 Papan Kanban Multi-Proyek & Progres Klien]] — Alur kerja visual 4 kolom dengan drag-and-drop dan tautan progres web untuk klien.
 6. [[🔍 Editor Lanjut: Smart Markdown Paste, Source Inspector & Sync Scroll]] — Smart Paste, penilik kode sumber (Inspector), dan sinkronisasi gulir dua arah.
 7. [[📊 Format Lanjut: Tabel, Rumus KaTeX, Diagram & Aksara RTL]] — Contoh tabel interaktif, matematika KaTeX, diagram Mermaid, dan aksara Arab.
@@ -1129,6 +1166,8 @@ Qalam Note menerapkan arsitektur **Local-First**: catatan Anda disimpan terlebih
 Buka **Pengaturan (\`Ctrl+,\`) > Tab Sinkronisasi**:
 - **WebDAV**: Kompatibel dengan Nextcloud, ownCloud, Synology NAS, Koofr, atau server WebDAV pribadi. Cukup masukkan URL server, nama pengguna, dan kata sandi.
 - **Dropbox**: Terhubung langsung menggunakan alur otorisasi resmi Dropbox (OAuth 2.0 PKCE) atau token akses pribadi. Catatan Anda disimpan aman di folder \`/Apps/QalamNote\`.
+- **Cloudflare Worker (Edge KV)**: Sinkronisasi ultra cepat (<15ms) global edge berbasis Cloudflare KV. Kuota gratis 100.000 permintaan/hari tanpa perlu sewa server.
+- **Server Mandiri (Node.js / Docker / VPS)**: Kedaulatan data 100%. Menggunakan berkas skrip \`server.js\` ringan yang menyimpan brankas berkas di folder \`sync_vault/\` server pribadi Anda.
 - **Pintasan Cepat \`Ctrl+S\`**: Tekan \`Ctrl+S\` (atau \`Cmd+S\` di Mac) kapan saja untuk langsung menyinkronkan catatan aktif Anda ke cloud secara instan tanpa perlu repot membuka menu!
 
 ---
@@ -1140,18 +1179,18 @@ Tidak perlu mengetik ulang server, token panjang, atau kata sandi saat Anda ingi
 1. **Di Perangkat Pertama (yang sudah terhubung sync):**
    - Buka **Pengaturan > Sinkronisasi**.
    - Gulir ke bagian **"Kode Pairing Antar-Perangkat"**.
-   - Klik tombol **"Buat Kode Pairing"**. Kode ringkas terenkripsi berawalan \`QLMSYNC1_...\` akan disalin ke clipboard Anda.
+   - Klik tombol **"Buat Kode Pairing"**. Kode ringkas terenkripsi berawalan \`QLMSYNC1_...\` akan disalin ke clipboard Anda (mendukung WebDAV, Dropbox, Cloudflare, dan Server Mandiri).
 2. **Di Perangkat Kedua (HP / Tablet / Laptop Lain):**
    - Buka Qalam Note di perangkat kedua.
    - Buka **Pengaturan > Sinkronisasi**.
    - Tempelkan kode pairing tersebut ke kolom **"Sambungkan dari Kode Pairing Perangkat Lain"**.
    - Klik **"Terapkan & Sambungkan"**.
-3. **Selesai!** Perangkat kedua langsung terhubung, tersimpan permanen, dan siap melakukan sinkronisasi otomatis.
+3. **Selesai!** Perangkat kedua langsung terhubung, koneksi diverifikasi otomatis, dan siap melakukan sinkronisasi instan.
 
 ---
 
 ### 3. Keamanan Sinkronisasi + E2EE
-Jika Anda mengaktifkan **Enkripsi End-to-End (E2EE)**, catatan Anda dienkripsi secara lokal di perangkat sebelum dikirim ke WebDAV atau Dropbox. Pihak penyedia cloud hanya menyimpan data terenkripsi yang tidak dapat dibaca oleh siapa pun tanpa kata sandi utama Anda!`,
+Jika Anda mengaktifkan **Enkripsi End-to-End (E2EE)**, catatan Anda dienkripsi secara lokal di perangkat sebelum dikirim ke WebDAV, Dropbox, Cloudflare, atau Server Mandiri. Pihak penyedia cloud hanya menyimpan ciphertext terenkripsi yang mustahil dibaca oleh siapa pun tanpa kata sandi utama Anda!`,
       is_todo: false,
       todo_completed: 0,
       todo_due: 0,
@@ -1220,20 +1259,18 @@ Terinspirasi dari metode dokumentasi Zim Desktop Wiki yang legendaris, Qalam Not
 
 ---
 
-### 2. Tab Google Sheets Dinamis & Pembersihan Otomatis (Auto-Cleanup):
-Sistem publikasi Qalam Note memanfaatkan Google Apps Script (GAS) dan Google Sheets pribadi Anda sebagai basis data cloud yang rapi:
-- **Tab Sheet Otomatis Sesuai Nama Folder**: Setiap folder yang dipublikasikan secara otomatis membuat tab lembar kerja (*sheet tab*) baru dengan nama folder tersebut agar data tidak bercampur aduk.
-- **Perilaku Hemat Kuota & Bersih**:
-  1. **Jika folder dihapus saat berstatus publish**: Sistem otomatis mencabut publikasi dan **menghapus tab sheet** di Google Sheets Anda demi menghemat kuota!
-  2. **Jika catatan individu dihapus saat berstatus publish**: Baris datanya di Google Sheets otomatis dihapus.
-  3. **Tombol "Cabut Publikasi"**: Berfungsi ganda untuk menonaktifkan tautan sekaligus menghapus tab data di Google Sheets.
+### 2. Multi-Backend & Pembersihan Otomatis (Auto-Cleanup):
+Sistem publikasi Qalam Note dirancang hemat kuota dan menjaga backend Anda tetap bersih:
+- **Google Sheets (Bawaan)**: Setiap folder yang dipublikasikan otomatis membuat tab lembar kerja (*sheet tab*) baru (\`Wiki - [Nama Folder]\`). Saat folder dicabut atau dihapus, tab sheet tersebut otomatis dihapus dari Google Spreadsheet Anda untuk menghemat kuota!
+- **Cloudflare Worker (Edge KV)**: Data wiki dikemas dalam *namespace* KV edge (\`wiki:[folder_id]\`) berkinerja tinggi di 300+ pusat data global, dan otomatis dibersihkan saat dicabut.
+- **Server Mandiri (Node.js)**: Berkas bundle JSON wiki disimpan rapi di server pribadi Anda dan otomatis dibersihkan dari direktori saat dicabut.
 
 ---
 
 ### 3. Cara Menerbitkan Folder:
 1. Klik kanan pada folder mana pun di bilah sisi (atau klik menu opsi folder > **"Publikasikan sebagai Wiki"**).
 2. Sesuaikan **Judul Wiki**, **Deskripsi**, dan tentukan **Catatan Beranda** (otomatis mendeteksi judul seperti \`index\` atau \`beranda\`).
-3. Opsional: Pasang **Kata Sandi Perlindungan** (dienkripsi aman di sisi klien dengan AES-GCM) jika dokumen bersifat rahasia untuk tim Anda.
+3. Opsional: Pasang **Kata Sandi Perlindungan** (dienkripsi aman di sisi klien dengan AES-GCM 256) jika dokumen bersifat rahasia untuk tim Anda.
 4. Klik **"Publikasikan Wiki Sekarang"** untuk mendapatkan tautan publik siap bagi!`,
       is_todo: false,
       todo_completed: 0,
@@ -1251,30 +1288,57 @@ Sistem publikasi Qalam Note memanfaatkan Google Apps Script (GAS) dan Google She
     {
       id: 'note-05-publish-gas',
       folder_id: 'folder-welcome-01',
-      title: '🌐 Publikasi Catatan ke Web via Google Sheets (GAS)',
-      body: `# Publikasi Catatan ke Web
+      title: '🌐 Publikasi Web: Google Sheets, Cloudflare & Server Mandiri',
+      body: `# Publikasi Web: Google Sheets, Cloudflare & Server Mandiri
 
-Ingin membagikan artikel, materi presentasi, risalah rapat, atau dokumentasi publik kepada rekan atau audiens tanpa biaya sewa server?
+Ingin membagikan artikel, materi presentasi, risalah rapat, dasbor progres proyek klien, atau dokumentasi publik kepada rekan atau audiens tanpa biaya sewa server?
 
-Qalam Note menghadirkan metode publikasi unik berbasis **Google Apps Script (GAS)** dan **Google Sheets**:
-- Dokumen Google Spreadsheet gratis milik Anda sendiri bertindak sebagai basis data cloud yang aman dan permanen.
-- Satu tautan Web App GAS dapat menampung seluruh catatan yang Anda publikasikan.
-- Skrip mendukung catatan berukuran besar dengan sistem partisi multi-sel otomatis.
+Qalam Note memberikan kebebasan mutlak dalam memilih penyedia backend publikasi sesuai perspektif dan kebutuhan teknis Anda:
 
 ---
 
-### Cara Menerbitkan Catatan:
-1. Klik tombol **Publikasikan ke Web** (ikon bola dunia 🌐) pada bilah alat editor di atas.
-2. Masukkan URL Google Apps Script Anda (tersedia panduan setup & template kode 1-klik di dalam modal).
-3. Klik tombol **"Publikasikan Catatan"**.
-4. Anda akan langsung menerima tautan web ringkas terenkripsi dengan parameter tunggal (**?k=&lt;encoded_cipher&gt;**) yang rapi dan aman untuk dibagikan ke mana saja.
-5. Halaman web publik dilengkapi dengan tampilan baca (*Reader View*) yang cepat, bersih, ramah ponsel, berdaya kontras tinggi di tema Gelap maupun Terang, dan bebas iklan! Pembaca dapat langsung membuka tautan tanpa perlu konfigurasi apa pun.
+### Perbandingan 4 Opsi Backend Publikasi:
+
+#### 1. 📊 Google Sheets & Google Apps Script (Bawaan):
+- **Karakteristik**: Dokumen Google Spreadsheet gratis milik Anda sendiri bertindak sebagai basis data cloud yang aman, transparan, dan permanen.
+- **Kelebihan**: 100% gratis dengan akun Google pribadi, tanpa perlu kartu kredit, tanpa perlu sewa server, dan data tersimpan dalam bentuk tabel spreadsheet yang dapat Anda tinjau langsung kapan saja.
+- **Fitur Khusus**: Mendukung multi-tab wiki (\`Wiki - [Nama Folder]\`) dan pembersihan data otomatis (*auto-cleanup*) saat catatan atau folder dicabut.
+
+#### 2. ⚡ Cloudflare Worker (Edge Serverless KV) — *Alternatif Rekomendasi*:
+- **Karakteristik**: Berjalan di 300+ pusat data *edge* global Cloudflare yang terdekat dengan pembaca Anda.
+- **Kelebihan**: Waktu muat instan, kuota gratis 100.000 permintaan per hari selamanya, serta dukungan header CORS native yang menghilangkan jeda redirect.
+- **Solusi Jangka Panjang**: Menjadi alternatif utama yang sangat andal jika suatu saat Google membatasi atau menonaktifkan fitur Google Apps Script.
+
+#### 3. 🌐 Server Mandiri (Node.js / Express / VPS / Docker / Railway):
+- **Karakteristik**: Memberikan kedaulatan data 100% (*full data sovereignty*).
+- **Kelebihan**: Berkas skrip mandiri satu file \`server.js\` ringan yang menyimpan data dalam format JSON lokal pada server pribadi Anda (VPS, Raspberry Pi, Docker, Railway, Fly.io, dsb.).
+- **Tanpa Keterikatan Vendor**: Tidak bergantung pada ekosistem pihak ketiga mana pun.
+
+#### 4. 🐙 GitHub Gist / Repository:
+- **Karakteristik**: Terhubung langsung ke akun GitHub Anda melalui Personal Access Token (PAT).
+- **Kelebihan**: Catatan tersimpan sebagai *Secret Gist* rapi di bawah profil GitHub pribadi Anda tanpa memerlukan server perantara.
+
+---
+
+### Cara Memilih & Mengatur Backend Publikasi:
+1. Buka **Pengaturan (Ctrl+,)** > tab **Publikasi Web**.
+2. Pilih kartu penyedia yang Anda inginkan (Google Sheets, Cloudflare Worker, Server Mandiri, atau GitHub Gist).
+3. Klik tombol **"Buka Panduan Setup & Salin Kode"** di pojok kanan atas untuk melihat petunjuk langkah demi langkah dan menyalin skrip siap pakai (\`Code.gs\`, \`worker.js\`, atau \`server.js\`) hanya dengan 1 klik.
+4. Masukkan URL Web App / endpoint Worker / token Anda ke kolom yang disediakan, lalu klik **"Terapkan & Simpan Pengaturan"**.
+
+---
+
+### Cara Menerbitkan Catatan, Papan Kanban & Digital Garden Wiki:
+- **Catatan Tunggal**: Klik tombol **Publikasikan ke Web** (ikon bola dunia 🌐) di bilah alat editor, lalu klik **"Publikasikan Catatan"**.
+- **Papan Kanban (Client Live View)**: Klik **"Publikasikan Board"** untuk menghasilkan dasbor progres proyek interaktif yang dapat dipantau klien secara langsung.
+- **Folder sebagai Wiki (Digital Garden)**: Klik kanan pada folder di bilah samping > **"Publikasikan sebagai Wiki"** untuk menyajikan seluruh subfolder dan catatan bertingkat dalam tampilan buku wiki modern.
+- **Tautan Ringkas Terenkripsi**: Tautan publik yang dihasilkan selalu menggunakan format kompak (**?k=\<cipher\>** atau **?w=\<cipher\>**), melindungi URL server asli Anda dari paparan publik.
 
 ---
 
 ### Memperbarui atau Mencabut Publikasi:
-- **Perbarui Catatan:** Jika Anda mengedit catatan ini, buka kembali modal publikasi dan klik **"Perbarui Catatan"**.
-- **Cabut Publikasi:** Klik **"Cabut Publikasi"** sewaktu-waktu untuk menghapus artikel dari akses publik dan menghapus baris datanya dari Google Sheets.`,
+- **Perbarui Catatan:** Jika Anda mengedit catatan atau memindahkan kartu tugas, buka kembali modal publikasi dan klik **"Perbarui Catatan"**.
+- **Cabut Publikasi:** Klik **"Cabut Publikasi"** sewaktu-waktu untuk menonaktifkan tautan publik dan menghapus baris data atau tab lembar kerja terkait secara otomatis.`,
       is_todo: false,
       todo_completed: 0,
       todo_due: 0,
@@ -1610,8 +1674,8 @@ Teks resmi lisensi dapat dibaca di: [gnu.org/licenses/gpl-3.0.html](https://www.
 ### 3. Pemversian Aplikasi SemVer (Semantic Versioning)
 Aplikasi ini mengikuti standar **Semantic Versioning 2.0.0 (MAJOR.MINOR.PATCH)**:
 - **MAJOR (1.0.0):** Perubahan arsitektur besar atau perombakan skema penyimpanan.
-- **MINOR (1.3.0):** Penambahan fitur baru yang kompatibel ke belakang (seperti Publikasi Wiki Folder, Papan Kanban, Memo Suara, Kanvas Gambar).
-- **PATCH (1.3.1):** Perbaikan bug, peningkatan kinerja, dan penyempurnaan tampilan.
+- **MINOR (1.4.0):** Penambahan fitur baru yang kompatibel ke belakang (seperti Sinkronisasi & Publikasi Multi-Backend, Wiki Folder, Papan Kanban, Memo Suara).
+- **PATCH (1.4.1):** Perbaikan bug, peningkatan kinerja, dan penyempurnaan tampilan.
 
 Anda dapat memeriksa versi terkini, tanggal rilis, kuota penyimpanan lokal, dan riwayat changelog lengkap di menu **Pengaturan (Ctrl+,) > Tab Tentang Aplikasi**!`,
       is_todo: false,
@@ -1731,13 +1795,16 @@ export async function alignAndDeduplicatePresetNotes(
       const isUntouchedSample =
         !keeper.sync_time &&
         (keeper.title === sample.title || keeper.updated_time === keeper.created_time);
+      const wasDeleted = Boolean(keeper.is_deleted);
+
+      await removeDeletedSyncId(sample.id);
 
       await db.notes.put({
         ...keeper,
         id: sample.id, // Guarantee canonical ID
-        folder_id: keeper.folder_id || 'folder-welcome-01',
-        title: isUntouchedSample ? sample.title : keeper.title,
-        body: isUntouchedSample ? sample.body : keeper.body,
+        folder_id: wasDeleted ? 'folder-welcome-01' : (keeper.folder_id || 'folder-welcome-01'),
+        title: (isUntouchedSample || wasDeleted) ? sample.title : keeper.title,
+        body: (isUntouchedSample || wasDeleted) ? sample.body : keeper.body,
         body_html: '', // Clean empty string (never undefined for IndexedDB structured clone safety)
         tags: Array.isArray(keeper.tags) && keeper.tags.length ? keeper.tags.filter(Boolean) : sample.tags,
         is_todo: keeper.is_todo ?? sample.is_todo,
@@ -1745,7 +1812,7 @@ export async function alignAndDeduplicatePresetNotes(
         todo_due: keeper.todo_due ?? sample.todo_due,
         is_favorite: keeper.is_favorite ?? sample.is_favorite,
         is_pinned: keeper.is_pinned ?? sample.is_pinned,
-        is_deleted: keeper.is_deleted ?? false,
+        is_deleted: false, // Ensure active so existing users receive prenotes
         is_encrypted: keeper.is_encrypted ?? false,
         sync_status: keeper.sync_status || 'synced',
         order: keeper.order ?? sample.order,
@@ -1765,11 +1832,13 @@ export async function alignAndDeduplicatePresetNotes(
       }
     } else {
       // Note does not exist at all, add canonical sample note
+      await removeDeletedSyncId(sample.id);
       await db.notes.put({
         ...sample,
         folder_id: 'folder-welcome-01',
         body_html: '',
         sync_status: 'synced',
+        is_deleted: false,
       });
     }
   }
@@ -1788,13 +1857,24 @@ export async function alignAndDeduplicatePresetNotes(
     }
   }
 
-  // Ensure default notebook exists ONLY IF database has no folders at all
+  // Ensure default notebook exists AND is active (never deleted)
   const existingFolders = await db.folders.toArray();
   const welcomeFolder = defaultFolders[0];
 
-  const hasWelcomeFolder = existingFolders.some((f) => f.id === welcomeFolder.id);
-  if (!hasWelcomeFolder && existingFolders.length === 0) {
-    await db.folders.put({ ...welcomeFolder, sync_status: 'synced' });
+  const activeWelcomeFolder = existingFolders.find((f) => f.id === welcomeFolder.id && !f.is_deleted);
+  if (!activeWelcomeFolder) {
+    const existingRec = await db.folders.get(welcomeFolder.id);
+    if (existingRec) {
+      await db.folders.update(welcomeFolder.id, {
+        is_deleted: false,
+        title: welcomeFolder.title,
+        updated_time: Date.now(),
+        sync_status: 'synced',
+      });
+    } else {
+      await db.folders.put({ ...welcomeFolder, is_deleted: false, sync_status: 'synced' });
+    }
+    await removeDeletedSyncId(welcomeFolder.id);
   }
 
   // Delete legacy pre-folders and register tombstones so they are purged from cloud and never resurrected
@@ -1833,6 +1913,8 @@ export async function alignAndDeduplicatePresetNotes(
   }
 }
 
+export const PRENOTE_CURRICULUM_VERSION = '1.4.0';
+
 /**
  * Updates preset sample notes and default folders when user changes language
  */
@@ -1841,6 +1923,154 @@ export async function updatePresetNotesLanguage(targetLang: AppLanguage): Promis
   const defaultFolders = getDefaultFolders(targetLang);
   const defaultTags = getDefaultTags(targetLang);
   await alignAndDeduplicatePresetNotes(sampleNotes, defaultFolders, defaultTags);
+}
+
+/**
+ * Synchronizes latest official preset guide notes (prenotes) into the database.
+ * If an existing user deleted old prenotes, or an app update brings new curriculum guides
+ * (such as note-04-publish-wiki, note-05-publish-gas, note-06-kanban), this ensures that:
+ * 1. The Welcome notebook ('folder-welcome-01') exists.
+ * 2. Any missing canonical prenote is inserted cleanly.
+ * 3. Any unmodified canonical prenote is updated with the latest instructions.
+ * 4. User-created personal notes are NEVER touched or overwritten.
+ */
+export async function syncLatestPresetNotes(targetLang: AppLanguage = 'id'): Promise<number> {
+  const sampleNotes = getSampleNotes(targetLang);
+  const defaultFolders = getDefaultFolders(targetLang);
+  const defaultTags = getDefaultTags(targetLang);
+
+  // 1. Ensure folder-welcome-01 exists AND is active (never deleted)
+  const welcomeFolder = defaultFolders[0];
+  const existingWelcome = await db.folders.get(welcomeFolder.id);
+  if (!existingWelcome) {
+    await db.folders.put({ ...welcomeFolder, sync_status: 'synced', is_deleted: false });
+  } else if (existingWelcome.is_deleted) {
+    await db.folders.update(welcomeFolder.id, {
+      is_deleted: false,
+      title: welcomeFolder.title,
+      sync_status: 'synced',
+      updated_time: Date.now(),
+    });
+  }
+  await removeDeletedSyncId(welcomeFolder.id);
+
+  // 2. Ensure default tags exist
+  for (const tag of defaultTags) {
+    const existing = await db.tags.get(tag.id);
+    if (!existing) {
+      await db.tags.put(tag);
+    }
+  }
+
+  let updatedOrAddedCount = 0;
+
+  // 3. Check each canonical preset note
+  for (const sample of sampleNotes) {
+    // Clear deletion tombstone so cloud sync never re-deletes it
+    await removeDeletedSyncId(sample.id);
+
+    const existing = await db.notes.get(sample.id);
+    if (!existing) {
+      // Missing prenote (e.g., permanently deleted earlier by user, or newly added in this version)
+      await db.notes.put({
+        ...sample,
+        folder_id: 'folder-welcome-01',
+        body_html: '',
+        sync_status: 'synced',
+        is_deleted: false,
+        updated_time: sample.updated_time,
+      });
+      updatedOrAddedCount++;
+    } else if (existing.is_deleted) {
+      // Prenote was soft-deleted by user: resurrect with latest version curriculum content as active!
+      await db.notes.put({
+        ...sample,
+        id: sample.id,
+        folder_id: 'folder-welcome-01',
+        title: sample.title,
+        body: sample.body,
+        body_html: '',
+        tags: sample.tags,
+        order: sample.order,
+        is_deleted: false,
+        is_todo: sample.is_todo,
+        todo_completed: sample.todo_completed,
+        todo_due: sample.todo_due,
+        is_favorite: false,
+        is_pinned: false,
+        is_encrypted: false,
+        sync_status: 'synced',
+        updated_time: sample.updated_time,
+      });
+      updatedOrAddedCount++;
+    } else {
+      // Note exists and is active: if untouched by user, update to latest version text
+      const isUntouchedSample =
+        !existing.sync_time &&
+        (existing.title === sample.title || existing.updated_time === existing.created_time || !existing.updated_time);
+
+      if (isUntouchedSample) {
+        await db.notes.update(existing.id, {
+          title: sample.title,
+          body: sample.body,
+          body_html: '',
+          tags: sample.tags,
+          order: sample.order,
+          updated_time: sample.updated_time,
+          is_deleted: false,
+          folder_id: existing.folder_id || 'folder-welcome-01',
+        });
+        updatedOrAddedCount++;
+      }
+    }
+  }
+
+  return updatedOrAddedCount;
+}
+
+/**
+ * Manual restoration of all preset guide notes (triggered by user from Settings).
+ * Re-instates all 11 canonical guides into 'folder-welcome-01' without touching personal notes.
+ */
+export async function restoreAllPresetNotes(targetLang: AppLanguage = 'id'): Promise<number> {
+  const sampleNotes = getSampleNotes(targetLang);
+  const defaultFolders = getDefaultFolders(targetLang);
+  const defaultTags = getDefaultTags(targetLang);
+
+  const welcomeFolder = defaultFolders[0];
+  const existingWelcome = await db.folders.get(welcomeFolder.id);
+  if (!existingWelcome) {
+    await db.folders.put({ ...welcomeFolder, sync_status: 'synced', is_deleted: false });
+  } else if (existingWelcome.is_deleted) {
+    await db.folders.update(welcomeFolder.id, {
+      is_deleted: false,
+      title: welcomeFolder.title,
+      sync_status: 'synced',
+      updated_time: Date.now(),
+    });
+  }
+  await removeDeletedSyncId(welcomeFolder.id);
+
+  for (const tag of defaultTags) {
+    await db.tags.put(tag);
+  }
+
+  let count = 0;
+  for (const sample of sampleNotes) {
+    await removeDeletedSyncId(sample.id);
+    await db.notes.put({
+      ...sample,
+      folder_id: 'folder-welcome-01',
+      body_html: '',
+      sync_status: 'synced',
+      is_deleted: false,
+    });
+    count++;
+  }
+
+  await db.settings.put({ key: 'prenote_curriculum_version', value: PRENOTE_CURRICULUM_VERSION });
+  await db.settings.put({ key: 'prenote_curriculum_v1_4_0_enforced', value: true });
+  return count;
 }
 
 /**
@@ -1920,12 +2150,32 @@ export async function initDatabase(): Promise<void> {
     }
   }
 
-  // Active deduplication, migration, and folder cleanup pass (run once on setup/migration)
+  // Active deduplication, migration, and curriculum version check
   try {
+    const curVersionRow = await db.settings.get('prenote_curriculum_version');
+    const isCurriculumStale = !curVersionRow || curVersionRow.value !== PRENOTE_CURRICULUM_VERSION;
+    const isEnforcedV140 = await db.settings.get('prenote_curriculum_v1_4_0_enforced');
     const isSeeded = await db.settings.get('db_seeded_v1');
-    if (!isSeeded) {
+
+    // Also check if any canonical prenote is missing or marked deleted by an existing user
+    let anyPrenoteMissingOrDeleted = false;
+    for (const sample of sampleNotes) {
+      const existing = await db.notes.get(sample.id);
+      if (!existing || existing.is_deleted) {
+        anyPrenoteMissingOrDeleted = true;
+        break;
+      }
+    }
+
+    const welcomeFolderRec = await db.folders.get('folder-welcome-01');
+    const welcomeFolderMissingOrDeleted = !welcomeFolderRec || Boolean(welcomeFolderRec.is_deleted);
+
+    if (!isSeeded || isCurriculumStale || !isEnforcedV140 || anyPrenoteMissingOrDeleted || welcomeFolderMissingOrDeleted) {
       await alignAndDeduplicatePresetNotes(sampleNotes, defaultFolders, defaultTags);
+      await syncLatestPresetNotes(currentLang);
       await db.settings.put({ key: 'db_seeded_v1', value: true });
+      await db.settings.put({ key: 'prenote_curriculum_version', value: PRENOTE_CURRICULUM_VERSION });
+      await db.settings.put({ key: 'prenote_curriculum_v1_4_0_enforced', value: true });
     }
 
     // Sanitize any residual third-party app occurrences in user notes

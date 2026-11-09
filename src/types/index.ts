@@ -116,8 +116,10 @@ export interface Attachment {
   created_time: number;
 }
 
+export type SyncTarget = 'disabled' | 'webdav' | 'dropbox' | 'cloudflare' | 'custom';
+
 export interface SyncConfig {
-  target: 'disabled' | 'webdav' | 'dropbox';
+  target: SyncTarget;
   auto_sync_interval: number; // minutes (0 = manual only)
   last_sync_time: number;
   webdav: {
@@ -136,6 +138,14 @@ export interface SyncConfig {
     account_name?: string;
     path: string;
   };
+  cloudflare?: {
+    url: string;
+    token?: string;
+  };
+  custom?: {
+    url: string;
+    token?: string;
+  };
 }
 
 export interface E2EEConfig {
@@ -146,11 +156,21 @@ export interface E2EEConfig {
   auto_lock_minutes?: number; // Inactivity auto-lock timeout in minutes (0 = never, default 15)
 }
 
-export interface GASConfig {
+export type PublishProviderType = 'gas' | 'cloudflare' | 'custom' | 'github_gist';
+
+export interface PublishConfig {
+  provider?: PublishProviderType; // 'gas' | 'cloudflare' | 'custom' | 'github_gist' (default: 'gas')
   web_app_url: string;
   author_name: string;
   auto_update_on_edit: boolean;
+  gas_url?: string;
+  cloudflare_url?: string;
+  custom_url?: string;
+  github_token?: string;
+  github_gist_id?: string;
 }
+
+export type GASConfig = PublishConfig;
 
 export type DateFormatOption = 'DD/MM/YYYY' | 'YYYY-MM-DD' | 'MM/DD/YYYY' | 'D MMMM YYYY';
 export type TimeFormatOption = '24h' | '12h';

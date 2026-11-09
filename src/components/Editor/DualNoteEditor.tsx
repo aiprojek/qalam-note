@@ -135,6 +135,7 @@ export const DualNoteEditor: React.FC<DualNoteEditorProps> = ({
 
         <div className="flex-1 h-full min-w-0 overflow-hidden">
           <NoteEditor
+            key={`dual-primary-${primaryNote.id}`}
             note={primaryNote}
             folders={folders}
             availableTags={availableTags}
@@ -280,6 +281,7 @@ export const DualNoteEditor: React.FC<DualNoteEditorProps> = ({
         <div className="flex-1 h-full min-w-0 overflow-hidden">
           {secondaryNote ? (
             <NoteEditor
+              key={`dual-secondary-${secondaryNote.id}`}
               note={secondaryNote}
               folders={folders}
               availableTags={availableTags}

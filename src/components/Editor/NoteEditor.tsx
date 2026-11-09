@@ -149,9 +149,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const historyIndexRef = useRef<number>(-1);
   const isUndoRedoAction = useRef(false);
   const currentNoteIdRef = useRef<string>(note.id);
+  const readingContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Initialize or reset history when switching note
+  // Initialize or reset history and scroll when switching note
   useEffect(() => {
+    if (readingContainerRef.current) {
+      readingContainerRef.current.scrollTop = 0;
+    }
     if (currentNoteIdRef.current !== note.id) {
       currentNoteIdRef.current = note.id;
       historyRef.current = [{ body: note.body, body_html: note.body_html }];
@@ -1395,6 +1399,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   if (note.is_kanban) {
     return (
       <ProjectKanbanEditor
+        key={`kanban-${note.id}`}
         note={note}
         onUpdateNote={onUpdateNote}
         onOpenPublish={onOpenPublish}
@@ -1828,6 +1833,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 }
               }
             }}
+            ref={readingContainerRef}
             className={`flex-1 overflow-y-auto px-4 py-4 sm:px-6 custom-scrollbar select-text ${
               isLight ? 'bg-white text-slate-900' : 'bg-[#1e2738] text-slate-100'
             }`}
@@ -1846,6 +1852,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                     {/* Left Pane: WYSIWYG Editor */}
                     <div className="flex-1 h-full overflow-hidden relative">
                       <WYSIWYGEditor
+                        key={`wysiwyg-insp-${note.id}`}
                         noteId={note.id}
                         content={note.body}
                         htmlContent={note.body_html}
@@ -1865,6 +1872,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                     {/* Right Pane: Read-Only Source Inspector */}
                     <div className="w-1/2 min-w-[320px] max-w-[55%] h-full overflow-hidden relative">
                       <SourceInspector
+                        key={`insp-${note.id}`}
                         htmlContent={note.body_html || markdownToHtml(note.body, { theme: isLight ? 'light' : 'dark', direction: isRtl ? 'rtl' : 'ltr' })}
                         markdownContent={note.body}
                         activeBlockIndex={activeWysiwygBlock?.index ?? null}
@@ -1879,6 +1887,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                   </div>
                 ) : (
                   <WYSIWYGEditor
+                    key={`wysiwyg-${note.id}`}
                     noteId={note.id}
                     content={note.body}
                     htmlContent={note.body_html}
@@ -1895,6 +1904,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               )}
               {settingsEditorMode === 'markdown' && markdownViewMode === 'raw' && (
                 <MarkdownEditor
+                  key={`raw-${note.id}`}
                   content={note.body}
                   onChange={(md) => handleBodyChange(md)}
                   isRtl={isRtl}
@@ -1907,6 +1917,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               )}
               {settingsEditorMode === 'markdown' && markdownViewMode === 'split' && (
                 <SplitEditor
+                  key={`split-${note.id}`}
                   content={note.body}
                   onChange={(md) => handleBodyChange(md)}
                   isRtl={isRtl}

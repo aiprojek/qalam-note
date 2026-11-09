@@ -619,28 +619,47 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="font-semibold">{isId ? 'URL Web App GAS:' : 'GAS Web App URL:'}</label>
-                <button
-                  type="button"
-                  onClick={onOpenGASHelp}
-                  className="text-[11px] text-blue-400 hover:underline flex items-center gap-0.5"
-                >
-                  <HelpCircle className="w-3 h-3" />
-                  <span>{isId ? 'Panduan Setup' : 'Setup Guide'}</span>
-                </button>
-              </div>
-              <input
-                type="url"
-                value={gasUrl}
-                onChange={(e) => setGasUrl(e.target.value)}
-                placeholder="https://script.google.com/macros/s/.../exec"
-                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono focus:outline-hidden ${
-                  isLight
-                    ? 'bg-white border-slate-300 text-slate-900'
-                    : 'bg-[#141b27] border-slate-700 text-slate-100'
-                }`}
-              />
+              {(() => {
+                const isCloudflare = gasUrl.includes('workers.dev');
+                const isCustom = !gasUrl.includes('script.google.com') && !isCloudflare && gasUrl.trim() !== '';
+                const providerName = isCloudflare ? 'Cloudflare Worker' : isCustom ? 'Server Mandiri' : 'Google Sheets';
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <label className="font-semibold">{isId ? 'URL Endpoint Publikasi:' : 'Publishing Endpoint URL:'}</label>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                          {providerName}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onOpenGASHelp}
+                        className="text-[11px] text-blue-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <HelpCircle className="w-3 h-3" />
+                        <span>{isId ? 'Panduan Setup & Skrip' : 'Setup Guide & Scripts'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type="url"
+                      value={gasUrl}
+                      onChange={(e) => setGasUrl(e.target.value)}
+                      placeholder={
+                        isId
+                          ? 'URL Google Apps Script, Cloudflare Worker, atau Server (Kosongkan untuk pratinjau)'
+                          : 'GAS URL, Cloudflare Worker, or Custom Server (Leave blank for preview)'
+                      }
+                      className={`w-full px-3 py-2 rounded-xl border text-xs font-mono focus:outline-hidden ${
+                        isLight
+                          ? 'bg-white border-slate-300 text-slate-900'
+                          : 'bg-[#141b27] border-slate-700 text-slate-100'
+                      }`}
+                    />
+                  </>
+                );
+              })()}
             </div>
           </div>
 

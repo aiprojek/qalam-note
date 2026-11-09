@@ -35,11 +35,16 @@ import {
   Send,
   Github,
   Keyboard,
+  Zap,
+  FileSpreadsheet,
 } from 'lucide-react';
-import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage, SyncConfig } from '../../types';
+import type { AppSettings, DateFormatOption, TimeFormatOption, AppLanguage, SyncConfig, PublishProviderType } from '../../types';
+import { PUBLISH_PROVIDERS } from '../../services/publishBackends';
 import {
   testWebDAVConnection,
   testDropboxConnection,
+  testCloudflareSyncConnection,
+  testCustomSyncConnection,
   buildDropboxAuthorizeUrl,
   generateDropboxCodeVerifier,
   generateDropboxCodeChallenge,
@@ -50,7 +55,7 @@ import {
 import { setupMasterPassword, unlockVault, lockVault } from '../../services/crypto';
 import { getT, formatDate, formatTime, formatDateTime } from '../../utils/i18n';
 import { QalamIcon } from '../icons/QalamIcon';
-import { updatePresetNotesLanguage, db } from '../../db';
+import { updatePresetNotesLanguage, restoreAllPresetNotes, db } from '../../db';
 import { migrateNoteInlineAttachments } from '../../utils/attachments';
 import { PWAInstallButton } from '../PWAInstallButton';
 import {
@@ -78,6 +83,7 @@ interface SettingsModalProps {
   onSync?: (customSyncConfig?: SyncConfig) => Promise<void>;
   isSyncing?: boolean;
   syncMessage?: string;
+  onRefreshData?: () => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -92,6 +98,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSync,
   isSyncing = false,
   syncMessage = '',
+  onRefreshData,
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formSettings, setFormSettings] = useState<AppSettings>(JSON.parse(JSON.stringify(settings)));
@@ -105,6 +112,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [testingDropbox, setTestingDropbox] = useState(false);
   const [dropboxTestResult, setDropboxTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [testingCloudflare, setTestingCloudflare] = useState(false);
+  const [cloudflareTestResult, setCloudflareTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [testingCustom, setTestingCustom] = useState(false);
+  const [customTestResult, setCustomTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [isRestoringPrenotes, setIsRestoringPrenotes] = useState(false);
+  const [restorePrenoteMsg, setRestorePrenoteMsg] = useState<string | null>(null);
 
   // Dropbox OAuth states
   const [dropboxAuthCode, setDropboxAuthCode] = useState('');
@@ -193,6 +209,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const result = await testDropboxConnection(formSettings.sync.dropbox.access_token);
     setDropboxTestResult(result);
     setTestingDropbox(false);
+  };
+
+  const handleTestCloudflare = async () => {
+    setTestingCloudflare(true);
+    setCloudflareTestResult(null);
+    const result = await testCloudflareSyncConnection(
+      formSettings.sync.cloudflare?.url || '',
+      formSettings.sync.cloudflare?.token || ''
+    );
+    setCloudflareTestResult(result);
+    setTestingCloudflare(false);
+  };
+
+  const handleTestCustom = async () => {
+    setTestingCustom(true);
+    setCustomTestResult(null);
+    const result = await testCustomSyncConnection(
+      formSettings.sync.custom?.url || '',
+      formSettings.sync.custom?.token || ''
+    );
+    setCustomTestResult(result);
+    setTestingCustom(false);
+  };
+
+  const handleRestorePrenotes = async () => {
+    setIsRestoringPrenotes(true);
+    setRestorePrenoteMsg(null);
+    try {
+      const count = await restoreAllPresetNotes(formSettings.language);
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+      setRestorePrenoteMsg(
+        formSettings.language === 'id'
+          ? `Berhasil memperbarui & memulihkan ${count} catatan panduan resmi ke folder Selamat Datang!`
+          : `Successfully restored and updated ${count} official guide notes into the Welcome notebook!`
+      );
+      setTimeout(() => setRestorePrenoteMsg(null), 5000);
+    } catch (err: any) {
+      setRestorePrenoteMsg(err.message || 'Gagal memulihkan catatan panduan.');
+    } finally {
+      setIsRestoringPrenotes(false);
+    }
   };
 
   const handleOpenDropboxAuth = async () => {
@@ -298,8 +357,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setPairingMessage({
           text:
             formSettings.language === 'id'
-              ? 'Pilih dan atur WebDAV atau Dropbox terlebih dahulu sebelum membuat kode pairing.'
-              : 'Select and configure WebDAV or Dropbox above first before generating a pairing code.',
+              ? 'Pilih dan atur target sinkronisasi terlebih dahulu sebelum membuat kode pairing.'
+              : 'Select and configure a sync target above first before generating a pairing code.',
           isError: true,
         });
         return;
@@ -320,6 +379,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             formSettings.language === 'id'
               ? 'Hubungkan akun Dropbox terlebih dahulu sebelum membuat kode pairing.'
               : 'Connect Dropbox account first before generating a pairing code.',
+          isError: true,
+        });
+        return;
+      }
+      if (formSettings.sync.target === 'cloudflare' && !formSettings.sync.cloudflare?.url) {
+        setPairingMessage({
+          text:
+            formSettings.language === 'id'
+              ? 'Masukkan URL Cloudflare Worker terlebih dahulu.'
+              : 'Please enter Cloudflare Worker URL first.',
+          isError: true,
+        });
+        return;
+      }
+      if (formSettings.sync.target === 'custom' && !formSettings.sync.custom?.url) {
+        setPairingMessage({
+          text:
+            formSettings.language === 'id'
+              ? 'Masukkan URL Server Mandiri terlebih dahulu.'
+              : 'Please enter Custom Server URL first.',
           isError: true,
         });
         return;
@@ -437,6 +516,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           onSync(finalDropboxConfig);
         }, 300);
       }
+    } else if (parsedConfig.target === 'cloudflare') {
+      setTestingCloudflare(true);
+      const res = await testCloudflareSyncConnection(
+        parsedConfig.cloudflare?.url || '',
+        parsedConfig.cloudflare?.token || ''
+      );
+      setCloudflareTestResult(res);
+      setTestingCloudflare(false);
+      setPairingMessage({
+        text:
+          formSettings.language === 'id'
+            ? `Berhasil dipasangkan! Terhubung ke Cloudflare Worker KV Sync (${parsedConfig.cloudflare?.url}). Memulai sinkronisasi...`
+            : `Successfully paired! Connected to Cloudflare Worker KV Sync (${parsedConfig.cloudflare?.url}). Syncing data...`,
+      });
+      if (onSync) {
+        setTimeout(() => {
+          onSync(parsedConfig);
+        }, 300);
+      }
+    } else if (parsedConfig.target === 'custom') {
+      setTestingCustom(true);
+      const res = await testCustomSyncConnection(
+        parsedConfig.custom?.url || '',
+        parsedConfig.custom?.token || ''
+      );
+      setCustomTestResult(res);
+      setTestingCustom(false);
+      setPairingMessage({
+        text:
+          formSettings.language === 'id'
+            ? `Berhasil dipasangkan! Terhubung ke Server Mandiri Sync (${parsedConfig.custom?.url}). Memulai sinkronisasi...`
+            : `Successfully paired! Connected to Custom Server Sync (${parsedConfig.custom?.url}). Syncing data...`,
+      });
+      if (onSync) {
+        setTimeout(() => {
+          onSync(parsedConfig);
+        }, 300);
+      }
     }
   };
 
@@ -539,17 +656,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-0 sm:p-4 select-none">
-      <div className="w-full h-full sm:h-[88vh] sm:max-w-3xl sm:rounded-2xl bg-[#202b3e] border-0 sm:border border-slate-700 shadow-2xl text-slate-100 overflow-hidden flex flex-col">
+      <div className={`w-full h-full sm:h-[88vh] sm:max-w-3xl sm:rounded-2xl border-0 sm:border shadow-2xl overflow-hidden flex flex-col transition-colors ${
+        isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-[#202b3e] border-slate-700 text-slate-100'
+      }`}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-700/80 bg-[#1a2333] shrink-0">
+        <div className={`flex items-center justify-between px-4 sm:px-5 py-3 border-b shrink-0 ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-900' : 'bg-[#1a2333] border-slate-700/80 text-white'
+        }`}>
           <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-blue-400" />
+            <Settings className="w-5 h-5 text-blue-500" />
             <h3 className="text-sm font-semibold">{t.settings_title}</h3>
           </div>
           <button
             onClick={onClose}
             aria-label={t.cancel}
-            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 active:scale-95 transition"
+            className={`p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg active:scale-95 transition ${
+              isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70' : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -558,56 +681,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Body Layout: Responsive Navigation Tabs (Horizontal on mobile, Vertical on desktop) + Full-width Content */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
           {/* Navigation Tabs */}
-          <div className="flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto md:w-56 shrink-0 bg-[#17202e] border-b md:border-b-0 md:border-r border-slate-800/90 p-1.5 md:p-2.5 gap-1 custom-scrollbar">
+          <div className={`flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto md:w-56 shrink-0 border-b md:border-b-0 md:border-r p-1.5 md:p-2.5 gap-1 custom-scrollbar ${
+            isLight ? 'bg-slate-50/80 border-slate-200' : 'bg-[#17202e] border-slate-800/90'
+          }`}>
             <button
+              type="button"
               onClick={() => setActiveTab('general')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'general' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'general'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <Settings className="w-4 h-4 shrink-0" />
               <span>{t.tab_general}</span>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('sync')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'sync' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'sync'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <RefreshCw className="w-4 h-4 shrink-0" />
               <span>{t.tab_sync}</span>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('encryption')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'encryption' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'encryption'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <Lock className="w-4 h-4 shrink-0" />
               <span>{t.tab_encryption}</span>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('gas')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'gas' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'gas'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <Globe className="w-4 h-4 shrink-0" />
               <span>{t.tab_gas}</span>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('backup')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'backup' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'backup'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <FolderSync className="w-4 h-4 shrink-0" />
               <span>{t.tab_backup}</span>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('about')}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs font-medium active:scale-95 ${
-                activeTab === 'about' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800/80'
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-left transition whitespace-nowrap shrink-0 text-xs active:scale-95 cursor-pointer ${
+                activeTab === 'about'
+                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                  : isLight
+                  ? 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 font-medium'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium'
               }`}
             >
               <Info className="w-4 h-4 shrink-0" />
@@ -642,11 +797,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       ? 'Pilih bahasa tampilan untuk aplikasi Qalam Note.'
                       : 'Choose Qalam Note application display language.'}
                   </span>
-                  <div className="mt-2">
+                  <div className="mt-2.5 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={async () => {
                         await updatePresetNotesLanguage(formSettings.language);
+                        if (onRefreshData) {
+                          await onRefreshData();
+                        }
                         onSaveSettings(formSettings);
                       }}
                       className="text-[11px] px-3 py-1.5 min-h-[36px] bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 rounded-lg border border-slate-700 transition flex items-center gap-1.5 active:scale-95"
@@ -658,7 +816,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           : 'Update Preset Notes to This Language'}
                       </span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRestorePrenotes}
+                      disabled={isRestoringPrenotes}
+                      className="text-[11px] px-3 py-1.5 min-h-[36px] bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-lg border border-blue-500/40 transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                      title={t.restore_prenotes_desc}
+                    >
+                      <BookOpen className={`w-3.5 h-3.5 ${isRestoringPrenotes ? 'animate-spin' : ''}`} />
+                      <span>{isRestoringPrenotes ? (formSettings.language === 'id' ? 'Memulihkan...' : 'Restoring...') : t.restore_prenotes_btn}</span>
+                    </button>
                   </div>
+                  {restorePrenoteMsg && (
+                    <div className="mt-2 text-xs p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{restorePrenoteMsg}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Format Tanggal (Date Format) */}
@@ -776,6 +951,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <option value="disabled">{t.sync_disabled}</option>
                     <option value="webdav">{t.sync_webdav}</option>
                     <option value="dropbox">{t.sync_dropbox}</option>
+                    <option value="cloudflare">{t.sync_cloudflare}</option>
+                    <option value="custom">{t.sync_custom}</option>
                   </select>
                 </div>
 
@@ -1342,6 +1519,212 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
+                {/* Cloudflare Worker Sync Settings */}
+                {formSettings.sync.target === 'cloudflare' && (
+                  <div className={`rounded-xl border p-4 sm:p-5 space-y-3.5 transition-colors ${
+                    isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-900/60 border-slate-800 text-slate-200'
+                  }`}>
+                    <div className="flex items-center gap-2 text-amber-500 font-bold text-xs sm:text-sm border-b border-slate-700/30 pb-2">
+                      <Zap className="w-4 h-4" />
+                      <span>{t.cloudflare_sync_config}</span>
+                    </div>
+
+                    <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      {t.cloudflare_sync_hint}
+                    </p>
+
+                    <div>
+                      <label className={`block font-medium text-xs mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        {t.cloudflare_sync_url_label}
+                      </label>
+                      <input
+                        type="url"
+                        value={formSettings.sync.cloudflare?.url || ''}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            sync: {
+                              ...prev.sync,
+                              cloudflare: {
+                                ...(prev.sync.cloudflare || { url: '', token: '' }),
+                                url: e.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        placeholder="https://qalam-sync.username.workers.dev"
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none ${
+                          isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-blue-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block font-medium text-xs mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        {t.cloudflare_sync_token_label}
+                      </label>
+                      <input
+                        type="password"
+                        value={formSettings.sync.cloudflare?.token || ''}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            sync: {
+                              ...prev.sync,
+                              cloudflare: {
+                                ...(prev.sync.cloudflare || { url: '', token: '' }),
+                                token: e.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        placeholder={formSettings.language === 'id' ? 'Opsional: Token rahasia SYNC_TOKEN' : 'Optional: Secret SYNC_TOKEN'}
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none ${
+                          isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-blue-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="pt-1 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={handleTestCloudflare}
+                        disabled={testingCloudflare}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                          isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                        }`}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${testingCloudflare ? 'animate-spin' : ''}`} />
+                        <span>{testingCloudflare ? t.testing : t.test_cloudflare_sync}</span>
+                      </button>
+                    </div>
+
+                    {cloudflareTestResult && (
+                      <div
+                        className={`p-3 rounded-lg text-xs border flex items-center gap-2 ${
+                          cloudflareTestResult.success
+                            ? isLight
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                              : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                            : isLight
+                            ? 'bg-amber-50 border-amber-300 text-amber-900'
+                            : 'bg-amber-950/40 border-amber-800 text-amber-300'
+                        }`}
+                      >
+                        {cloudflareTestResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                        )}
+                        <span>{cloudflareTestResult.message}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Custom Self-Hosted Sync Settings */}
+                {formSettings.sync.target === 'custom' && (
+                  <div className={`rounded-xl border p-4 sm:p-5 space-y-3.5 transition-colors ${
+                    isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-900/60 border-slate-800 text-slate-200'
+                  }`}>
+                    <div className="flex items-center gap-2 text-purple-500 font-bold text-xs sm:text-sm border-b border-slate-700/30 pb-2">
+                      <Server className="w-4 h-4" />
+                      <span>{t.custom_sync_config}</span>
+                    </div>
+
+                    <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      {t.custom_sync_hint}
+                    </p>
+
+                    <div>
+                      <label className={`block font-medium text-xs mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        {t.custom_sync_url_label}
+                      </label>
+                      <input
+                        type="url"
+                        value={formSettings.sync.custom?.url || ''}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            sync: {
+                              ...prev.sync,
+                              custom: {
+                                ...(prev.sync.custom || { url: '', token: '' }),
+                                url: e.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        placeholder="https://api.domain-anda.com"
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none ${
+                          isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-blue-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block font-medium text-xs mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        {t.custom_sync_token_label}
+                      </label>
+                      <input
+                        type="password"
+                        value={formSettings.sync.custom?.token || ''}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            sync: {
+                              ...prev.sync,
+                              custom: {
+                                ...(prev.sync.custom || { url: '', token: '' }),
+                                token: e.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        placeholder={formSettings.language === 'id' ? 'Opsional: Token rahasia SYNC_TOKEN' : 'Optional: Secret SYNC_TOKEN'}
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none ${
+                          isLight ? 'bg-white text-slate-800 border-slate-300 focus:border-blue-500' : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="pt-1 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={handleTestCustom}
+                        disabled={testingCustom}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50 ${
+                          isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                        }`}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${testingCustom ? 'animate-spin' : ''}`} />
+                        <span>{testingCustom ? t.testing : t.test_custom_sync}</span>
+                      </button>
+                    </div>
+
+                    {customTestResult && (
+                      <div
+                        className={`p-3 rounded-lg text-xs border flex items-center gap-2 ${
+                          customTestResult.success
+                            ? isLight
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                              : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                            : isLight
+                            ? 'bg-amber-50 border-amber-300 text-amber-900'
+                            : 'bg-amber-950/40 border-amber-800 text-amber-300'
+                        }`}
+                      >
+                        {customTestResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                        )}
+                        <span>{customTestResult.message}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* CROSS-DEVICE PAIRING CODE (KODE PAIRING ANTAR-PERANGKAT) */}
                 <div className={`rounded-xl border p-4 sm:p-5 space-y-4 transition-colors ${
                   isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-900/60 border-slate-800 text-slate-200'
@@ -1352,7 +1735,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span>{t.pairing_title}</span>
                     </div>
                     <span className={`text-xs font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                      WebDAV · Dropbox
+                      WebDAV · Dropbox · Cloudflare · Self-Host
                     </span>
                   </div>
 
@@ -1709,62 +2092,212 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* GAS PUBLISHING TAB */}
-            {activeTab === 'gas' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
-                  <h4 className="text-sm font-semibold text-white">
-                    {t.gas_section_title}
-                  </h4>
-                  <button
-                    onClick={onOpenGASHelp}
-                    className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1"
-                  >
-                    <FileCode className="w-3.5 h-3.5" />
-                    <span>{t.gas_view_guide}</span>
-                  </button>
-                </div>
+            {/* WEB PUBLISHING BACKENDS TAB */}
+            {activeTab === 'gas' && (() => {
+              const currentProvider: PublishProviderType =
+                formSettings.gas.provider ||
+                (formSettings.gas.web_app_url.includes('workers.dev')
+                  ? 'cloudflare'
+                  : formSettings.gas.web_app_url.startsWith('ghp_')
+                  ? 'github_gist'
+                  : !formSettings.gas.web_app_url.includes('google') && formSettings.gas.web_app_url.trim()
+                  ? 'custom'
+                  : 'gas');
 
-                <p className="text-slate-400 text-xs leading-relaxed">
-                  {t.gas_overview_desc}
-                </p>
+              const handleSelectProvider = (provId: PublishProviderType) => {
+                setFormSettings((prev) => {
+                  const currentGas = prev.gas;
+                  // Store previous URL in its specific slot
+                  const updatedGas = { ...currentGas };
+                  if (currentProvider === 'gas') updatedGas.gas_url = currentGas.web_app_url;
+                  if (currentProvider === 'cloudflare') updatedGas.cloudflare_url = currentGas.web_app_url;
+                  if (currentProvider === 'custom') updatedGas.custom_url = currentGas.web_app_url;
+                  if (currentProvider === 'github_gist') updatedGas.github_token = currentGas.web_app_url;
 
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">{t.gas_webapp_url_label}</label>
-                  <input
-                    type="url"
-                    value={formSettings.gas.web_app_url}
-                    onChange={(e) =>
-                      setFormSettings((prev) => ({
-                        ...prev,
-                        gas: { ...prev.gas, web_app_url: e.target.value },
-                      }))
-                    }
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    className="w-full bg-slate-900 text-xs text-slate-200 px-3 py-2 rounded border border-slate-700 font-mono"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    {t.gas_webapp_url_hint}
-                  </span>
-                </div>
+                  // Restore target URL or fallback
+                  let targetUrl = '';
+                  if (provId === 'gas') targetUrl = updatedGas.gas_url || '';
+                  else if (provId === 'cloudflare') targetUrl = updatedGas.cloudflare_url || '';
+                  else if (provId === 'custom') targetUrl = updatedGas.custom_url || '';
+                  else if (provId === 'github_gist') targetUrl = updatedGas.github_token || '';
 
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">{t.gas_author_label}</label>
-                  <input
-                    type="text"
-                    value={formSettings.gas.author_name}
-                    onChange={(e) =>
-                      setFormSettings((prev) => ({
-                        ...prev,
-                        gas: { ...prev.gas, author_name: e.target.value },
-                      }))
-                    }
-                    placeholder={t.gas_author_placeholder}
-                    className="w-full max-w-sm bg-slate-900 text-xs text-slate-200 px-3 py-1.5 rounded border border-slate-700"
-                  />
+                  return {
+                    ...prev,
+                    gas: {
+                      ...updatedGas,
+                      provider: provId,
+                      web_app_url: targetUrl,
+                    },
+                  };
+                });
+              };
+
+              const activeMeta = PUBLISH_PROVIDERS.find((p) => p.id === currentProvider) || PUBLISH_PROVIDERS[0];
+
+              return (
+                <div className="space-y-4">
+                  <div className={`flex items-center justify-between border-b pb-2 flex-wrap gap-2 ${
+                    isLight ? 'border-slate-200' : 'border-slate-700/80'
+                  }`}>
+                    <h4 className={`text-sm font-semibold ${isLight ? '!text-slate-900' : '!text-white'}`}>
+                      {t.gas_section_title}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={onOpenGASHelp}
+                      className={`text-xs flex items-center gap-1.5 px-2.5 py-1 rounded transition cursor-pointer active:scale-95 ${
+                        isLight
+                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-medium'
+                          : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 font-medium'
+                      }`}
+                    >
+                      <FileCode className="w-3.5 h-3.5" />
+                      <span>{t.gas_view_guide}</span>
+                    </button>
+                  </div>
+
+                  <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    {t.gas_overview_desc}
+                  </p>
+
+                  {/* Provider Selector Grid */}
+                  <div>
+                    <label className={`block font-medium mb-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                      {t.publish_provider_label}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {PUBLISH_PROVIDERS.map((prov) => {
+                        const isSelected = currentProvider === prov.id;
+                        return (
+                          <button
+                            key={prov.id}
+                            type="button"
+                            onClick={() => handleSelectProvider(prov.id)}
+                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer active:scale-98 ${
+                              isSelected
+                                ? isLight
+                                  ? 'bg-blue-50/90 border-blue-600 ring-2 ring-blue-500/30 text-blue-950 shadow-xs'
+                                  : 'bg-blue-600/20 border-blue-500 ring-1 ring-blue-400 text-white shadow-xs'
+                                : isLight
+                                ? 'bg-white border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {prov.id === 'gas' && (
+                                <FileSpreadsheet className={`w-4 h-4 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+                              )}
+                              {prov.id === 'cloudflare' && (
+                                <Zap className={`w-4 h-4 shrink-0 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
+                              )}
+                              {prov.id === 'custom' && (
+                                <Server className={`w-4 h-4 shrink-0 ${isLight ? 'text-purple-600' : 'text-purple-400'}`} />
+                              )}
+                              {prov.id === 'github_gist' && (
+                                <Github className={`w-4 h-4 shrink-0 ${isLight ? 'text-slate-700' : 'text-slate-400'}`} />
+                              )}
+                              <span className={`text-xs truncate ${
+                                isSelected
+                                  ? isLight
+                                    ? '!text-blue-950 font-bold'
+                                    : '!text-white font-bold'
+                                  : isLight
+                                  ? '!text-slate-900 font-semibold'
+                                  : '!text-slate-200 font-medium'
+                              }`}>
+                                {prov.name}
+                              </span>
+                            </div>
+                            <p className={`text-[11px] leading-normal line-clamp-2 ${
+                              isSelected
+                                ? isLight
+                                  ? '!text-slate-700 font-normal'
+                                  : '!text-slate-200 font-normal'
+                                : isLight
+                                ? '!text-slate-600 font-normal'
+                                : '!text-slate-400 font-normal'
+                            }`}>
+                              {language === 'id' ? prov.description_id : prov.description_en}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Active Endpoint / Token Input */}
+                  <div className={`p-3.5 rounded-xl border space-y-3 transition-colors ${
+                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                        <label className={`font-medium text-xs flex items-center gap-1.5 ${
+                          isLight ? 'text-slate-800' : 'text-slate-200'
+                        }`}>
+                          <span>
+                            {currentProvider === 'gas'
+                              ? 'URL Web App Google Apps Script:'
+                              : currentProvider === 'cloudflare'
+                              ? 'URL Cloudflare Worker Endpoint:'
+                              : currentProvider === 'github_gist'
+                              ? 'GitHub Personal Access Token (PAT):'
+                              : 'URL Endpoint Server Mandiri:'}
+                          </span>
+                        </label>
+                        <span className={`text-[10px] font-mono font-semibold ${
+                          isLight ? 'text-emerald-700' : 'text-emerald-400'
+                        }`}>
+                          {activeMeta.cost}
+                        </span>
+                      </div>
+                      <input
+                        type={currentProvider === 'github_gist' ? 'password' : 'url'}
+                        value={formSettings.gas.web_app_url}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            gas: { ...prev.gas, web_app_url: e.target.value },
+                          }))
+                        }
+                        placeholder={activeMeta.default_placeholder}
+                        className={`w-full text-xs font-mono px-3 py-2 rounded-lg border outline-none transition ${
+                          isLight
+                            ? 'bg-white text-slate-900 border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                            : 'bg-slate-950 text-slate-100 border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                        }`}
+                      />
+                      <span className={`text-[10px] mt-1 block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {currentProvider === 'github_gist'
+                          ? 'Token membutuhkan izin lingkup "gist" untuk membuat Secret Gist otomatis.'
+                          : t.gas_webapp_url_hint}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className={`block font-medium mb-1 text-xs ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
+                        {t.gas_author_label}
+                      </label>
+                      <input
+                        type="text"
+                        value={formSettings.gas.author_name}
+                        onChange={(e) =>
+                          setFormSettings((prev) => ({
+                            ...prev,
+                            gas: { ...prev.gas, author_name: e.target.value },
+                          }))
+                        }
+                        placeholder={t.gas_author_placeholder}
+                        className={`w-full max-w-sm text-xs px-3 py-1.5 rounded-lg border outline-none transition ${
+                          isLight
+                            ? 'bg-white text-slate-900 border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                            : 'bg-slate-950 text-slate-100 border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* IMPORT & EXPORT TAB */}
             {activeTab === 'backup' && (
@@ -2231,10 +2764,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2.5 px-4 sm:px-5 py-3 border-t border-slate-700/80 bg-[#1a2333] shrink-0">
+        <div className={`flex items-center justify-end gap-2.5 px-4 sm:px-5 py-3 border-t shrink-0 ${
+          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#1a2333] border-slate-700/80'
+        }`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 min-h-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition active:scale-95"
+            className={`px-4 py-2 min-h-[44px] rounded-lg text-xs font-medium transition active:scale-95 ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+            }`}
           >
             {t.cancel}
           </button>

@@ -16,6 +16,7 @@ import {
   Edit2,
   Trash,
   MoreHorizontal,
+  MoreVertical,
   CornerDownRight,
   ArrowUp,
   FolderTree,
@@ -34,6 +35,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { getT } from '../utils/i18n';
 import { QalamIcon } from './icons/QalamIcon';
 import { FolderContextMenu } from './ContextMenu/FolderContextMenu';
+import { NoteContextMenu } from './ContextMenu/NoteContextMenu';
 
 interface SidebarProps {
   folders: Folder[];
@@ -42,6 +44,16 @@ interface SidebarProps {
   selectedNoteId?: string | null;
   onSelectNote?: (noteId: string) => void;
   onDeleteNote?: (noteId: string) => void;
+  onToggleStar?: (id: string, current: boolean) => void;
+  onTogglePin?: (id: string, current: boolean) => void;
+  onToggleTodo?: (id: string, completed: number) => void;
+  onDuplicateNote?: (note: Note) => void;
+  onRestoreNote?: (id: string) => void;
+  onPermanentDeleteNote?: (id: string) => void;
+  onOpenInSplitScreen?: (id: string) => void;
+  onOpenExportNoteModal?: (note: Note) => void;
+  onOpenPublishModal?: (note: Note) => void;
+  onCopyNoteMarkdown?: (note: Note) => void;
   noteCountsByFolder: Record<string, number>;
   noteCountsByTag: Record<string, number>;
   totalNotesCount: number;
@@ -110,6 +122,7 @@ interface FolderTreeItemProps {
   draggedNoteId: string | null;
   setDraggedNoteId: (id: string | null) => void;
   onContextMenuFolder?: (e: React.MouseEvent, folder: Folder) => void;
+  onContextMenuNote?: (e: React.MouseEvent, note: Note) => void;
   t: any;
   language: AppLanguage;
 }
@@ -144,6 +157,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
   draggedNoteId,
   setDraggedNoteId,
   onContextMenuFolder,
+  onContextMenuNote,
   t,
   language,
 }) => {
@@ -461,6 +475,7 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
               draggedNoteId={draggedNoteId}
               setDraggedNoteId={setDraggedNoteId}
               onContextMenuFolder={onContextMenuFolder}
+              onContextMenuNote={onContextMenuNote}
               t={t}
               language={language}
             />
@@ -516,11 +531,23 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
                     onSelectNote(note.id);
                   }
                 }}
+                onContextMenu={(e) => {
+                  if (e.shiftKey) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelectFolder(folder.id);
+                  if (onSelectNote) {
+                    onSelectNote(note.id);
+                  }
+                  if (onContextMenuNote) {
+                    onContextMenuNote(e, note);
+                  }
+                }}
                 style={{ paddingLeft: `${Math.max(6, 6 + (level + 1) * 10)}px` }}
                 title={
                   language === 'id'
-                    ? `${note.title || 'Catatan tanpa judul'} (Tarik/drag untuk memindahkan ke folder lain)`
-                    : `${note.title || 'Untitled note'} (Drag to move to another notebook)`
+                    ? `${note.title || 'Catatan tanpa judul'} (Klik kanan / titik tiga untuk opsi, tarik/drag untuk memindahkan)`
+                    : `${note.title || 'Untitled note'} (Right-click / 3-dots for options, drag to move)`
                 }
                 className={`group flex items-center justify-between pr-2 py-1 rounded transition select-none cursor-pointer text-xs ${
                   isNoteDragged ? 'opacity-40 bg-slate-900/60' : ''
@@ -549,19 +576,48 @@ const FolderTreeItem: React.FC<FolderTreeItemProps> = ({
                   </span>
                 </div>
 
-                {onDeleteNote && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteNote(note.id);
-                    }}
-                    title={language === 'id' ? 'Pindahkan ke Sampah' : 'Move to Trash'}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-red-400 rounded hover:bg-slate-700/60 transition shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
+                {/* Note Action Buttons: Kebab menu for context menu & Trash */}
+                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                  {onContextMenuNote && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectFolder(folder.id);
+                        if (onSelectNote) {
+                          onSelectNote(note.id);
+                        }
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        onContextMenuNote(
+                          {
+                            clientX: rect.left,
+                            clientY: rect.bottom + 4,
+                            preventDefault: () => {},
+                            stopPropagation: () => {},
+                          } as any,
+                          note
+                        );
+                      }}
+                      title={language === 'id' ? 'Opsi Catatan' : 'Note options'}
+                      className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-700/60 transition"
+                    >
+                      <MoreVertical className="w-3 h-3" />
+                    </button>
+                  )}
+                  {onDeleteNote && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteNote(note.id);
+                      }}
+                      title={language === 'id' ? 'Pindahkan ke Sampah' : 'Move to Trash'}
+                      className="p-0.5 text-slate-500 hover:text-red-400 rounded hover:bg-slate-700/60 transition"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -588,6 +644,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedNoteId = null,
   onSelectNote,
   onDeleteNote,
+  onToggleStar,
+  onTogglePin,
+  onToggleTodo,
+  onDuplicateNote,
+  onRestoreNote,
+  onPermanentDeleteNote,
+  onOpenInSplitScreen,
+  onOpenExportNoteModal,
+  onOpenPublishModal,
+  onCopyNoteMarkdown,
   noteCountsByFolder,
   noteCountsByTag,
   totalNotesCount,
@@ -638,6 +704,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     y: 0,
     folder: null,
   });
+  const [contextMenuNote, setContextMenuNote] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    note: Note | null;
+  }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    note: null,
+  });
   const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [isRootDragOver, setIsRootDragOver] = useState(false);
@@ -645,11 +722,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleContextMenuFolder = (e: React.MouseEvent, folder: Folder) => {
     setActiveFolderMenuId(null);
+    setContextMenuNote((prev) => ({ ...prev, isOpen: false, note: null }));
     setContextMenuFolder({
       isOpen: true,
       x: e.clientX,
       y: e.clientY,
       folder,
+    });
+  };
+
+  const handleContextMenuNote = (e: React.MouseEvent, note: Note) => {
+    setActiveFolderMenuId(null);
+    setContextMenuFolder((prev) => ({ ...prev, isOpen: false, folder: null }));
+    setContextMenuNote({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      note,
     });
   };
 
@@ -886,6 +975,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   draggedNoteId={draggedNoteId}
                   setDraggedNoteId={setDraggedNoteId}
                   onContextMenuFolder={handleContextMenuFolder}
+                  onContextMenuNote={handleContextMenuNote}
                   t={t}
                   language={language}
                 />
@@ -953,26 +1043,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Trash */}
         <div className="pt-2 border-t border-slate-800/80">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-1 w-full min-w-0">
             <button
               onClick={() => onSelectSpecialView('trash')}
-              className={`flex-1 flex items-center justify-between px-2 py-1 rounded transition ${
+              title={language === 'id' ? 'Keranjang Sampah' : 'Trash'}
+              className={`flex-1 min-w-0 flex items-center justify-between px-2 py-1 rounded transition whitespace-nowrap overflow-hidden ${
                 selectedSpecialView === 'trash'
                   ? 'bg-red-950/40 text-red-300 font-medium border-l-2 border-red-500'
                   : 'text-slate-400 hover:bg-slate-800/60'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                <span>{t.trash}</span>
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
+                <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                <span className="truncate text-xs font-medium">{t.trash}</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">{trashCount}</span>
+              <span className="text-[10px] text-slate-500 font-mono shrink-0 ml-1.5">{trashCount}</span>
             </button>
             {trashCount > 0 && (
               <button
                 onClick={onEmptyTrash}
-                title={t.empty_trash}
-                className="p-1 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded transition ml-1"
+                title={language === 'id' ? 'Kosongkan Keranjang Sampah' : 'Empty Trash'}
+                className="px-1.5 py-0.5 text-[10px] font-medium text-red-400 hover:text-red-300 hover:bg-red-950/50 rounded transition shrink-0 whitespace-nowrap border border-red-900/40 active:scale-95"
               >
                 {t.empty_trash}
               </button>
@@ -1023,6 +1114,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onMoveToRoot={(folderId) => onMoveFolder(folderId, '')}
           onOpenExportFolderModal={onOpenExportFolderModal}
           onOpenPublishWiki={onOpenPublishWiki}
+          language={language}
+          theme={theme}
+        />
+      )}
+
+      {/* Note Contextual Right-Click & Kebab Menu for notes under folders */}
+      {contextMenuNote.isOpen && contextMenuNote.note && (
+        <NoteContextMenu
+          note={contextMenuNote.note}
+          isOpen={contextMenuNote.isOpen}
+          position={{ x: contextMenuNote.x, y: contextMenuNote.y }}
+          onClose={() => setContextMenuNote((prev) => ({ ...prev, isOpen: false, note: null }))}
+          onSelectNote={(noteId) => {
+            if (onSelectNote) onSelectNote(noteId);
+          }}
+          onToggleStar={onToggleStar || (() => {})}
+          onTogglePin={onTogglePin || (() => {})}
+          onToggleTodo={onToggleTodo}
+          onDuplicateNote={onDuplicateNote || (() => {})}
+          onDeleteNote={(noteId) => {
+            if (onDeleteNote) onDeleteNote(noteId);
+          }}
+          onRestoreNote={onRestoreNote}
+          onPermanentDeleteNote={onPermanentDeleteNote}
+          onOpenInSplitScreen={onOpenInSplitScreen}
+          onOpenExportNoteModal={onOpenExportNoteModal}
+          onOpenPublishModal={onOpenPublishModal}
+          onCopyNoteMarkdown={onCopyNoteMarkdown}
+          onMoveNoteToFolder={onMoveNoteToFolder}
+          folders={folders}
+          isTrashView={false}
           language={language}
           theme={theme}
         />

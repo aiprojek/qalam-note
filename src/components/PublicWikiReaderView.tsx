@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,6 +29,7 @@ import {
   Clock,
   Columns3,
   Hash,
+  CopySlash,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import type { WikiBundle, WikiFolderItem, WikiNoteItem } from '../types/wiki';
@@ -81,6 +82,43 @@ export const PublicWikiReaderView: React.FC<PublicWikiReaderViewProps> = ({
   // Table of Contents & Content container
   const [isTocOpen, setIsTocOpen] = useState(true);
   const contentContainerRef = useRef<HTMLDivElement>(null);
+
+  // Anti Copy-Paste Protection State
+  const isCopyDisabled = Boolean(
+    activeBundle?.disable_copy ||
+    activeBundle?.notes?.some(
+      (n) => n.html?.includes('<!--QALAM_DISABLE_COPY-->') || n.html?.includes('data-disable-copy="1"')
+    )
+  );
+
+  const [copyBlockedNotice, setCopyBlockedNotice] = useState(false);
+  const copyNoticeTimeoutRef = useRef<any>(null);
+
+  const triggerCopyBlockedNotice = useCallback(() => {
+    if (!isCopyDisabled) return;
+    setCopyBlockedNotice(true);
+    if (copyNoticeTimeoutRef.current) clearTimeout(copyNoticeTimeoutRef.current);
+    copyNoticeTimeoutRef.current = setTimeout(() => {
+      setCopyBlockedNotice(false);
+    }, 2800);
+  }, [isCopyDisabled]);
+
+  useEffect(() => {
+    if (!isCopyDisabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'u', 's', 'p'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        triggerCopyBlockedNotice();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (copyNoticeTimeoutRef.current) clearTimeout(copyNoticeTimeoutRef.current);
+    };
+  }, [isCopyDisabled, triggerCopyBlockedNotice]);
 
   // Synchronize document root theme class with Reader's active theme and clean up on exit
   useEffect(() => {
@@ -610,9 +648,30 @@ export const PublicWikiReaderView: React.FC<PublicWikiReaderViewProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 h-screen h-dvh w-full flex overflow-hidden font-sans select-text transition-colors duration-200 ${
+      onContextMenu={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      onCopy={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      onCut={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      className={`fixed inset-0 z-50 h-screen h-dvh w-full flex overflow-hidden font-sans transition-colors duration-200 ${
+        isCopyDisabled ? 'select-none' : 'select-text'
+      } ${
         isLight ? 'bg-slate-100 text-slate-900' : 'bg-[#0b0f19] text-slate-100 qalam-dark-reader'
       }`}
+      style={isCopyDisabled ? { userSelect: 'none', WebkitUserSelect: 'none' } : undefined}
     >
       {/* 1. Left Sidebar: Wiki Navigation Tree */}
       <aside
@@ -832,6 +891,17 @@ export const PublicWikiReaderView: React.FC<PublicWikiReaderViewProps> = ({
               </button>
             )}
 
+            {/* Anti-Copy Protection Status */}
+            {isCopyDisabled && (
+              <div
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-semibold"
+                title="Penyalinan konten dinonaktifkan oleh penulis"
+              >
+                <CopySlash className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>Anti-Salin</span>
+              </div>
+            )}
+
             {/* Share Link */}
             <button
               onClick={handleCopyLink}
@@ -860,19 +930,27 @@ export const PublicWikiReaderView: React.FC<PublicWikiReaderViewProps> = ({
                 <>
                   {/* Note Header */}
                   <div className={`border-b pb-5 mb-8 ${isLight ? 'border-slate-200' : 'border-slate-700/80'}`}>
-                    {/* Tags - ZERO PILLS: clean unboxed typographic metadata */}
-                    {currentNote.tags && currentNote.tags.length > 0 && (
-                      <div className="flex items-center gap-2 mb-3 flex-wrap text-xs font-mono">
-                        {currentNote.tags.map((tag, idx) => (
-                          <React.Fragment key={tag}>
-                            {idx > 0 && <span className={isLight ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true">·</span>}
-                            <span className={isLight ? 'text-blue-600' : 'text-blue-400 font-semibold'}>
-                              #{tag}
-                            </span>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    )}
+                    {/* Tags and Anti-Copy badge */}
+                    <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
+                      {isCopyDisabled && (
+                        <span className="font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center gap-1">
+                          <CopySlash className="w-3 h-3" />
+                          <span>Anti-Salin</span>
+                        </span>
+                      )}
+                      {currentNote.tags && currentNote.tags.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap font-mono">
+                          {currentNote.tags.map((tag, idx) => (
+                            <React.Fragment key={tag}>
+                              {(idx > 0 || isCopyDisabled) && <span className={isLight ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true">·</span>}
+                              <span className={isLight ? 'text-blue-600' : 'text-blue-400 font-semibold'}>
+                                #{tag}
+                              </span>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     <h1
                       className={`text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight ${
@@ -970,6 +1048,14 @@ export const PublicWikiReaderView: React.FC<PublicWikiReaderViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Anti copy-paste floating alert toast */}
+      {copyBlockedNotice && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900/95 text-white border border-rose-500/40 shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold select-none">
+          <CopySlash className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>Konten wiki dilindungi oleh penulis. Penyalinan teks dinonaktifkan.</span>
+        </div>
+      )}
     </div>
   );
 };

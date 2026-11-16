@@ -91,7 +91,9 @@ function cleanMarkdownText(text: string): string {
 export function exportNoteToMarkdown(note: Note): void {
   if (!note) return;
   const fileName = `${sanitizeFileName(note.title, 'catatan')}.md`;
-  const blob = new Blob([note.body || ''], { type: 'text/markdown;charset=utf-8' });
+  const markdownFooter = `\n\n---\n*Diekspor dari [Qalam Note](https://qalam-note.aiprojek01.my.id/)*\n`;
+  const fullContent = (note.body || '') + markdownFooter;
+  const blob = new Blob([fullContent], { type: 'text/markdown;charset=utf-8' });
   downloadBlob(blob, fileName);
 }
 
@@ -114,6 +116,8 @@ export function exportNoteToHtml(note: Note, folderTitle: string = 'Qalam Note')
   <title>${escapeHtml(note.title || 'Catatan Qalam')}</title>
   <!-- Tailwind CSS Engine for Browser -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <!-- KaTeX Math Engine Stylesheet -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" crossorigin="anonymous" />
   <style>
     /* Global Reset & Typography */
     body {
@@ -329,7 +333,7 @@ export function exportNoteToHtml(note: Note, folderTitle: string = 'Qalam Note')
       ${htmlBody}
     </div>
     <div class="footer">
-      Diterbitkan dari <a href="https://lam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
+      Diterbitkan dari <a href="https://qalam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
     </div>
   </div>
 </body>
@@ -1041,7 +1045,7 @@ export async function generateDocxBlob(note: Note, folderTitle: string = 'Qalam 
       alignment: AlignmentType.CENTER,
       children: [
         new TextRun({
-          text: 'Diekspor dari Qalam Note • Local-First & Encrypted Notes',
+          text: 'Diekspor dari Qalam Note (https://qalam-note.aiprojek01.my.id/) • Local-First & Encrypted Notes',
           size: 16,
           color: '94A3B8',
           italics: true,
@@ -1398,6 +1402,9 @@ async function renderHtmlNoteToPdf(note: Note, folderTitle: string = 'Qalam Note
     </div>
     <div class="qalam-pdf-body">
       ${rawHtmlBody}
+    </div>
+    <div class="qalam-pdf-footer" style="margin-top: 36px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
+      Diterbitkan dari <a href="https://qalam-note.aiprojek01.my.id/" style="color: #2563eb; text-decoration: underline; font-weight: 600;">Qalam Note (https://qalam-note.aiprojek01.my.id/)</a>
     </div>
   `;
 
@@ -2019,7 +2026,7 @@ function generateVectorNotePdfBlob(note: Note, folderTitle: string = 'Qalam Note
     doc.setDrawColor(241, 245, 249);
     doc.setLineWidth(0.3);
     doc.line(margin, pageHeight - 12, margin + contentWidth, pageHeight - 12);
-    doc.text('Diterbitkan dari Qalam Note', margin, pageHeight - 7);
+    doc.text('Diterbitkan dari Qalam Note • https://qalam-note.aiprojek01.my.id/', margin, pageHeight - 7);
     doc.text(`Halaman ${p} dari ${totalPages}`, margin + contentWidth, pageHeight - 7, { align: 'right' });
   }
 
@@ -2092,6 +2099,8 @@ export function exportNoteToPrint(note: Note, folderTitle: string = 'Qalam Note'
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtml(note.title || 'Catatan Qalam')}</title>
+  <!-- KaTeX Math Engine Stylesheet -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" crossorigin="anonymous" />
   <style>
     @page { margin: 15mm; size: auto; }
     body {
@@ -2146,7 +2155,7 @@ export function exportNoteToPrint(note: Note, folderTitle: string = 'Qalam Note'
     ${htmlBody}
   </div>
   <div class="print-footer">
-    Diterbitkan dari <a href="https://lam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
+    Diterbitkan dari <a href="https://qalam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
   </div>
 </body>
 </html>`;
@@ -2207,7 +2216,7 @@ export async function exportFolderToZip(
 
     // Add Markdown file (.md)
     if (format === 'markdown' || format === 'all') {
-      const mdContent = `# ${note.title || 'Catatan Tanpa Judul'}\n\n${note.body || ''}`;
+      const mdContent = `# ${note.title || 'Catatan Tanpa Judul'}\n\n${note.body || ''}\n\n---\n*Diekspor dari [Qalam Note](https://qalam-note.aiprojek01.my.id/)*\n`;
       rootFolder.file(`${uniqueTitle}.md`, mdContent);
     }
 
@@ -2246,7 +2255,7 @@ export async function exportFolderToZip(
   <p style="font-size: 12px; color: #64748b;">Folder: ${escapeHtml(folderTitle)} | Diperbarui: ${new Date(note.updated_time).toLocaleString()}</p>
   <div>${htmlBody}</div>
   <div class="footer">
-    Diterbitkan dari <a href="https://lam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
+    Diterbitkan dari <a href="https://qalam-note.aiprojek01.my.id/" target="_blank">Qalam Note</a>
   </div>
 </body>
 </html>`;

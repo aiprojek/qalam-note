@@ -8,6 +8,7 @@ import {
   Trash2,
   RotateCcw,
   Download,
+  Globe,
   Columns2,
   CheckCircle2,
   Circle,
@@ -33,6 +34,7 @@ export interface NoteContextMenuProps {
   onPermanentDeleteNote?: (id: string) => void;
   onOpenInSplitScreen?: (id: string) => void;
   onOpenExportNoteModal?: (note: Note) => void;
+  onOpenPublishModal?: (note: Note) => void;
   onCopyNoteMarkdown?: (note: Note) => void;
   onMoveNoteToFolder?: (noteId: string, folderId: string) => void;
   folders?: FolderType[];
@@ -56,6 +58,7 @@ export const NoteContextMenu: React.FC<NoteContextMenuProps> = ({
   onPermanentDeleteNote,
   onOpenInSplitScreen,
   onOpenExportNoteModal,
+  onOpenPublishModal,
   onCopyNoteMarkdown,
   onMoveNoteToFolder,
   folders = [],
@@ -231,7 +234,7 @@ export const NoteContextMenu: React.FC<NoteContextMenuProps> = ({
                 }`}
               >
                 <Copy className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{isId ? 'Salin Format Markdown (Sosmed)' : 'Copy Markdown (Social)'}</span>
+                <span>{isId ? 'Salin Format Markdown' : 'Copy Markdown'}</span>
               </button>
             )}
 
@@ -320,6 +323,22 @@ export const NoteContextMenu: React.FC<NoteContextMenuProps> = ({
               >
                 <Download className="w-3.5 h-3.5 text-blue-400" />
                 <span>{isId ? 'Ekspor Catatan...' : 'Export Note...'}</span>
+              </button>
+            )}
+
+            {/* Publish Note Modal */}
+            {onOpenPublishModal && (
+              <button
+                type="button"
+                onClick={() => handleAction(() => onOpenPublishModal(note))}
+                className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2.5 transition ${
+                  isLight
+                    ? 'hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800'
+                    : 'hover:bg-emerald-950/40 text-emerald-300 hover:text-emerald-200'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{isId ? 'Publikasikan Catatan...' : 'Publish Note...'}</span>
               </button>
             )}
           </div>

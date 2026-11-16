@@ -2205,7 +2205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   ? '!text-slate-900 font-semibold'
                                   : '!text-slate-200 font-medium'
                               }`}>
-                                {prov.name}
+                                {language === 'id' ? prov.name : (prov.name_en || prov.name)}
                               </span>
                             </div>
                             <p className={`text-[11px] leading-normal line-clamp-2 ${
@@ -2236,18 +2236,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }`}>
                           <span>
                             {currentProvider === 'gas'
-                              ? 'URL Web App Google Apps Script:'
+                              ? (language === 'id' ? 'URL Web App Google Apps Script:' : 'Google Apps Script Web App URL:')
                               : currentProvider === 'cloudflare'
-                              ? 'URL Cloudflare Worker Endpoint:'
+                              ? (language === 'id' ? 'URL Cloudflare Worker Endpoint:' : 'Cloudflare Worker Endpoint URL:')
                               : currentProvider === 'github_gist'
-                              ? 'GitHub Personal Access Token (PAT):'
-                              : 'URL Endpoint Server Mandiri:'}
+                              ? (language === 'id' ? 'GitHub Personal Access Token (PAT):' : 'GitHub Personal Access Token (PAT):')
+                              : (language === 'id' ? 'URL Endpoint Server Mandiri:' : 'Self-Hosted Server Endpoint URL:')}
                           </span>
                         </label>
                         <span className={`text-[10px] font-mono font-semibold ${
                           isLight ? 'text-emerald-700' : 'text-emerald-400'
                         }`}>
-                          {activeMeta.cost}
+                          {language === 'id' ? activeMeta.cost : (activeMeta.cost_en || activeMeta.cost)}
                         </span>
                       </div>
                       <input
@@ -2268,7 +2268,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       />
                       <span className={`text-[10px] mt-1 block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                         {currentProvider === 'github_gist'
-                          ? 'Token membutuhkan izin lingkup "gist" untuk membuat Secret Gist otomatis.'
+                          ? (language === 'id'
+                              ? 'Token membutuhkan izin lingkup "gist" untuk membuat Secret Gist otomatis.'
+                              : 'Token requires "gist" scope permission to create Secret Gists automatically.')
                           : t.gas_webapp_url_hint}
                       </span>
                     </div>
@@ -2293,6 +2295,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             : 'bg-slate-950 text-slate-100 border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
                         }`}
                       />
+                      <span className={`text-[10px] mt-1 block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {language === 'id'
+                          ? 'Nama ini menjadi nilai bawaan saat mempublikasikan catatan dan wiki baru. Setiap catatan dan wiki tetap dapat memiliki nama penulis berbeda.'
+                          : 'This name acts as the default author for new notes and wikis. Individual notes and wikis can maintain distinct authors.'}
+                      </span>
                     </div>
                   </div>
                 </div>

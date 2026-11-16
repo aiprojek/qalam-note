@@ -166,6 +166,7 @@ export default function App() {
   const [exportFolderModalTarget, setExportFolderModalTarget] = useState<Folder | null>(null);
   const [isPublishWikiOpen, setIsPublishWikiOpen] = useState(false);
   const [publishWikiTargetFolder, setPublishWikiTargetFolder] = useState<Folder | null>(null);
+  const [publishNoteTarget, setPublishNoteTarget] = useState<Note | null>(null);
 
   // Split Screen Dual Note State
   const [isDualEditorOpen, setIsDualEditorOpen] = useState(false);
@@ -217,6 +218,7 @@ export default function App() {
     author?: string;
     publishedAt?: number | string;
     isKanban?: boolean;
+    disableCopy?: boolean;
     remoteNote: RemotePublishedNote | null;
     isLoadingRemote: boolean;
     errorMessage: string | null;
@@ -312,6 +314,9 @@ export default function App() {
                 const remoteWiki = await fetchPublishedWikiFromGAS(decoded.gasUrl, decoded.id);
                 if (isCancelled) return;
                 if (remoteWiki) {
+                  if (decoded.disableCopy) {
+                    remoteWiki.disable_copy = true;
+                  }
                   setPublicWikiState({
                     active: true,
                     wikiId: decoded.id,
@@ -370,6 +375,7 @@ export default function App() {
                 landing_note_id: decoded.landingNoteId || (wikiNotes[0]?.id || ''),
                 folders: localFolder ? [{ id: localFolder.id, title: localFolder.title, parent_id: '', order: 0 }] : [],
                 notes: wikiNotes,
+                disable_copy: decoded.disableCopy || localFolder?.published_info?.disable_copy,
               };
               setPublicWikiState({
                 active: true,
@@ -392,6 +398,7 @@ export default function App() {
               author: decoded.author,
               publishedAt: decoded.publishedAt,
               isKanban: decoded.isKanban,
+              disableCopy: decoded.disableCopy,
               remoteNote: null,
               isLoadingRemote: !!decoded.gasUrl,
               errorMessage: null,
@@ -407,6 +414,7 @@ export default function App() {
                   ...prev,
                   isLoadingRemote: false,
                   isKanban: prev.isKanban || remote.is_kanban,
+                  disableCopy: prev.disableCopy || remote.disable_copy,
                   publishedAt: prev.publishedAt || remote.published_at || remote.updated_at,
                   remoteNote: {
                     id: decoded.id,
@@ -419,6 +427,10 @@ export default function App() {
                     published_at: remote.published_at || remote.updated_at || decoded.publishedAt,
                     is_kanban: remote.is_kanban || decoded.isKanban,
                     kanban_data: remote.kanban_data,
+                    disable_copy: remote.disable_copy || decoded.disableCopy,
+                    is_encrypted: remote.is_encrypted,
+                    salt: remote.salt,
+                    encrypted_data: remote.encrypted_data,
                   },
                 }));
               } else {
@@ -668,7 +680,7 @@ export default function App() {
 
       autoPublishDebounceTimerRef.current = setTimeout(async () => {
         try {
-          const author = settings.gas?.author_name || (settings.language === 'id' ? 'Anonim' : 'Anonymous');
+          const author = targetNote.published_info?.author_name || settings.gas?.author_name || (settings.language === 'id' ? 'Anonim' : 'Anonymous');
           const res = await publishNoteToGAS(targetNote, targetGasUrl, author);
           if (res.success) {
             const now = Date.now();
@@ -1793,6 +1805,13 @@ export default function App() {
     setIsPublishWikiOpen(true);
   };
 
+  // Open Publish Note Modal for a specific note from contextual menu or note list
+  const handleOpenPublishNoteModal = useCallback((note: Note) => {
+    setSelectedNoteId(note.id);
+    setPublishNoteTarget(note);
+    setIsPublishOpen(true);
+  }, []);
+
   // Apply Template
   const handleApplyTemplate = async (
     content: string,
@@ -2140,6 +2159,7 @@ export default function App() {
         gasUrl={publicReaderState.gasUrl}
         noteId={publicReaderState.noteId || undefined}
         isKanbanHint={publicReaderState.isKanban}
+        disableCopyHint={publicReaderState.disableCopy || publicReaderState.remoteNote?.disable_copy}
         isLoadingRemote={publicReaderState.isLoadingRemote && !localNote}
         errorMessage={
           !localNote && !publicReaderState.remoteNote && !publicReaderState.isLoadingRemote
@@ -2310,6 +2330,17 @@ export default function App() {
                     setMobileActiveView('editor');
                   }}
                   onDeleteNote={requestDeleteNote}
+                  onToggleStar={handleToggleStar}
+                  onTogglePin={handleTogglePin}
+                  onToggleTodo={handleToggleTodo}
+                  onDuplicateNote={handleDuplicateNote}
+                  onOpenInSplitScreen={(noteId) => {
+                    setSecondaryNoteId(noteId);
+                    setIsDualEditorOpen(true);
+                  }}
+                  onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                  onOpenPublishModal={handleOpenPublishNoteModal}
+                  onCopyNoteMarkdown={handleCopyNoteMarkdown}
                   selectedFolderId={selectedFolderId}
                   selectedTagId={selectedTagId}
                   selectedSpecialView={selectedSpecialView}
@@ -2421,6 +2452,7 @@ export default function App() {
                   onOpenDailyNote={handleOpenDailyNote}
                   onOpenTemplates={() => setIsTemplatesOpen(true)}
                   onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                  onOpenPublishModal={handleOpenPublishNoteModal}
                   onOpenInSplitScreen={handleOpenInSplitScreen}
                   onCopyNoteMarkdown={handleCopyNoteMarkdown}
                   folders={folders}
@@ -2515,6 +2547,17 @@ export default function App() {
                           setIsSidebarOpen(false);
                         }}
                         onDeleteNote={requestDeleteNote}
+                        onToggleStar={handleToggleStar}
+                        onTogglePin={handleTogglePin}
+                        onToggleTodo={handleToggleTodo}
+                        onDuplicateNote={handleDuplicateNote}
+                        onOpenInSplitScreen={(noteId) => {
+                          setSecondaryNoteId(noteId);
+                          setIsDualEditorOpen(true);
+                        }}
+                        onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                        onOpenPublishModal={handleOpenPublishNoteModal}
+                        onCopyNoteMarkdown={handleCopyNoteMarkdown}
                         selectedFolderId={selectedFolderId}
                         selectedTagId={selectedTagId}
                         selectedSpecialView={selectedSpecialView}
@@ -2569,6 +2612,7 @@ export default function App() {
                         onMoveFolder={handleMoveFolder}
                         onMoveNoteToFolder={handleMoveNoteToFolder}
                         onOpenExportFolderModal={(folder) => setExportFolderModalTarget(folder)}
+                        onOpenPublishWiki={handleOpenPublishWikiModal}
                         onOpenDailyNote={() => handleOpenDailyNote()}
                         onOpenDailyCalendar={() => setIsDailyCalendarOpen(true)}
                         onOpenKanban={() => setIsKanbanOpen(true)}
@@ -2619,6 +2663,7 @@ export default function App() {
                       onNewTodo={() => handleCreateNote(true)}
                       onNewKanban={() => handleCreateKanbanNote()}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                      onOpenPublishModal={handleOpenPublishNoteModal}
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
                       folders={folders}
@@ -2736,6 +2781,17 @@ export default function App() {
                       selectedNoteId={selectedNoteId}
                       onSelectNote={(id) => setSelectedNoteId(id)}
                       onDeleteNote={requestDeleteNote}
+                      onToggleStar={handleToggleStar}
+                      onTogglePin={handleTogglePin}
+                      onToggleTodo={handleToggleTodo}
+                      onDuplicateNote={handleDuplicateNote}
+                      onOpenInSplitScreen={(noteId) => {
+                        setSecondaryNoteId(noteId);
+                        setIsDualEditorOpen(true);
+                      }}
+                      onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                      onOpenPublishModal={handleOpenPublishNoteModal}
+                      onCopyNoteMarkdown={handleCopyNoteMarkdown}
                       selectedFolderId={selectedFolderId}
                       selectedTagId={selectedTagId}
                       selectedSpecialView={selectedSpecialView}
@@ -2837,6 +2893,7 @@ export default function App() {
                       onNewTodo={() => handleCreateNote(true)}
                       onNewKanban={() => handleCreateKanbanNote()}
                       onOpenExportNoteModal={(note) => setExportNoteModalTarget(note)}
+                      onOpenPublishModal={handleOpenPublishNoteModal}
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
                       folders={folders}
@@ -2995,14 +3052,17 @@ export default function App() {
         />
       )}
 
-      {isPublishOpen && activeNote && (
+      {isPublishOpen && (publishNoteTarget || activeNote) && (
         <PublishModal
-          note={activeNote}
+          note={publishNoteTarget || activeNote!}
           gasConfig={settings.gas}
           onUpdateNote={handleUpdateNote}
           onUpdateGASConfig={(cfg) => handleSaveSettings({ gas: { ...settings.gas, ...cfg } })}
           onOpenGASHelp={() => setIsGASHelpOpen(true)}
-          onClose={() => setIsPublishOpen(false)}
+          onClose={() => {
+            setIsPublishOpen(false);
+            setPublishNoteTarget(null);
+          }}
           language={settings.language}
           theme={settings.theme}
         />
@@ -3046,7 +3106,7 @@ export default function App() {
               version: 1,
               id: target.id,
               title: target.published_info?.wiki_title || target.title,
-              author: settings.gas.author_name || 'Anonymous',
+              author: target.published_info?.author_name || settings.gas.author_name || 'Anonymous',
               published_at: target.published_info?.published_at || Date.now(),
               landing_note_id: target.published_info?.landing_note_id || (wikiNotes[0]?.id || ''),
               folders: [{ id: target.id, title: target.title, parent_id: '', order: 0 }],

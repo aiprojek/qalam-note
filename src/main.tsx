@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
+import 'katex/dist/katex.min.css';
 
 // Automatically register service worker for offline PWA functionality
 if (typeof window !== 'undefined') {

@@ -15,8 +15,10 @@ import {
   Calculator,
   Type,
   Languages,
+  ExternalLink,
 } from 'lucide-react';
 import type { AppLanguage } from '../../types';
+import { renderKatex } from '../../utils/markdown';
 
 interface CheatSheetItem {
   id: string;
@@ -252,70 +254,118 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
       description: isId ? 'Gunakan tiga backtick (```) diikuti nama bahasa (ts, js, py, html, css, json).' : 'Use triple backticks with language identifier.',
     },
 
-    // Math & Formulas
+    // Math & Formulas (Foundational Everyday Operations: Arithmetic, Fractions, Powers & Roots)
     {
-      id: 'math-inline',
+      id: 'math-addition-subtraction',
       category: 'math',
-      title: isId ? 'Rumus Matematika Segaris (Inline Math)' : 'Inline Math',
-      syntax: '$E = mc^2$',
-      preview: '<span>Persamaan relativitas: <code class="bg-blue-950/30 text-blue-300 px-1 rounded font-mono text-xs">\\( E = mc^2 \\)</code></span>',
-      description: isId ? 'Apit rumus matematika dengan satu tanda dollar ($...$).' : 'Wrap inline math with single dollar signs.',
+      title: isId ? 'Penambahan & Pengurangan (+, -, ±)' : 'Addition & Subtraction (+, -, ±)',
+      syntax: `$$15 + 27 = 42 \\quad \\text{${isId ? 'dan' : 'and'}} \\quad 50 - 18 = 32 \\quad \\text{${isId ? 'serta' : 'and'}} \\quad 5 \\pm 0.5$$`,
+      preview: renderKatex(`15 + 27 = 42 \\quad \\text{${isId ? 'dan' : 'and'}} \\quad 50 - 18 = 32 \\quad \\text{${isId ? 'serta' : 'and'}} \\quad 5 \\pm 0.5`, true, false),
+      description: isId ? 'Operasi dasar penjumlahan (+), pengurangan (-), dan toleransi plus-minus (\\pm).' : 'Basic addition (+), subtraction (-), and plus-minus (\\pm).',
     },
     {
-      id: 'math-block',
+      id: 'math-multiplication',
       category: 'math',
-      title: isId ? 'Rumus Matematika Blok Terpusat' : 'Display Math Block',
-      syntax: '$$\n\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}\n$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi} \\$$</div>',
-      description: isId ? 'Gunakan tanda dollar ganda ($$...$$) untuk persamaan terpusat di baris baru.' : 'Use double dollar signs for centered display math.',
+      title: isId ? 'Perkalian: Tanda Silang (\\times), Titik (\\cdot) & Kurung' : 'Multiplication (\\times, \\cdot, & Parentheses)',
+      syntax: `$$7 \\times 8 = 56 \\quad \\text{${isId ? 'atau' : 'or'}} \\quad 2 \\cdot x = 2x \\quad \\text{${isId ? 'serta' : 'and'}} \\quad 3(a + b) = 3a + 3b$$`,
+      preview: renderKatex(`7 \\times 8 = 56 \\quad \\text{${isId ? 'atau' : 'or'}} \\quad 2 \\cdot x = 2x \\quad \\text{${isId ? 'serta' : 'and'}} \\quad 3(a + b) = 3a + 3b`, true, false),
+      description: isId ? 'Gunakan \\times untuk silang, \\cdot untuk titik tengah, atau tanda kurung () untuk perkalian aljabar.' : 'Use \\times for cross, \\cdot for dot, or () for algebraic multiplication.',
     },
     {
-      id: 'math-fraction',
+      id: 'math-division',
       category: 'math',
-      title: isId ? 'Pecahan (Fraction)' : 'Fractions',
-      syntax: '$$\\frac{a + b}{c - d}$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ \\frac{a + b}{c - d} \\$$</div>',
-      description: isId ? 'Gunakan \\frac{pembilang}{penyebut} untuk membuat pecahan.' : 'Use \\frac{numerator}{denominator} for fractions.',
+      title: isId ? 'Pembagian: Tanda Bagi (\\div), Garis Miring (/) & Rasio (:)' : 'Division (\\div, Slash /, & Ratio :)',
+      syntax: `$$24 \\div 6 = 4 \\quad \\text{${isId ? 'atau' : 'or'}} \\quad a / b = c \\quad \\text{${isId ? 'dan rasio' : 'and ratio'}} \\quad 2 : 3$$`,
+      preview: renderKatex(`24 \\div 6 = 4 \\quad \\text{${isId ? 'atau' : 'or'}} \\quad a / b = c \\quad \\text{${isId ? 'dan rasio' : 'and ratio'}} \\quad 2 : 3`, true, false),
+      description: isId ? 'Gunakan \\div untuk simbol bagi matematika, / untuk garis miring, atau : untuk rasio perbandingan.' : 'Use \\div for division symbol, / for slash, or : for ratios.',
     },
     {
-      id: 'math-sqrt',
+      id: 'math-fractions-basic',
       category: 'math',
-      title: isId ? 'Akar Kuadrat & Pangkat' : 'Square Roots & Powers',
-      syntax: '$$x = \\sqrt{a^2 + b^2} \\quad \\text{atau} \\quad \\sqrt[n]{x}$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ x = \\sqrt{a^2 + b^2} \\quad \\sqrt[n]{x} \\$$</div>',
-      description: isId ? 'Gunakan \\sqrt{x} untuk akar dan ^2 untuk pangkat.' : 'Use \\sqrt{x} for roots and ^ for exponents.',
+      title: isId ? 'Pecahan Dasar (Per-per-an): Biasa & Campuran' : 'Basic Fractions & Mixed Numbers',
+      syntax: `$$\\frac{1}{2}, \\quad \\frac{3}{4}, \\quad \\frac{a}{b} \\quad \\text{${isId ? 'dan campuran' : 'and mixed'}} \\quad 2\\frac{1}{2} = \\frac{5}{2}$$`,
+      preview: renderKatex(`\\frac{1}{2}, \\quad \\frac{3}{4}, \\quad \\frac{a}{b} \\quad \\text{${isId ? 'dan campuran' : 'and mixed'}} \\quad 2\\frac{1}{2} = \\frac{5}{2}`, true, false),
+      description: isId ? 'Gunakan \\frac{pembilang}{penyebut} untuk membuat pecahan biasa dan pecahan campuran.' : 'Use \\frac{numerator}{denominator} for regular and mixed fractions.',
+    },
+    {
+      id: 'math-fractions-ops',
+      category: 'math',
+      title: isId ? 'Operasi Tambah & Kurang Pecahan (Menyamakan Penyebut)' : 'Fraction Addition & Subtraction',
+      syntax: `$$\\frac{1}{2} + \\frac{1}{3} = \\frac{3 + 2}{6} = \\frac{5}{6} \\quad \\text{${isId ? 'dan' : 'and'}} \\quad \\frac{3}{4} - \\frac{1}{4} = \\frac{2}{4} = \\frac{1}{2}$$`,
+      preview: renderKatex(`\\frac{1}{2} + \\frac{1}{3} = \\frac{3 + 2}{6} = \\frac{5}{6} \\quad \\text{${isId ? 'dan' : 'and'}} \\quad \\frac{3}{4} - \\frac{1}{4} = \\frac{2}{4} = \\frac{1}{2}`, true, false),
+      description: isId ? 'Contoh perhitungan penambahan dan pengurangan pecahan dengan langkah penyamaan penyebut.' : 'Step-by-step fraction addition and subtraction calculations.',
+    },
+    {
+      id: 'math-fractions-mult-div',
+      category: 'math',
+      title: isId ? 'Perkalian & Pembagian Pecahan (Aturan Dibalik)' : 'Fraction Multiplication & Division',
+      syntax: `$$\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd} \\quad \\text{${isId ? 'dan' : 'and'}} \\quad \\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}$$`,
+      preview: renderKatex(`\\frac{a}{b} \\times \\frac{c}{d} = \\frac{ac}{bd} \\quad \\text{${isId ? 'dan' : 'and'}} \\quad \\frac{a}{b} \\div \\frac{c}{d} = \\frac{a}{b} \\times \\frac{d}{c} = \\frac{ad}{bc}`, true, false),
+      description: isId ? 'Perkalian langsung pembilang dan penyebut, serta pembagian pecahan yang dibalik menjadi perkalian.' : 'Fraction multiplication and division by inverting the divisor.',
+    },
+    {
+      id: 'math-fractions-nested',
+      category: 'math',
+      title: isId ? 'Pecahan Bertingkat (Per di dalam Per / Nested Fractions)' : 'Nested / Complex Fractions',
+      syntax: `$$\\frac{\\frac{a}{b}}{\\frac{c}{d}} = \\frac{a \\cdot d}{b \\cdot c} \\quad \\text{${isId ? 'atau' : 'or'}} \\quad \\frac{1}{1 + \\frac{1}{x}}$$`,
+      preview: renderKatex(`\\frac{\\frac{a}{b}}{\\frac{c}{d}} = \\frac{a \\cdot d}{b \\cdot c} \\quad \\text{${isId ? 'atau' : 'or'}} \\quad \\frac{1}{1 + \\frac{1}{x}}`, true, false),
+      description: isId ? 'Menyarangkan pecahan di dalam pecahan lain dengan \\frac{\\frac{a}{b}}{\\frac{c}{d}}.' : 'Nest fractions inside fractions with \\frac{\\frac{a}{b}}{\\frac{c}{d}}.',
+    },
+    {
+      id: 'math-powers-exponents',
+      category: 'math',
+      title: isId ? 'Pangkat (Eksponen): Positif, Negatif & Kurung' : 'Powers & Exponents (x^n, x^{-n})',
+      syntax: `$$2^3 = 8, \\quad x^2, \\quad 10^6 \\quad \\text{${isId ? 'dan pangkat negatif' : 'and negative power'}} \\quad x^{-2} = \\frac{1}{x^2}$$`,
+      preview: renderKatex(`2^3 = 8, \\quad x^2, \\quad 10^6 \\quad \\text{${isId ? 'dan pangkat negatif' : 'and negative power'}} \\quad x^{-2} = \\frac{1}{x^2}`, true, false),
+      description: isId ? 'Gunakan tanda ^ untuk pangkat. Untuk pangkat lebih dari 1 karakter, gunakan kurung kurawal ^{...}.' : 'Use ^ for powers. Wrap multiple characters in ^{...}.',
+    },
+    {
+      id: 'math-roots',
+      category: 'math',
+      title: isId ? 'Bentuk Akar: Kuadrat (\\sqrt) & Pangkat-n (\\sqrt[n])' : 'Roots: Square Root (\\sqrt) & N-th Root',
+      syntax: '$$\\sqrt{25} = 5, \\quad \\sqrt{a^2 + b^2}, \\quad \\sqrt[3]{8} = 2, \\quad \\sqrt[n]{x}$$',
+      preview: renderKatex('\\sqrt{25} = 5, \\quad \\sqrt{a^2 + b^2}, \\quad \\sqrt[3]{8} = 2, \\quad \\sqrt[n]{x}', true, false),
+      description: isId ? 'Gunakan \\sqrt{angka} untuk akar kuadrat dan \\sqrt[3]{angka} atau \\sqrt[n]{x} untuk akar pangkat-n.' : 'Use \\sqrt{x} for square roots and \\sqrt[n]{x} for n-th roots.',
+    },
+    {
+      id: 'math-percentage',
+      category: 'math',
+      title: isId ? 'Perhitungan Persentase & Nilai Bagian (%)' : 'Percentage & Ratio Calculations (%)',
+      syntax: `$$\\text{${isId ? 'Persen' : 'Percent'}} = \\frac{\\text{${isId ? 'Bagian' : 'Part'}}}{\\text{Total}} \\times 100\\% \\quad \\text{${isId ? 'contoh:' : 'e.g.:'}} \\quad \\frac{25}{100} \\times 200 = 50$$`,
+      preview: renderKatex(`\\text{${isId ? 'Persen' : 'Percent'}} = \\frac{\\text{${isId ? 'Bagian' : 'Part'}}}{\\text{Total}} \\times 100\\% \\quad \\text{${isId ? 'contoh:' : 'e.g.:'}} \\quad \\frac{25}{100} \\times 200 = 50`, true, false),
+      description: isId ? 'Gunakan \\% untuk simbol persen dan \\text{...} untuk menyisipkan kata di dalam rumus.' : 'Use \\% for percent and \\text{...} for words in math equations.',
+    },
+    {
+      id: 'math-step-by-step',
+      category: 'math',
+      title: isId ? 'Perhitungan Aljabar Langkah demi Langkah (Bersusun Sejajar)' : 'Step-by-Step Calculation (Aligned)',
+      syntax: '$$\\begin{aligned} 2x + 5 &= 15 \\\\ 2x &= 15 - 5 \\\\ 2x &= 10 \\\\ x &= \\frac{10}{2} = 5 \\end{aligned}$$',
+      preview: renderKatex('\\begin{aligned} 2x + 5 &= 15 \\\\ 2x &= 15 - 5 \\\\ 2x &= 10 \\\\ x &= \\frac{10}{2} = 5 \\end{aligned}', true, false),
+      description: isId ? 'Gunakan \\begin{aligned} dengan &= untuk menyejajarkan tanda sama dengan pada penyelesaian aljabar bertingkat.' : 'Use \\begin{aligned} with &= to neatly line up calculation steps.',
+    },
+    {
+      id: 'math-comparison',
+      category: 'math',
+      title: isId ? 'Simbol Perbandingan & Hubungan Angka (=, \\neq, <, >, \\le, \\ge, \\approx)' : 'Comparison Symbols (=, ≠, <, >, ≤, ≥, ≈)',
+      syntax: '$$a = b, \\quad a \\neq b, \\quad x < y, \\quad x > y, \\quad x \\le 10, \\quad x \\ge 0, \\quad \\pi \\approx 3.14$$',
+      preview: renderKatex('a = b, \\quad a \\neq b, \\quad x < y, \\quad x > y, \\quad x \\le 10, \\quad x \\ge 0, \\quad \\pi \\approx 3.14', true, false),
+      description: isId ? 'Simbol perbandingan penting: \\neq (tidak sama), \\le (kurang dari sama dengan), \\ge (lebih dari), \\approx (mendekati).' : 'Comparison symbols: \\neq, \\le, \\ge, and \\approx.',
     },
     {
       id: 'math-quadratic',
       category: 'math',
-      title: isId ? 'Rumus Kuadrat (ABC)' : 'Quadratic Formula',
+      title: isId ? 'Rumus Kuadrat (ABC / Quadratic Formula)' : 'Quadratic Formula',
       syntax: '$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} \\$$</div>',
-      description: isId ? 'Persamaan kuadratik lengkap dengan simbol plus-minus (\\pm).' : 'Quadratic formula with plus-minus symbol (\\pm).',
+      preview: renderKatex('x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}', true, false),
+      description: isId ? 'Rumus aljabar populer untuk mencari akar persamaan kuadratik dengan kombinasi pecahan, akar, dan pangkat.' : 'Popular formula to find roots of a quadratic equation.',
     },
     {
-      id: 'math-sum-int',
+      id: 'math-inline',
       category: 'math',
-      title: isId ? 'Notasi Sigma & Integral' : 'Summation & Integrals',
-      syntax: '$$\\sum_{k=1}^{n} k^2 = \\frac{n(n+1)(2n+1)}{6}$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ \\sum_{k=1}^{n} k^2 = \\frac{n(n+1)(2n+1)}{6} \\$$</div>',
-      description: isId ? 'Gunakan \\sum_{bawah}^{atas} dan \\int_{bawah}^{atas}.' : 'Use \\sum and \\int with lower/upper limits.',
-    },
-    {
-      id: 'math-greek',
-      category: 'math',
-      title: isId ? 'Huruf Yunani & Simbol' : 'Greek Letters & Symbols',
-      syntax: '$$\\alpha, \\beta, \\gamma, \\theta, \\lambda, \\pi, \\sigma, \\omega, \\infty$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ \\alpha, \\beta, \\gamma, \\theta, \\lambda, \\pi, \\sigma, \\omega, \\infty \\$$</div>',
-      description: isId ? 'Gunakan nama huruf diawali backslash seperti \\alpha atau \\pi.' : 'Prefix Greek letter names with backslash.',
-    },
-    {
-      id: 'math-matrix',
-      category: 'math',
-      title: isId ? 'Matriks (Matrix)' : 'Matrices',
-      syntax: '$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$',
-      preview: '<div class="bg-blue-950/40 text-blue-300 p-2 rounded text-center font-mono text-xs">$$\\ \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\$$</div>',
-      description: isId ? 'Gunakan \\begin{pmatrix} dengan & sebagai pemisah kolom dan \\\\ sebagai baris baru.' : 'Use \\begin{pmatrix} with & for columns and \\\\ for rows.',
+      title: isId ? 'Rumus Segaris dalam Kalimat (Inline Math: $...$)' : 'Inline Math in Paragraph ($...$)',
+      syntax: '$a + b = c$',
+      preview: `<div class="flex items-center gap-2"><span>${isId ? 'Contoh kalimat:' : 'Example text:'}</span>${renderKatex('a + b = c', false, false)}</div>`,
+      description: isId ? 'Apit rumus dengan satu tanda dollar ($...$) agar menyatu dengan aliran kalimat tanpa membuat baris baru.' : 'Wrap math in single dollar signs ($...$) to embed in paragraphs.',
     },
 
     // Bidi (LTR & RTL)
@@ -385,9 +435,11 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
                     ? (isId ? 'Panduan Rumus Matematika (LaTeX)' : 'Math Formula & LaTeX Guide')
                     : (isId ? 'Panduan & Cheatsheet Markdown' : 'Markdown Cheatsheet & Guide')}
                 </span>
-                <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 shrink-0">
-                  {mathOnly ? 'LaTeX Syntax' : 'GFM + KaTeX + RTL'}
-                </span>
+                {!mathOnly && (
+                  <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 shrink-0">
+                    GFM + KaTeX + RTL
+                  </span>
+                )}
               </h3>
               <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-none">
                 {mathOnly
@@ -400,13 +452,15 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Tutup"
-            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/60 active:scale-95 transition shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              aria-label="Tutup"
+              className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/60 active:scale-95 transition shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter Bar */}
@@ -420,7 +474,7 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
                 mathOnly
-                  ? (isId ? 'Cari rumus matematika (misal: integral, pecahan, akar, matriks)...' : 'Search math formulas (e.g. integral, fraction, sqrt, matrix)...')
+                  ? (isId ? 'Cari rumus matematika (misal: tambah, kali, bagi, pecahan, pangkat, akar)...' : 'Search math formulas (e.g. add, multiply, divide, fraction, power, sqrt)...')
                   : (isId ? 'Cari sintaks (misal: tabel, checklist, tebal, math)...' : 'Search syntax (e.g. table, checklist, bold, math)...')
               }
               className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
@@ -532,21 +586,34 @@ export const MarkdownCheatSheetModal: React.FC<MarkdownCheatSheetModalProps> = (
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 bg-[#202b3f] border-t border-slate-700/80 flex items-center justify-between text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <HelpCircle className="w-4 h-4 text-blue-400" />
-            <span>
+        <div className="px-3 sm:px-6 py-2.5 sm:py-3 bg-[#202b3f] border-t border-slate-700/80 flex items-center justify-between gap-2 sm:gap-3 text-xs text-slate-400">
+          <div className="hidden md:flex items-center gap-2 min-w-0">
+            <HelpCircle className="w-4 h-4 text-blue-400 shrink-0" />
+            <span className="truncate">
               {isId
                 ? 'Tip: Anda dapat beralih ke Mode Split di bilah alat untuk melihat pratinjau langsung berdampingan.'
                 : 'Tip: You can switch to Split View on the toolbar to preview changes side-by-side.'}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium transition"
-          >
-            {isId ? 'Tutup' : 'Close'}
-          </button>
+          <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end shrink-0">
+            <a
+              href="https://katex.org/docs/supported.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] sm:text-xs font-semibold transition shrink-0 active:scale-95"
+              title={isId ? 'Daftar lengkap ratusan rumus dan fungsi matematika KaTeX resmi' : 'Full list of supported KaTeX math functions'}
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="hidden sm:inline">{isId ? 'Panduan Resmi KaTeX (katex.org)' : 'Official KaTeX Guide (katex.org)'}</span>
+              <span className="inline sm:hidden">{isId ? 'Panduan KaTeX ↗' : 'KaTeX Guide ↗'}</span>
+            </a>
+            <button
+              onClick={onClose}
+              className="px-3 sm:px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[11px] sm:text-xs font-medium transition shrink-0 active:scale-95"
+            >
+              {isId ? 'Tutup' : 'Close'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

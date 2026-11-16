@@ -535,7 +535,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Copy className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{isId ? 'Salin Format Markdown (Sosmed)' : 'Copy Markdown (Social)'}</span>
+              <span>{isId ? 'Salin Format Markdown' : 'Copy Markdown'}</span>
             </div>
           </button>
         )}

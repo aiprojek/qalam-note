@@ -34,7 +34,7 @@ import { ProjectKanbanEditor } from '../Kanban/ProjectKanbanEditor';
 import { markdownToKanbanData } from '../../utils/kanbanSerializer';
 import { getT } from '../../utils/i18n';
 import { getNoteDirection } from '../../utils/rtl';
-import { htmlToMarkdown, markdownToHtml } from '../../utils/markdown';
+import { htmlToMarkdown, markdownToHtml, renderKatex } from '../../utils/markdown';
 import { saveAttachment, preloadNoteAttachments, downloadAttachment } from '../../utils/attachments';
 import { toRoman, toAlpha } from '../../utils/listStyles';
 import { copyNoteAsMarkdown } from '../../utils/clipboard';
@@ -989,7 +989,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           document.execCommand(
             'insertHTML',
             false,
-            '<div class="qalam-math-block bg-blue-950/40 text-blue-300 p-2.5 my-2.5 rounded font-mono text-center">$$\\ e^{i\\pi} + 1 = 0 \\$$</div><p>&#8203;</p>'
+            renderKatex('x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}', true, isLight) + '<p>&#8203;</p>'
           );
           break;
         case 'dir-ltr':
@@ -1364,11 +1364,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         editorRoot.focus();
         if (snippet.startsWith('$$')) {
           const innerFormula = snippet.replace(/^\$\$\n?/, '').replace(/\n?\$\$$/, '').trim();
-          const mathHtml = `<div class="qalam-math-block bg-blue-950/40 text-blue-300 p-2.5 my-2.5 rounded font-mono text-center">$$\\ ${innerFormula} \\$$</div><p>&#8203;</p>`;
+          const mathHtml = renderKatex(innerFormula, true, isLight) + '<p>&#8203;</p>';
           document.execCommand('insertHTML', false, mathHtml);
         } else if (snippet.startsWith('$')) {
           const innerFormula = snippet.replace(/^\$/, '').replace(/\$$/, '').trim();
-          const mathHtml = `<code class="bg-blue-950/30 text-blue-300 px-1.5 py-0.5 rounded text-xs border border-blue-900/50 font-mono">\\( ${innerFormula} \\)</code>&nbsp;`;
+          const mathHtml = renderKatex(innerFormula, false, isLight) + '&nbsp;';
           document.execCommand('insertHTML', false, mathHtml);
         } else {
           document.execCommand('insertText', false, snippet);

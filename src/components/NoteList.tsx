@@ -64,6 +64,7 @@ interface NoteListProps {
   onOpenDailyNote?: () => void;
   onOpenTemplates?: () => void;
   onOpenExportNoteModal?: (note: Note) => void;
+  onOpenPublishModal?: (note: Note) => void;
   onOpenInSplitScreen?: (noteId: string) => void;
   onCopyNoteMarkdown?: (note: Note) => void;
   folders?: Folder[];
@@ -104,6 +105,7 @@ export const NoteList: React.FC<NoteListProps> = ({
   onOpenDailyNote,
   onOpenTemplates,
   onOpenExportNoteModal,
+  onOpenPublishModal,
   onOpenInSplitScreen,
   onCopyNoteMarkdown,
   folders = [],
@@ -386,8 +388,8 @@ export const NoteList: React.FC<NoteListProps> = ({
                 </button>
               )}
               {isTrashView ? (
-                <span className="text-red-400 flex items-center gap-1">
-                  <Trash2 className="w-3 h-3" /> {t.trash} ({notes.length})
+                <span className="text-red-400 flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" /> {t.trash} ({notes.length})
                 </span>
               ) : tagTitle ? (
                 <span>Tag: #{tagTitle} ({notes.length})</span>
@@ -788,7 +790,7 @@ export const NoteList: React.FC<NoteListProps> = ({
                                 }`}
                               >
                                 <Copy className="w-3.5 h-3.5 text-cyan-400" />
-                                <span>{language === 'id' ? 'Salin Teks (Markdown)' : 'Copy Text (Markdown)'}</span>
+                                <span>{language === 'id' ? 'Salin Format Markdown' : 'Copy Markdown'}</span>
                               </button>
                             )}
                             {onOpenExportNoteModal && (
@@ -803,6 +805,20 @@ export const NoteList: React.FC<NoteListProps> = ({
                               >
                                 <FileDown className="w-3.5 h-3.5 text-blue-500" />
                                 <span>{language === 'id' ? 'Ekspor Catatan...' : 'Export Note...'}</span>
+                              </button>
+                            )}
+                            {onOpenPublishModal && (
+                              <button
+                                onClick={() => {
+                                  onOpenPublishModal(note);
+                                  setActiveMenuNoteId(null);
+                                }}
+                                className={`w-full px-3 py-1.5 text-left hover:bg-emerald-600 hover:text-white flex items-center gap-2 ${
+                                  isLight ? 'text-emerald-700 font-medium' : 'text-emerald-300'
+                                }`}
+                              >
+                                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>{language === 'id' ? 'Publikasikan Catatan...' : 'Publish Note...'}</span>
                               </button>
                             )}
                             {onOpenInSplitScreen && (
@@ -1039,6 +1055,7 @@ export const NoteList: React.FC<NoteListProps> = ({
           onPermanentDeleteNote={onPermanentDeleteNote}
           onOpenInSplitScreen={onOpenInSplitScreen}
           onOpenExportNoteModal={onOpenExportNoteModal}
+          onOpenPublishModal={onOpenPublishModal}
           onCopyNoteMarkdown={onCopyNoteMarkdown}
           onMoveNoteToFolder={onMoveNoteToFolder}
           folders={folders}

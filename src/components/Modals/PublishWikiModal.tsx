@@ -17,6 +17,7 @@ import {
   KeyRound,
   ShieldCheck,
   ChevronRight,
+  CopySlash,
 } from 'lucide-react';
 import type { Folder, Note, GASConfig, AppLanguage } from '../../types';
 import type { WikiBundle, WikiFolderItem, WikiNoteItem } from '../../types/wiki';
@@ -94,8 +95,9 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
   );
   const [description, setDescription] = useState('');
   const [authorName, setAuthorName] = useState(
-    gasConfig.author_name || (isId ? 'Penulis Qalam' : 'Qalam Author')
+    activeFolder.published_info?.author_name || gasConfig.author_name || (isId ? 'Penulis Qalam' : 'Qalam Author')
   );
+  const [saveAsDefaultAuthor, setSaveAsDefaultAuthor] = useState(false);
   const [gasUrl, setGasUrl] = useState(gasConfig.web_app_url || '');
 
   // Landing note selection: default to index/readme or first note
@@ -120,6 +122,11 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
   }, [includedNotes, activeFolder.published_info]);
 
   const [landingNoteId, setLandingNoteId] = useState(defaultLandingNoteId);
+
+  // Anti Copy-Paste Protection
+  const [disableCopy, setDisableCopy] = useState(
+    Boolean(activeFolder.published_info?.disable_copy)
+  );
 
   // Password Protection
   const [enablePassword, setEnablePassword] = useState(
@@ -151,9 +158,10 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
         publishedAt: activeFolder.published_info?.published_at,
         isWiki: true,
         landingNoteId,
+        disableCopy,
       })
     );
-  }, [isPublished, activeFolder, gasUrl, wikiTitle, authorName, landingNoteId]);
+  }, [isPublished, activeFolder, gasUrl, wikiTitle, authorName, landingNoteId, disableCopy]);
 
   const handleCopyLink = () => {
     if (publicUrl) {
@@ -196,8 +204,12 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
     setIsPublishing(true);
 
     try {
-      // 1. Save configured GAS URL & author to global settings
-      onUpdateGASConfig({ web_app_url: gasUrl, author_name: authorName });
+      // 1. Save configured GAS URL (and author if opted in) to global settings
+      const updatedGAS: Partial<typeof gasConfig> = { web_app_url: gasUrl };
+      if (saveAsDefaultAuthor) {
+        updatedGAS.author_name = authorName.trim();
+      }
+      onUpdateGASConfig(updatedGAS);
 
       // 2. Prepare Wiki Folder Items
       const wikiFolders: WikiFolderItem[] = includedFolders.map((f, idx) => ({
@@ -263,6 +275,7 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
         author: authorName.trim() || 'Anonymous',
         published_at: Date.now(),
         landing_note_id: chosenLandingNote,
+        disable_copy: disableCopy,
         folders: wikiFolders,
         notes: wikiNotes,
       };
@@ -309,6 +322,8 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
             landing_note_id: bundle.landing_note_id,
             is_encrypted: Boolean(bundle.is_encrypted),
             salt: bundle.salt,
+            author_name: authorName.trim(),
+            disable_copy: disableCopy,
           },
           updated_time: Date.now(),
         };
@@ -616,6 +631,15 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
                     : 'bg-[#141b27] border-slate-700 text-slate-100'
                 }`}
               />
+              <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={saveAsDefaultAuthor}
+                  onChange={(e) => setSaveAsDefaultAuthor(e.target.checked)}
+                  className="rounded border-slate-400 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                />
+                <span>{isId ? 'Jadikan sebagai nama penulis bawaan di pengaturan' : 'Set as default author in settings'}</span>
+              </label>
             </div>
 
             <div>
@@ -661,6 +685,45 @@ export const PublishWikiModal: React.FC<PublishWikiModalProps> = ({
                 );
               })()}
             </div>
+          </div>
+
+          {/* Anti Copy-Paste Protection Card */}
+          <div
+            className={`p-3.5 rounded-xl border space-y-2 transition ${
+              disableCopy
+                ? isLight
+                  ? 'bg-amber-50/70 border-amber-300'
+                  : 'bg-amber-950/20 border-amber-700/50'
+                : isLight
+                ? 'bg-slate-50 border-slate-200'
+                : 'bg-[#141b27] border-slate-700/60'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-xs select-none">
+                <input
+                  type="checkbox"
+                  checked={disableCopy}
+                  onChange={(e) => setDisableCopy(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <span className="flex items-center gap-1.5">
+                  <CopySlash className={`w-3.5 h-3.5 ${disableCopy ? 'text-amber-500' : 'text-slate-400'}`} />
+                  <span>{isId ? 'Proteksi Anti Salin-Tempel (Anti Copy-Paste)' : 'Anti Copy-Paste Protection'}</span>
+                </span>
+              </label>
+
+              {disableCopy && (
+                <span className="text-[10px] text-amber-500 font-medium px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                  {isId ? 'Teks Terlindungi' : 'Protected'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] leading-relaxed opacity-75 pl-6">
+              {isId
+                ? 'Mencegah pembaca melakukan seleksi teks, klik kanan, dan shortcut salin (Ctrl+C / Cmd+C) pada seluruh halaman wiki tanpa izin penulis.'
+                : 'Disables text selection, right-click context menu, and copy shortcuts (Ctrl+C / Cmd+C) across the published wiki without permission.'}
+            </p>
           </div>
 
           {/* Password Protection Card */}

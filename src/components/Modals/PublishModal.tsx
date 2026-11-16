@@ -17,10 +17,15 @@ import {
   Zap,
   FileSpreadsheet,
   Server,
+  CopySlash,
+  Lock,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import type { Note, GASConfig, AppLanguage, KanbanBoardData } from '../../types';
 import { publishNoteToGAS, unpublishNoteFromGAS } from '../../services/gas';
 import { encodePublishCipher } from '../../services/publishCipher';
+import { encryptWithPassword } from '../../services/crypto';
 import { markdownToHtml, wrapTablesWithScrollContainer } from '../../utils/markdown';
 import { getNoteDirection } from '../../utils/rtl';
 import { calculateKanbanStats, markdownToKanbanData, kanbanDataToHtml } from '../../utils/kanbanSerializer';
@@ -48,7 +53,18 @@ export const PublishModal: React.FC<PublishModalProps> = ({
   theme = 'qalam-dark',
 }) => {
   const [gasUrl, setGasUrl] = useState(gasConfig.web_app_url || '');
-  const [authorName, setAuthorName] = useState(gasConfig.author_name || (language === 'id' ? 'Anonim' : 'Anonymous'));
+  const [authorName, setAuthorName] = useState(
+    note.published_info?.author_name || gasConfig.author_name || (language === 'id' ? 'Anonim' : 'Anonymous')
+  );
+  const [saveAsDefaultAuthor, setSaveAsDefaultAuthor] = useState(false);
+  const [disableCopy, setDisableCopy] = useState(Boolean(note.published_info?.disable_copy));
+
+  // Password Protection (AES-GCM 256)
+  const [enablePassword, setEnablePassword] = useState(Boolean(note.published_info?.is_encrypted));
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const [autoUpdateOnEdit, setAutoUpdateOnEdit] = useState(gasConfig.auto_update_on_edit !== false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
@@ -79,7 +95,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     const baseUrl = typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`
       : '';
-    // Encode compact URL-safe cipher with isKanban flag
+    // Encode compact URL-safe cipher with isKanban & disableCopy flags
     const cipher = encodePublishCipher({
       id: note.id,
       gasUrl: note.published_info?.gas_url || gasUrl || undefined,
@@ -87,39 +103,89 @@ export const PublishModal: React.FC<PublishModalProps> = ({
       author: authorName,
       publishedAt: note.published_info?.published_at,
       isKanban,
+      disableCopy,
     });
     return `${baseUrl}/?k=${cipher}`;
-  }, [isPublished, note.published_info, note.id, note.title, authorName, gasUrl, isKanban]);
+  }, [isPublished, note.published_info, note.id, note.title, authorName, gasUrl, isKanban, disableCopy]);
 
   // Automatic natural text direction (RTL if note contains Arabic/Hebrew, otherwise LTR)
   const noteDirection = getNoteDirection(note);
   const isRtl = noteDirection === 'rtl';
 
   const handlePublish = async () => {
-    setIsPublishing(true);
+    setPasswordError(null);
     setStatusMessage(null);
 
-    // Save configured GAS URL & auto-update preference to settings
-    onUpdateGASConfig({ web_app_url: gasUrl, author_name: authorName, auto_update_on_edit: autoUpdateOnEdit });
-
-    const result = await publishNoteToGAS(note, gasUrl, authorName);
-
-    if (result.success) {
-      onUpdateNote({
-        published_info: {
-          is_published: true,
-          published_at: result.published_at,
-          public_url: result.public_url,
-          gas_url: gasUrl,
-        },
-        updated_time: Date.now(),
-      });
-      setStatusMessage(result.message || (isId ? 'Catatan berhasil dipublikasikan!' : 'Note published successfully!'));
-    } else {
-      setStatusMessage(result.message || (isId ? 'Gagal mempublikasikan catatan.' : 'Could not publish note.'));
+    if (enablePassword && !password && !note.published_info?.is_encrypted) {
+      setPasswordError(isId ? 'Silakan masukkan kata sandi pembuka.' : 'Please enter an access password.');
+      return;
+    }
+    if (enablePassword && password && password.length < 4) {
+      setPasswordError(isId ? 'Kata sandi minimal 4 karakter.' : 'Password must be at least 4 characters.');
+      return;
+    }
+    if (enablePassword && password && password !== confirmPassword && !note.published_info?.is_encrypted) {
+      setPasswordError(isId ? 'Konfirmasi kata sandi tidak cocok.' : 'Password confirmation does not match.');
+      return;
     }
 
-    setIsPublishing(false);
+    setIsPublishing(true);
+
+    try {
+      // Save configured GAS URL & auto-update preference to settings
+      const updatedGAS: Partial<typeof gasConfig> = {
+        web_app_url: gasUrl,
+        auto_update_on_edit: autoUpdateOnEdit,
+      };
+      if (saveAsDefaultAuthor) {
+        updatedGAS.author_name = authorName.trim();
+      }
+      onUpdateGASConfig(updatedGAS);
+
+      // Prepare encrypted payload if password enabled
+      let encResult: { ciphertext: string; iv: string; salt: string } | undefined = note.published_info?.encrypted_data;
+      if (enablePassword && password) {
+        const plainJson = JSON.stringify({
+          body: note.body || '',
+          body_html: note.body_html || '',
+          is_kanban: isKanban,
+          kanban_data: note.kanban_data,
+        });
+        encResult = await encryptWithPassword(plainJson, password);
+      }
+
+      const result = await publishNoteToGAS(note, gasUrl, authorName.trim(), {
+        disableCopy,
+        isEncrypted: enablePassword,
+        salt: encResult?.salt,
+        encryptedData: encResult,
+      });
+
+      if (result.success) {
+        onUpdateNote({
+          published_info: {
+            is_published: true,
+            published_at: result.published_at,
+            public_url: result.public_url,
+            gas_url: gasUrl,
+            author_name: authorName.trim(),
+            disable_copy: disableCopy,
+            is_encrypted: enablePassword,
+            salt: encResult?.salt,
+            encrypted_data: encResult,
+          },
+          updated_time: Date.now(),
+        });
+        setStatusMessage(result.message || (isId ? 'Catatan berhasil dipublikasikan!' : 'Note published successfully!'));
+      } else {
+        setStatusMessage(result.message || (isId ? 'Gagal mempublikasikan catatan.' : 'Could not publish note.'));
+      }
+    } catch (err: any) {
+      console.error('Error publishing note:', err);
+      setStatusMessage(err?.message || (isId ? 'Terjadi kesalahan saat mempublikasikan catatan.' : 'An error occurred while publishing note.'));
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const executeUnpublish = async () => {
@@ -458,6 +524,15 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                         : 'bg-slate-900 text-slate-200 border-slate-700 focus:border-blue-500 placeholder-slate-500'
                     }`}
                   />
+                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={saveAsDefaultAuthor}
+                      onChange={(e) => setSaveAsDefaultAuthor(e.target.checked)}
+                      className="rounded border-slate-400 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                    />
+                    <span>{isId ? 'Jadikan sebagai nama penulis bawaan di pengaturan' : 'Set as default author in settings'}</span>
+                  </label>
                 </div>
 
                 {/* Auto Update to Web toggle */}
@@ -484,6 +559,138 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                       </span>
                     </div>
                   </label>
+                </div>
+
+                {/* Anti Copy-Paste Protection Card */}
+                <div
+                  className={`p-3.5 rounded-xl border space-y-2 transition ${
+                    disableCopy
+                      ? isLight
+                        ? 'bg-amber-50/70 border-amber-300'
+                        : 'bg-amber-950/20 border-amber-700/50'
+                      : isLight
+                      ? 'bg-slate-50 border-slate-200'
+                      : 'bg-slate-900 border-slate-700/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-xs select-none">
+                      <input
+                        type="checkbox"
+                        checked={disableCopy}
+                        onChange={(e) => setDisableCopy(e.target.checked)}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      />
+                      <span className="flex items-center gap-1.5">
+                        <CopySlash className={`w-3.5 h-3.5 ${disableCopy ? 'text-amber-500' : 'text-slate-400'}`} />
+                        <span>{isId ? 'Proteksi Anti Salin-Tempel (Anti Copy-Paste)' : 'Anti Copy-Paste Protection'}</span>
+                      </span>
+                    </label>
+
+                    {disableCopy && (
+                      <span className="text-[10px] text-amber-500 font-medium px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                        {isId ? 'Teks Terlindungi' : 'Protected'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] leading-relaxed opacity-75 pl-6">
+                    {isId
+                      ? 'Mencegah pembaca melakukan seleksi teks, klik kanan, dan shortcut salin (Ctrl+C / Cmd+C) pada halaman pembaca publik tanpa izin.'
+                      : 'Disables text selection, right-click context menu, and copy shortcuts (Ctrl+C / Cmd+C) on reader view to prevent unauthorized copying.'}
+                  </p>
+                </div>
+
+                {/* Password Protection Card (Client AES-GCM 256) */}
+                <div
+                  className={`p-3.5 rounded-xl border space-y-3 transition ${
+                    enablePassword
+                      ? isLight
+                        ? 'bg-blue-50/70 border-blue-300'
+                        : 'bg-blue-950/20 border-blue-700/50'
+                      : isLight
+                      ? 'bg-slate-50 border-slate-200'
+                      : 'bg-slate-900 border-slate-700/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-xs select-none">
+                      <input
+                        type="checkbox"
+                        checked={enablePassword}
+                        onChange={(e) => {
+                          setEnablePassword(e.target.checked);
+                          setPasswordError(null);
+                        }}
+                        className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      />
+                      <span className="flex items-center gap-1.5">
+                        <Lock className={`w-3.5 h-3.5 ${enablePassword ? 'text-blue-500' : 'text-slate-400'}`} />
+                        <span>{isId ? 'Proteksi Kata Sandi (Enkripsi Klien AES-GCM 256)' : 'Password Protection (Client AES-GCM 256)'}</span>
+                      </span>
+                    </label>
+
+                    {enablePassword && (
+                      <span className="text-[11px] text-blue-500 font-medium flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Zero-Knowledge</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] leading-relaxed opacity-75 pl-6">
+                    {isId
+                      ? 'Data catatan di backend tersimpan 100% terenkripsi AES-256. Pembaca wajib memasukkan kata sandi untuk mendekripsi dan membaca isinya.'
+                      : 'Note data in backend is stored 100% encrypted with AES-256. Visitors must enter password to decrypt and view.'}
+                  </p>
+
+                  {enablePassword && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 pl-6">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                          {isId ? 'Kata Sandi Pembuka:' : 'Access Password:'}
+                        </label>
+                        <input
+                          type="password"
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            setPasswordError(null);
+                          }}
+                          placeholder="••••••••"
+                          className={`w-full px-3 py-1.5 rounded-lg border text-xs focus:outline-hidden ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-[#1a2333] border-slate-700 text-slate-100'
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                          {isId ? 'Konfirmasi Kata Sandi:' : 'Confirm Password:'}
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            setPasswordError(null);
+                          }}
+                          placeholder="••••••••"
+                          className={`w-full px-3 py-1.5 rounded-lg border text-xs focus:outline-hidden ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-[#1a2333] border-slate-700 text-slate-100'
+                          }`}
+                        />
+                      </div>
+                      {passwordError && (
+                        <div className="sm:col-span-2 text-rose-500 text-[11px] font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{passwordError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -673,9 +880,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
 
                 {/* Article Footer */}
                 <div className="border-t border-slate-200 mt-8 pt-4 text-xs text-center text-slate-500 font-medium">
-                  Diterbitkan dari{' '}
+                  {isId ? 'Diterbitkan dari ' : 'Published from '}
                   <a
-                    href="https://lam-note.aiprojek01.my.id/"
+                    href="https://qalam-note.aiprojek01.my.id/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-500 hover:underline font-semibold"

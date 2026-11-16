@@ -34,13 +34,27 @@ export interface PublishResult {
 export async function publishNoteToGAS(
   note: Note,
   gasUrl: string,
-  authorName: string = 'Anonymous'
+  authorName: string = 'Anonymous',
+  options?: {
+    disableCopy?: boolean;
+    isEncrypted?: boolean;
+    salt?: string;
+    encryptedData?: {
+      ciphertext: string;
+      iv: string;
+      salt: string;
+    };
+  }
 ): Promise<PublishResult> {
   const publishedAt = Date.now();
   const slug = generateSlug(note.title);
   const isKanban = Boolean(note.is_kanban);
+  const disableCopy = options?.disableCopy ?? Boolean(note.published_info?.disable_copy);
+  const isEncrypted = options?.isEncrypted ?? Boolean(note.published_info?.is_encrypted);
+  const salt = options?.salt || note.published_info?.salt || '';
+  const encryptedData = options?.encryptedData || note.published_info?.encrypted_data;
 
-  // Generate compact encrypted cipher link (?k=<encoded_cipher>) with Kanban flag
+  // Generate compact encrypted cipher link (?k=<encoded_cipher>) with Kanban & disableCopy flags
   const compactPublicUrl = buildPublishUrl({
     id: note.id,
     gasUrl: gasUrl && gasUrl.trim() ? gasUrl.trim() : undefined,
@@ -48,6 +62,7 @@ export async function publishNoteToGAS(
     author: authorName,
     publishedAt,
     isKanban,
+    disableCopy,
   });
 
   // If no custom GAS URL is configured yet, generate a simulated/local public preview link
@@ -66,7 +81,9 @@ export async function publishNoteToGAS(
   const noteDir = getNoteDirection(note);
   let compiledHtml = '';
 
-  if (isKanban) {
+  if (isEncrypted) {
+    compiledHtml = '<div class="qalam-encrypted-note-placeholder">Encrypted Note (AES-GCM 256)</div>';
+  } else if (isKanban) {
     const kData: KanbanBoardData =
       note.kanban_data || markdownToKanbanData(note.body || '');
     const embeddedTag = `<!--QALAM_KANBAN_DATA:${encodeURIComponent(JSON.stringify(kData))}-->\n`;
@@ -83,19 +100,27 @@ export async function publishNoteToGAS(
     );
   }
 
+  if (disableCopy && !isEncrypted) {
+    compiledHtml = `<!--QALAM_DISABLE_COPY-->\n<div data-disable-copy="1">${compiledHtml}</div>`;
+  }
+
   const payload = {
     action: 'publish',
     id: note.id,
     slug,
     title: note.title,
-    content: note.body,
+    content: isEncrypted ? '' : note.body,
     html: compiledHtml,
     author: authorName,
     tags: note.tags || [],
     is_todo: note.is_todo,
     todo_completed: note.todo_completed,
     is_kanban: isKanban,
-    kanban_data: isKanban ? (note.kanban_data || markdownToKanbanData(note.body || '')) : undefined,
+    kanban_data: (isKanban && !isEncrypted) ? (note.kanban_data || markdownToKanbanData(note.body || '')) : undefined,
+    disable_copy: disableCopy,
+    is_encrypted: isEncrypted,
+    salt,
+    encrypted_data: isEncrypted ? encryptedData : undefined,
     created_time: note.created_time,
     updated_time: publishedAt,
   };
@@ -166,6 +191,14 @@ export async function fetchPublishedNoteFromGAS(
   published_at?: number | string;
   is_kanban?: boolean;
   kanban_data?: KanbanBoardData;
+  disable_copy?: boolean;
+  is_encrypted?: boolean;
+  salt?: string;
+  encrypted_data?: {
+    ciphertext: string;
+    iv: string;
+    salt: string;
+  };
 } | null> {
   if (!gasUrl || !noteId) return null;
   try {
@@ -190,6 +223,13 @@ export async function fetchPublishedNoteFromGAS(
         }
       }
 
+      const isEncrypted = Boolean(data.note.is_encrypted || data.note.encrypted_data);
+      const disableCopy = Boolean(
+        data.note.disable_copy ||
+        rawHtml.includes('<!--QALAM_DISABLE_COPY-->') ||
+        rawHtml.includes('data-disable-copy="1"')
+      );
+
       return {
         title: data.note.title || 'Untitled Note',
         html: rawHtml,
@@ -201,6 +241,10 @@ export async function fetchPublishedNoteFromGAS(
         published_at: data.note.published_at || data.note.updated_at,
         is_kanban: isKanban,
         kanban_data: kanbanData,
+        disable_copy: disableCopy,
+        is_encrypted: isEncrypted,
+        salt: data.note.salt,
+        encrypted_data: data.note.encrypted_data,
       };
     }
     return null;
@@ -251,6 +295,7 @@ export async function publishWikiToGAS(
     publishedAt,
     isWiki: true,
     landingNoteId: wikiBundle.landing_note_id,
+    disableCopy: wikiBundle.disable_copy,
   });
 
   if (!cleanGas) {
@@ -271,6 +316,7 @@ export async function publishWikiToGAS(
     description: wikiBundle.description || '',
     author: wikiBundle.author || 'Anonymous',
     landing_note_id: wikiBundle.landing_note_id,
+    disable_copy: Boolean(wikiBundle.disable_copy),
     is_encrypted: Boolean(wikiBundle.is_encrypted),
     salt: wikiBundle.salt || '',
     bundle: JSON.stringify(wikiBundle),

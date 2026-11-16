@@ -620,11 +620,11 @@ Turn an entire notebook—including all its nested subfolders and interconnected
 
 ### 1. What is a Zim-Style Digital Garden?
 Inspired by the renowned Zim Desktop Wiki methodology, Qalam Note enables you to publish a structured web wiki:
-- **Hierarchical Sidebar Tree**: Readers see your entire notebook tree structure on the left bilah, with collapsible folder icons.
+- **Hierarchical Sidebar Tree**: Readers see your entire notebook tree structure on the left sidebar, with collapsible folder icons.
 - **Nested Subfolders as Sub-Topics**: If your published folder contains subfolders (and sub-subfolders), they are automatically bundled and rendered as nested sub-branches with breadcrumb trails (\`Home / Subfolder / Note Title\`).
 - **Instant Client-Side SPA Navigation**: When readers click any internal \`[[WikiLink]]\`, the page switches instantly without reloading the browser.
 - **Automatic Table of Contents (TOC)**: Automatically extracts \`H1\`–\`H3\` headings into an interactive sidebar outline that smoothly scrolls to sections.
-- **Fast Instant Search**: Pembaca can filter across all pages in the wiki simultaneously.
+- **Fast Instant Search**: Readers can filter across all pages in the wiki simultaneously.
 
 ---
 
@@ -843,12 +843,25 @@ Create and format tables directly using the **Table** button on the editor toolb
 ---
 
 ### 2. Mathematical Formulas (KaTeX / LaTeX)
-Write scientific notations effortlessly:
-- **Inline Math:** Mass-energy equivalence is $E = mc^2$ and the quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.
-- **Block Math:**
+Write everyday arithmetic, algebra, fractions, powers, and roots effortlessly:
+- **Everyday Arithmetic:** $15 + 27 = 42$, $50 - 18 = 32$, $7 \\times 8 = 56$, and $24 \\div 6 = 4$.
+- **Fractions (Per-per-an):** Simple fraction $\\frac{1}{2} + \\frac{1}{3} = \\frac{5}{6}$, mixed number $2\\frac{1}{2} = \\frac{5}{2}$, and nested fraction $\\frac{\\frac{a}{b}}{\\frac{c}{d}} = \\frac{ad}{bc}$.
+- **Powers & Roots:** $2^3 = 8$, $x^{-2} = \\frac{1}{x^2}$, $\\sqrt{25} = 5$, and $c = \\sqrt{a^2 + b^2}$.
+- **Step-by-Step Calculation (Aligned):**
 $$
-\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}
+\\begin{aligned}
+2x + 5 &= 15 \\\\
+2x &= 15 - 5 \\\\
+2x &= 10 \\\\
+x &= 5
+\\end{aligned}
 $$
+- **Quadratic Formula:**
+$$
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+$$
+
+> 💡 **Official KaTeX Guide:** Open the math cheat sheet modal or explore the [Official KaTeX Supported Functions Guide (katex.org)](https://katex.org/docs/supported.html).
 
 ---
 
@@ -1474,12 +1487,25 @@ Anda dapat membuat dan mengedit tabel langsung dengan tombol **Tabel** di bilah 
 ---
 
 ### 2. Notasi Matematika (KaTeX / LaTeX)
-Tulis rumus ilmiah dengan tanda dolar:
-- **Rumus Sebaris (Inline):** Rumus kesetaraan massa-energi adalah $E = mc^2$ dan rumus kuadratik $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.
-- **Rumus Blok (Display Math):**
+Tulis perhitungan aritmatika harian, pecahan, pangkat, dan bentuk akar dengan mudah:
+- **Operasi Aritmatika Dasar:** $15 + 27 = 42$, $50 - 18 = 32$, $7 \\times 8 = 56$, dan $24 \\div 6 = 4$.
+- **Pecahan (Per-per-an):** Pecahan biasa $\\frac{1}{2} + \\frac{1}{3} = \\frac{5}{6}$, campuran $2\\frac{1}{2} = \\frac{5}{2}$, dan bertingkat $\\frac{\\frac{a}{b}}{\\frac{c}{d}} = \\frac{ad}{bc}$.
+- **Pangkat & Akar:** $2^3 = 8$, $x^{-2} = \\frac{1}{x^2}$, $\\sqrt{25} = 5$, dan $c = \\sqrt{a^2 + b^2}$.
+- **Perhitungan Aljabar Langkah demi Langkah:**
 $$
-\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}
+\\begin{aligned}
+2x + 5 &= 15 \\\\
+2x &= 15 - 5 \\\\
+2x &= 10 \\\\
+x &= 5
+\\end{aligned}
 $$
+- **Rumus Kuadratik (ABC):**
+$$
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+$$
+
+> 💡 **Panduan Resmi KaTeX:** Buka modal lembar pintasan rumus atau [Dokumentasi & Daftar Rumus Resmi KaTeX (katex.org)](https://katex.org/docs/supported.html) untuk panduan lengkap ratusan simbol matematika.
 
 ---
 
@@ -1778,6 +1804,11 @@ export async function alignAndDeduplicatePresetNotes(
     return null;
   };
 
+  const sampleNotesId = getSampleNotes('id');
+  const sampleNotesEn = getSampleNotes('en');
+  const idTitleMap = new Map(sampleNotesId.map((s) => [s.id, s.title]));
+  const enTitleMap = new Map(sampleNotesEn.map((s) => [s.id, s.title]));
+
   const processedSampleIds = new Set<string>();
 
   // Process all canonical sample notes
@@ -1791,20 +1822,24 @@ export async function alignAndDeduplicatePresetNotes(
       // Pick keeper: prefer note that already has canonical sample.id, otherwise the first match
       const keeper = matches.find((n) => n.id === sample.id) || matches[0];
 
-      // Only update sample content if user hasn't modified it
+      // Note is a canonical prenote if its title matches known preset titles in either Indonesian or English
+      const isKnownPresetTitle =
+        keeper.title === sample.title ||
+        keeper.title === idTitleMap.get(sample.id) ||
+        keeper.title === enTitleMap.get(sample.id);
+
+      // Only update sample content if user hasn't modified it as a personal note
       const isUntouchedSample =
         !keeper.sync_time &&
-        (keeper.title === sample.title || keeper.updated_time === keeper.created_time);
-      const wasDeleted = Boolean(keeper.is_deleted);
-
-      await removeDeletedSyncId(sample.id);
+        (isKnownPresetTitle || keeper.updated_time === keeper.created_time || !keeper.updated_time);
+      const isDeleted = Boolean(keeper.is_deleted);
 
       await db.notes.put({
         ...keeper,
         id: sample.id, // Guarantee canonical ID
-        folder_id: wasDeleted ? 'folder-welcome-01' : (keeper.folder_id || 'folder-welcome-01'),
-        title: (isUntouchedSample || wasDeleted) ? sample.title : keeper.title,
-        body: (isUntouchedSample || wasDeleted) ? sample.body : keeper.body,
+        folder_id: keeper.folder_id || 'folder-welcome-01',
+        title: isUntouchedSample ? sample.title : keeper.title,
+        body: isUntouchedSample ? sample.body : keeper.body,
         body_html: '', // Clean empty string (never undefined for IndexedDB structured clone safety)
         tags: Array.isArray(keeper.tags) && keeper.tags.length ? keeper.tags.filter(Boolean) : sample.tags,
         is_todo: keeper.is_todo ?? sample.is_todo,
@@ -1812,11 +1847,11 @@ export async function alignAndDeduplicatePresetNotes(
         todo_due: keeper.todo_due ?? sample.todo_due,
         is_favorite: keeper.is_favorite ?? sample.is_favorite,
         is_pinned: keeper.is_pinned ?? sample.is_pinned,
-        is_deleted: false, // Ensure active so existing users receive prenotes
+        is_deleted: isDeleted, // Respect existing deletion state! Never un-delete a deleted note!
         is_encrypted: keeper.is_encrypted ?? false,
         sync_status: keeper.sync_status || 'synced',
         order: keeper.order ?? sample.order,
-        updated_time: keeper.updated_time || keeper.created_time || sample.updated_time,
+        updated_time: isUntouchedSample ? sample.updated_time : (keeper.updated_time || keeper.created_time || sample.updated_time),
       });
 
       // If keeper previously had a non-canonical ID, delete the old ID record to avoid duplication
@@ -1831,15 +1866,17 @@ export async function alignAndDeduplicatePresetNotes(
         }
       }
     } else {
-      // Note does not exist at all, add canonical sample note
-      await removeDeletedSyncId(sample.id);
-      await db.notes.put({
-        ...sample,
-        folder_id: 'folder-welcome-01',
-        body_html: '',
-        sync_status: 'synced',
-        is_deleted: false,
-      });
+      // Note does not exist at all in DB: check if user permanently deleted it before
+      const deletedIds = new Set((await getDeletedSyncIds()).map((id) => id.toLowerCase()));
+      if (!deletedIds.has(sample.id.toLowerCase())) {
+        await db.notes.put({
+          ...sample,
+          folder_id: 'folder-welcome-01',
+          body_html: '',
+          sync_status: 'synced',
+          is_deleted: false,
+        });
+      }
     }
   }
 
@@ -1875,6 +1912,41 @@ export async function alignAndDeduplicatePresetNotes(
       await db.folders.put({ ...welcomeFolder, is_deleted: false, sync_status: 'synced' });
     }
     await removeDeletedSyncId(welcomeFolder.id);
+  } else {
+    // If folder title matches one of the canonical titles, update to match current active language
+    if (activeWelcomeFolder.title === 'Selamat Datang di Qalam Note' || activeWelcomeFolder.title === 'Welcome to Qalam Note') {
+      if (activeWelcomeFolder.title !== welcomeFolder.title) {
+        await db.folders.update(welcomeFolder.id, { title: welcomeFolder.title });
+      }
+    }
+  }
+
+  // Ensure canonical Welcome Guide note (note-01-welcome) exists AND is active (never deleted or lost in trash)
+  const welcomeNote = sampleNotes.find((s) => s.id === 'note-01-welcome') || sampleNotes[0];
+  const allNotesList = await db.notes.toArray();
+  const activeWelcomeNote = allNotesList.find((n) => n.id === welcomeNote.id && !n.is_deleted);
+  if (!activeWelcomeNote) {
+    const existingNoteRec = await db.notes.get(welcomeNote.id);
+    if (existingNoteRec) {
+      await db.notes.update(welcomeNote.id, {
+        is_deleted: false,
+        folder_id: 'folder-welcome-01',
+        title: welcomeNote.title,
+        body: existingNoteRec.body || welcomeNote.body,
+        body_html: '',
+        sync_status: 'synced',
+        updated_time: Date.now(),
+      });
+    } else {
+      await db.notes.put({
+        ...welcomeNote,
+        folder_id: 'folder-welcome-01',
+        body_html: '',
+        is_deleted: false,
+        sync_status: 'synced',
+      });
+    }
+    await removeDeletedSyncId(welcomeNote.id);
   }
 
   // Delete legacy pre-folders and register tombstones so they are purged from cloud and never resurrected
@@ -1913,7 +1985,7 @@ export async function alignAndDeduplicatePresetNotes(
   }
 }
 
-export const PRENOTE_CURRICULUM_VERSION = '1.4.0';
+export const PRENOTE_CURRICULUM_VERSION = '1.6.0';
 
 /**
  * Updates preset sample notes and default folders when user changes language
@@ -1926,33 +1998,39 @@ export async function updatePresetNotesLanguage(targetLang: AppLanguage): Promis
 }
 
 /**
- * Synchronizes latest official preset guide notes (prenotes) into the database.
- * If an existing user deleted old prenotes, or an app update brings new curriculum guides
- * (such as note-04-publish-wiki, note-05-publish-gas, note-06-kanban), this ensures that:
- * 1. The Welcome notebook ('folder-welcome-01') exists.
- * 2. Any missing canonical prenote is inserted cleanly.
- * 3. Any unmodified canonical prenote is updated with the latest instructions.
- * 4. User-created personal notes are NEVER touched or overwritten.
+ * Synchronizes latest official preset guide notes (prenotes) into the database on version upgrade.
+ * 
+ * Safety & Privacy Principles:
+ * 1. User-created personal notes are NEVER touched or modified.
+ * 2. If an existing user has moved a prenote to trash (is_deleted: true) or permanently deleted it,
+ *    it is NEVER resurrected automatically on version upgrades or app startups.
+ * 3. Only genuine brand-new canonical guide notes introduced in a new version (never seen or deleted before)
+ *    are inserted into 'folder-welcome-01'.
+ * 4. Active, untouched canonical guides are refreshed with latest version instructions.
+ * 5. Full restoration of all 12 canonical guides is only performed when explicitly requested by user (forceRestoreAll = true).
  */
-export async function syncLatestPresetNotes(targetLang: AppLanguage = 'id'): Promise<number> {
+export async function syncLatestPresetNotes(
+  targetLang: AppLanguage = 'id',
+  forceRestoreAll: boolean = false
+): Promise<number> {
   const sampleNotes = getSampleNotes(targetLang);
   const defaultFolders = getDefaultFolders(targetLang);
   const defaultTags = getDefaultTags(targetLang);
 
-  // 1. Ensure folder-welcome-01 exists AND is active (never deleted)
+  // 1. Ensure folder-welcome-01 exists
   const welcomeFolder = defaultFolders[0];
   const existingWelcome = await db.folders.get(welcomeFolder.id);
   if (!existingWelcome) {
     await db.folders.put({ ...welcomeFolder, sync_status: 'synced', is_deleted: false });
-  } else if (existingWelcome.is_deleted) {
+  } else if (existingWelcome.is_deleted && forceRestoreAll) {
     await db.folders.update(welcomeFolder.id, {
       is_deleted: false,
       title: welcomeFolder.title,
       sync_status: 'synced',
       updated_time: Date.now(),
     });
+    await removeDeletedSyncId(welcomeFolder.id);
   }
-  await removeDeletedSyncId(welcomeFolder.id);
 
   // 2. Ensure default tags exist
   for (const tag of defaultTags) {
@@ -1963,51 +2041,80 @@ export async function syncLatestPresetNotes(targetLang: AppLanguage = 'id'): Pro
   }
 
   let updatedOrAddedCount = 0;
+  const deletedIds = new Set((await getDeletedSyncIds()).map((id) => id.toLowerCase()));
 
-  // 3. Check each canonical preset note
+  // 3. Process each canonical preset note
   for (const sample of sampleNotes) {
-    // Clear deletion tombstone so cloud sync never re-deletes it
-    await removeDeletedSyncId(sample.id);
-
+    const lowerId = sample.id.toLowerCase();
     const existing = await db.notes.get(sample.id);
+
+    if (forceRestoreAll) {
+      // Explicit manual restoration requested by user in Settings:
+      // Purge tombstone and restore note to active
+      await removeDeletedSyncId(sample.id);
+      await db.notes.put({
+        ...sample,
+        folder_id: 'folder-welcome-01',
+        body_html: '',
+        sync_status: 'synced',
+        is_deleted: false,
+        updated_time: Date.now(),
+      });
+      updatedOrAddedCount++;
+      continue;
+    }
+
+    // The primary Welcome Guide (note-01-welcome) is canonical and must always be available
+    if (sample.id === 'note-01-welcome') {
+      await removeDeletedSyncId(sample.id);
+      if (!existing || existing.is_deleted) {
+        await db.notes.put({
+          ...sample,
+          folder_id: 'folder-welcome-01',
+          body_html: '',
+          sync_status: 'synced',
+          is_deleted: false,
+          updated_time: sample.updated_time,
+        });
+        updatedOrAddedCount++;
+        continue;
+      }
+    }
+
+    // Version-upgrade automatic migration (non-destructive):
     if (!existing) {
-      // Missing prenote (e.g., permanently deleted earlier by user, or newly added in this version)
-      await db.notes.put({
-        ...sample,
-        folder_id: 'folder-welcome-01',
-        body_html: '',
-        sync_status: 'synced',
-        is_deleted: false,
-        updated_time: sample.updated_time,
-      });
-      updatedOrAddedCount++;
+      // Note is missing from database:
+      // If user previously permanently deleted this note, RESPECT their deletion!
+      if (!deletedIds.has(lowerId)) {
+        // Brand-new canonical prenote introduced in this version upgrade!
+        await db.notes.put({
+          ...sample,
+          folder_id: 'folder-welcome-01',
+          body_html: '',
+          sync_status: 'synced',
+          is_deleted: false,
+          updated_time: sample.updated_time,
+        });
+        updatedOrAddedCount++;
+      }
     } else if (existing.is_deleted) {
-      // Prenote was soft-deleted by user: resurrect with latest version curriculum content as active!
-      await db.notes.put({
-        ...sample,
-        id: sample.id,
-        folder_id: 'folder-welcome-01',
-        title: sample.title,
-        body: sample.body,
-        body_html: '',
-        tags: sample.tags,
-        order: sample.order,
-        is_deleted: false,
-        is_todo: sample.is_todo,
-        todo_completed: sample.todo_completed,
-        todo_due: sample.todo_due,
-        is_favorite: false,
-        is_pinned: false,
-        is_encrypted: false,
-        sync_status: 'synced',
-        updated_time: sample.updated_time,
-      });
-      updatedOrAddedCount++;
+      // Note is in trash or marked deleted by user:
+      // NEVER RESURRECT! Respect user deletion decision.
     } else {
-      // Note exists and is active: if untouched by user, update to latest version text
+      // Note exists and is active: if untouched by user, update to latest version and target language text
+      const sampleNotesId = getSampleNotes('id');
+      const sampleNotesEn = getSampleNotes('en');
+      const idTitleMap = new Map(sampleNotesId.map((s) => [s.id, s.title]));
+      const enTitleMap = new Map(sampleNotesEn.map((s) => [s.id, s.title]));
+
+      const isKnownPresetTitle =
+        existing.title === sample.title ||
+        existing.title === idTitleMap.get(sample.id) ||
+        existing.title === enTitleMap.get(sample.id);
+
       const isUntouchedSample =
         !existing.sync_time &&
-        (existing.title === sample.title || existing.updated_time === existing.created_time || !existing.updated_time);
+        (isKnownPresetTitle || existing.updated_time === existing.created_time || !existing.updated_time);
 
       if (isUntouchedSample) {
         await db.notes.update(existing.id, {
@@ -2017,7 +2124,6 @@ export async function syncLatestPresetNotes(targetLang: AppLanguage = 'id'): Pro
           tags: sample.tags,
           order: sample.order,
           updated_time: sample.updated_time,
-          is_deleted: false,
           folder_id: existing.folder_id || 'folder-welcome-01',
         });
         updatedOrAddedCount++;
@@ -2025,51 +2131,23 @@ export async function syncLatestPresetNotes(targetLang: AppLanguage = 'id'): Pro
     }
   }
 
+  // Also synchronize welcome folder title if it matches known title
+  if (existingWelcome && (existingWelcome.title === 'Selamat Datang di Qalam Note' || existingWelcome.title === 'Welcome to Qalam Note')) {
+    if (existingWelcome.title !== welcomeFolder.title) {
+      await db.folders.update(welcomeFolder.id, { title: welcomeFolder.title });
+    }
+  }
+
   return updatedOrAddedCount;
 }
 
 /**
- * Manual restoration of all preset guide notes (triggered by user from Settings).
- * Re-instates all 11 canonical guides into 'folder-welcome-01' without touching personal notes.
+ * Manual restoration of all preset guide notes (triggered explicitly by user from Settings).
+ * Re-instates all 12 canonical guides into 'folder-welcome-01' without touching personal notes.
  */
 export async function restoreAllPresetNotes(targetLang: AppLanguage = 'id'): Promise<number> {
-  const sampleNotes = getSampleNotes(targetLang);
-  const defaultFolders = getDefaultFolders(targetLang);
-  const defaultTags = getDefaultTags(targetLang);
-
-  const welcomeFolder = defaultFolders[0];
-  const existingWelcome = await db.folders.get(welcomeFolder.id);
-  if (!existingWelcome) {
-    await db.folders.put({ ...welcomeFolder, sync_status: 'synced', is_deleted: false });
-  } else if (existingWelcome.is_deleted) {
-    await db.folders.update(welcomeFolder.id, {
-      is_deleted: false,
-      title: welcomeFolder.title,
-      sync_status: 'synced',
-      updated_time: Date.now(),
-    });
-  }
-  await removeDeletedSyncId(welcomeFolder.id);
-
-  for (const tag of defaultTags) {
-    await db.tags.put(tag);
-  }
-
-  let count = 0;
-  for (const sample of sampleNotes) {
-    await removeDeletedSyncId(sample.id);
-    await db.notes.put({
-      ...sample,
-      folder_id: 'folder-welcome-01',
-      body_html: '',
-      sync_status: 'synced',
-      is_deleted: false,
-    });
-    count++;
-  }
-
+  const count = await syncLatestPresetNotes(targetLang, true);
   await db.settings.put({ key: 'prenote_curriculum_version', value: PRENOTE_CURRICULUM_VERSION });
-  await db.settings.put({ key: 'prenote_curriculum_v1_4_0_enforced', value: true });
   return count;
 }
 
@@ -2084,13 +2162,6 @@ export async function initDatabase(): Promise<void> {
     const savedSettingRow = await db.settings.get('app_settings');
     if (savedSettingRow?.value?.language) {
       currentLang = savedSettingRow.value.language;
-    }
-    if (
-      savedSettingRow?.value?.gas?.author_name === 'Joplin User' ||
-      (typeof savedSettingRow?.value?.sync?.dropbox?.path === 'string' &&
-        savedSettingRow.value.sync.dropbox.path.toLowerCase().includes('joplin'))
-    ) {
-      currentLang = 'id';
     }
   } catch {}
 
@@ -2154,28 +2225,14 @@ export async function initDatabase(): Promise<void> {
   try {
     const curVersionRow = await db.settings.get('prenote_curriculum_version');
     const isCurriculumStale = !curVersionRow || curVersionRow.value !== PRENOTE_CURRICULUM_VERSION;
-    const isEnforcedV140 = await db.settings.get('prenote_curriculum_v1_4_0_enforced');
     const isSeeded = await db.settings.get('db_seeded_v1');
 
-    // Also check if any canonical prenote is missing or marked deleted by an existing user
-    let anyPrenoteMissingOrDeleted = false;
-    for (const sample of sampleNotes) {
-      const existing = await db.notes.get(sample.id);
-      if (!existing || existing.is_deleted) {
-        anyPrenoteMissingOrDeleted = true;
-        break;
-      }
-    }
-
-    const welcomeFolderRec = await db.folders.get('folder-welcome-01');
-    const welcomeFolderMissingOrDeleted = !welcomeFolderRec || Boolean(welcomeFolderRec.is_deleted);
-
-    if (!isSeeded || isCurriculumStale || !isEnforcedV140 || anyPrenoteMissingOrDeleted || welcomeFolderMissingOrDeleted) {
+    // ONLY perform non-destructive migration on first run or when official curriculum version is upgraded
+    if (!isSeeded || isCurriculumStale) {
       await alignAndDeduplicatePresetNotes(sampleNotes, defaultFolders, defaultTags);
-      await syncLatestPresetNotes(currentLang);
+      await syncLatestPresetNotes(currentLang, false);
       await db.settings.put({ key: 'db_seeded_v1', value: true });
       await db.settings.put({ key: 'prenote_curriculum_version', value: PRENOTE_CURRICULUM_VERSION });
-      await db.settings.put({ key: 'prenote_curriculum_v1_4_0_enforced', value: true });
     }
 
     // Sanitize any residual third-party app occurrences in user notes
@@ -2223,8 +2280,23 @@ export async function initDatabase(): Promise<void> {
     console.error('Error during data sanitation and deduplication:', err);
   }
 
-  // Ensure default settings exist and sanitize any legacy Joplin values
-  const existingSettings = await db.settings.get('app_settings');
+    // Guarantee that canonical Welcome Guide note (note-01-welcome) is always present and active
+    const welcomeNote = sampleNotes.find((s) => s.id === 'note-01-welcome') || sampleNotes[0];
+    const existingWelcomeNote = await db.notes.get(welcomeNote.id);
+    if (!existingWelcomeNote || existingWelcomeNote.is_deleted) {
+      await removeDeletedSyncId(welcomeNote.id);
+      await db.notes.put({
+        ...welcomeNote,
+        folder_id: 'folder-welcome-01',
+        body_html: '',
+        is_deleted: false,
+        sync_status: 'synced',
+        updated_time: Date.now(),
+      });
+    }
+
+    // Ensure default settings exist and sanitize any legacy Joplin values
+    const existingSettings = await db.settings.get('app_settings');
   if (!existingSettings) {
     await db.settings.put({ key: 'app_settings', value: DEFAULT_SETTINGS });
   } else {

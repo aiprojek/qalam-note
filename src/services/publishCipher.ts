@@ -14,6 +14,7 @@ export interface PublishCipherPayload {
   isKanban?: boolean;
   isWiki?: boolean; // Zim-Style Digital Garden interactive wiki
   landingNoteId?: string; // Default landing note for Wiki
+  disableCopy?: boolean; // Anti copy-paste protection flag
 }
 
 // Dedicated keystream seed for public published note link encryption
@@ -78,6 +79,11 @@ export function encodePublishCipher(payload: PublishCipherPayload): string {
       }
       packed.l = compactLanding;
     }
+  }
+
+  // Anti copy-paste protection flag (dc = 1)
+  if (payload.disableCopy) {
+    packed.dc = 1;
   }
 
   const jsonStr = JSON.stringify(packed);
@@ -181,6 +187,7 @@ export function decodePublishCipher(cipher: string): PublishCipherPayload | null
       isKanban: parsed.k === 1,
       isWiki: parsed.w === 1,
       landingNoteId: landingNoteId || undefined,
+      disableCopy: parsed.dc === 1 || Boolean(parsed.disableCopy),
     };
   } catch (err) {
     console.warn('Unable to decode publish cipher parameter:', err);

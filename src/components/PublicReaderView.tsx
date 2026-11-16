@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   Share2,
@@ -19,12 +19,17 @@ import {
   ListTodo,
   Columns3,
   ExternalLink,
+  Lock,
+  KeyRound,
+  ShieldCheck,
+  CopySlash,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import type { Note, KanbanBoardData, KanbanCardItem, KanbanPriority } from '../types';
 import { markdownToHtml, wrapTablesWithScrollContainer } from '../utils/markdown';
 import { getNoteDirection } from '../utils/rtl';
 import { calculateKanbanStats, markdownToKanbanData, kanbanDataToMarkdown } from '../utils/kanbanSerializer';
+import { decryptWithPassword } from '../services/crypto';
 import { QalamIcon } from './icons/QalamIcon';
 
 export interface RemotePublishedNote {
@@ -38,6 +43,14 @@ export interface RemotePublishedNote {
   gasUrl?: string;
   is_kanban?: boolean;
   kanban_data?: KanbanBoardData;
+  disable_copy?: boolean;
+  is_encrypted?: boolean;
+  salt?: string;
+  encrypted_data?: {
+    ciphertext: string;
+    iv: string;
+    salt: string;
+  };
 }
 
 interface PublicReaderViewProps {
@@ -48,6 +61,7 @@ interface PublicReaderViewProps {
   noteId?: string;
   publishedAt?: number | string;
   isKanbanHint?: boolean;
+  disableCopyHint?: boolean;
   isLoadingRemote?: boolean;
   errorMessage?: string | null;
   onBackToApp: () => void;
@@ -61,6 +75,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   noteId,
   publishedAt,
   isKanbanHint = false,
+  disableCopyHint = false,
   isLoadingRemote = false,
   errorMessage = null,
   onBackToApp,
@@ -69,8 +84,116 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isLight = theme === 'light';
 
-  // Determine active note data
-  const title = note?.title || remoteNote?.title || 'Catatan Publik';
+  // 1. Password Protection & Decryption State (Zero-Knowledge AES-GCM 256)
+  const encryptedDataPackage = useMemo(() => {
+    if (note?.published_info?.encrypted_data) {
+      return note.published_info.encrypted_data;
+    }
+    if (remoteNote?.encrypted_data) {
+      return remoteNote.encrypted_data;
+    }
+    if (remoteNote?.html) {
+      const match = remoteNote.html.match(/<!--QALAM_ENCRYPTED_NOTE:(.*?)-->/);
+      if (match && match[1]) {
+        try {
+          return JSON.parse(decodeURIComponent(match[1]));
+        } catch (e) {
+          console.warn('Failed parsing embedded encrypted note data:', e);
+        }
+      }
+    }
+    return null;
+  }, [note?.published_info?.encrypted_data, remoteNote?.encrypted_data, remoteNote?.html]);
+
+  const isEncryptedNote = Boolean(
+    note?.published_info?.is_encrypted ||
+    remoteNote?.is_encrypted ||
+    encryptedDataPackage
+  );
+
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(!isEncryptedNote);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [decryptedData, setDecryptedData] = useState<{
+    title?: string;
+    body?: string;
+    body_html?: string;
+    is_kanban?: boolean;
+    kanban_data?: KanbanBoardData;
+  } | null>(null);
+
+  useEffect(() => {
+    setIsUnlocked(!isEncryptedNote);
+  }, [isEncryptedNote]);
+
+  const handleUnlockPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!encryptedDataPackage || !passwordInput) return;
+
+    setIsDecrypting(true);
+    setPasswordError(null);
+
+    try {
+      const { ciphertext, iv, salt } = encryptedDataPackage;
+      const decryptedJson = await decryptWithPassword(ciphertext, iv, salt, passwordInput);
+      const parsed = JSON.parse(decryptedJson);
+
+      if (parsed && typeof parsed === 'object') {
+        setDecryptedData(parsed);
+        setIsUnlocked(true);
+      } else {
+        throw new Error('Data format error');
+      }
+    } catch (err) {
+      setPasswordError('Kata sandi salah. Silakan periksa kembali.');
+    } finally {
+      setIsDecrypting(false);
+    }
+  };
+
+  // 2. Anti Copy-Paste Protection State
+  const isCopyDisabled = Boolean(
+    disableCopyHint ||
+    remoteNote?.disable_copy ||
+    note?.published_info?.disable_copy ||
+    (remoteNote?.html && (
+      remoteNote.html.includes('<!--QALAM_DISABLE_COPY-->') ||
+      remoteNote.html.includes('data-disable-copy="1"')
+    ))
+  );
+
+  const [copyBlockedNotice, setCopyBlockedNotice] = useState(false);
+  const copyNoticeTimeoutRef = useRef<any>(null);
+
+  const triggerCopyBlockedNotice = useCallback(() => {
+    if (!isCopyDisabled) return;
+    setCopyBlockedNotice(true);
+    if (copyNoticeTimeoutRef.current) clearTimeout(copyNoticeTimeoutRef.current);
+    copyNoticeTimeoutRef.current = setTimeout(() => {
+      setCopyBlockedNotice(false);
+    }, 2800);
+  }, [isCopyDisabled]);
+
+  useEffect(() => {
+    if (!isCopyDisabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'u', 's', 'p'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        triggerCopyBlockedNotice();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (copyNoticeTimeoutRef.current) clearTimeout(copyNoticeTimeoutRef.current);
+    };
+  }, [isCopyDisabled, triggerCopyBlockedNotice]);
+
+  // Determine active note data (considering decrypted payload if present)
+  const title = decryptedData?.title || note?.title || remoteNote?.title || 'Catatan Publik';
   const tags = note?.tags || remoteNote?.tags || [];
   const displayAuthor = remoteNote?.author || authorName || 'Anonymous';
 
@@ -161,6 +284,13 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
 
   // Determine if note is a Project Kanban Board
   const kanbanData: KanbanBoardData | null = useMemo(() => {
+    // 0. Decrypted payload data (Zero-Knowledge password protection)
+    if (decryptedData?.kanban_data && Array.isArray(decryptedData.kanban_data.columns)) {
+      return decryptedData.kanban_data;
+    }
+    if (decryptedData?.body && (decryptedData.is_kanban || isKanbanHint)) {
+      return markdownToKanbanData(decryptedData.body);
+    }
     // 1. Direct kanban_data on local note
     if (note?.kanban_data && Array.isArray(note.kanban_data.columns)) {
       return note.kanban_data;
@@ -206,7 +336,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
       }
     }
     // 6. If explicitly marked as Kanban (from cipher flag or note property), guarantee empty structure
-    if (note?.is_kanban || remoteNote?.is_kanban || isKanbanHint) {
+    if (decryptedData?.is_kanban || note?.is_kanban || remoteNote?.is_kanban || isKanbanHint) {
       return {
         version: 1,
         columns: [
@@ -219,6 +349,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     }
     return null;
   }, [
+    decryptedData,
     note?.is_kanban,
     note?.kanban_data,
     note?.body,
@@ -228,7 +359,13 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     isKanbanHint,
   ]);
 
-  const isKanban = Boolean(kanbanData || note?.is_kanban || remoteNote?.is_kanban || isKanbanHint);
+  const isKanban = Boolean(
+    decryptedData?.is_kanban ||
+    kanbanData ||
+    note?.is_kanban ||
+    remoteNote?.is_kanban ||
+    isKanbanHint
+  );
   const [kanbanViewMode, setKanbanViewMode] = useState<'board' | 'document'>('board');
   const [kanbanSearch, setKanbanSearch] = useState('');
 
@@ -268,11 +405,35 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     }
   };
 
-  // Format and sanitize HTML/Markdown content with support for both editor modes
+  // Format and sanitize HTML/Markdown content with support for decrypted and regular data
   const formattedHtml = useMemo(() => {
     let rawHtml = '';
-    // If it's a Kanban board viewed in document mode, render the formatted markdown report
-    if (isKanban && kanbanData) {
+    // Decrypted data takes precedence
+    if (decryptedData) {
+      if (isKanban && kanbanData) {
+        const md = kanbanDataToMarkdown(kanbanData, title);
+        rawHtml = markdownToHtml(md, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+      } else if (decryptedData.body_html && decryptedData.body_html.trim()) {
+        rawHtml = DOMPurify.sanitize(decryptedData.body_html.trim(), {
+          ADD_TAGS: [
+            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+            'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'br',
+            'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+            'audio', 'source', 'figure', 'figcaption', 'iframe', 'b', 'strong', 'i', 'em', 'u', 's'
+          ],
+          ADD_ATTR: [
+            'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id',
+            'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height',
+            'allow', 'allowfullscreen', 'align', 'valign'
+          ],
+          ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
+        });
+      } else if (decryptedData.body && decryptedData.body.trim()) {
+        rawHtml = markdownToHtml(decryptedData.body, { theme, direction: isRtl ? 'rtl' : 'ltr' });
+      }
+    } else if (isKanban && kanbanData) {
+      // If it's a Kanban board viewed in document mode, render the formatted markdown report
       const md = kanbanDataToMarkdown(kanbanData, title);
       rawHtml = markdownToHtml(md, { theme, direction: isRtl ? 'rtl' : 'ltr' });
     } else if (remoteNote?.html && remoteNote.html.trim()) {
@@ -321,7 +482,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     }
 
     return wrapTablesWithScrollContainer(rawHtml);
-  }, [isKanban, kanbanData, title, note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
+  }, [decryptedData, isKanban, kanbanData, title, note?.body, note?.body_html, remoteNote?.html, theme, isRtl]);
 
   // Loading State
   if (isLoadingRemote) {
@@ -370,12 +531,117 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
     );
   }
 
+  // 3. Password Unlock Gate for Encrypted Notes (AES-GCM 256)
+  if (!isUnlocked && isEncryptedNote) {
+    return (
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center p-4 select-none ${
+          isLight ? 'bg-slate-900/40 backdrop-blur-xs text-slate-900' : 'bg-black/80 backdrop-blur-xs text-white'
+        }`}
+      >
+        <div
+          className={`w-full max-w-md p-6 sm:p-8 rounded-2xl border shadow-2xl space-y-5 text-center ${
+            isLight ? 'bg-white border-slate-300' : 'bg-[#141d2e] border-slate-700'
+          }`}
+        >
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center shadow-inner">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          <div>
+            <h2 className={`text-lg font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              {title}
+            </h2>
+            <p className={`text-xs mt-1 ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
+              Catatan ini dilindungi kata sandi dengan enkripsi ujung-ke-ujung (Zero-Knowledge AES-GCM 256).
+            </p>
+          </div>
+
+          <form onSubmit={handleUnlockPassword} className="space-y-3.5 text-left">
+            <div>
+              <label className={`block text-xs font-semibold mb-1 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                Masukkan Kata Sandi Pembuka:
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="••••••••"
+                  autoFocus
+                  className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs focus:ring-1 focus:ring-amber-500 focus:outline-hidden ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0f172a] border-slate-700 text-white'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {passwordError && (
+              <p className="text-xs text-rose-400 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{passwordError}</span>
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isDecrypting || !passwordInput}
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              {isDecrypting ? (
+                <span>Mendekripsi Catatan...</span>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Buka Akses Catatan</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className={`pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/80'}`}>
+            <button
+              onClick={onBackToApp}
+              className={`text-xs hover:underline cursor-pointer ${isLight ? 'text-slate-500' : 'text-slate-400 hover:text-white'}`}
+            >
+              ← Kembali ke Aplikasi Qalam
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`fixed inset-0 z-50 h-screen h-dvh w-full overflow-y-auto overflow-x-hidden flex flex-col font-sans select-text transition-colors duration-200 custom-scrollbar ${
+      onContextMenu={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      onCopy={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      onCut={(e) => {
+        if (isCopyDisabled) {
+          e.preventDefault();
+          triggerCopyBlockedNotice();
+        }
+      }}
+      className={`fixed inset-0 z-50 h-screen h-dvh w-full overflow-y-auto overflow-x-hidden flex flex-col font-sans transition-colors duration-200 custom-scrollbar ${
+        isCopyDisabled ? 'select-none' : 'select-text'
+      } ${
         isLight ? 'qalam-light bg-slate-100 text-slate-900' : 'bg-[#0a0f1d] text-slate-100 qalam-dark-reader'
       }`}
-      style={{ WebkitOverflowScrolling: 'touch' }}
+      style={{
+        WebkitOverflowScrolling: 'touch',
+        ...(isCopyDisabled ? { userSelect: 'none', WebkitUserSelect: 'none' } : {}),
+      }}
     >
       {/* Top Banner Bar */}
       <header className="sticky top-0 z-40 bg-[#151f32] text-white px-4 sm:px-6 py-3 flex items-center justify-between shadow-md border-b border-slate-800 shrink-0">
@@ -444,6 +710,17 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
             </button>
           </div>
 
+          {/* Anti-Copy Protection Status */}
+          {isCopyDisabled && (
+            <div
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-semibold"
+              title="Penyalinan konten dinonaktifkan oleh penulis"
+            >
+              <CopySlash className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span>Anti-Salin</span>
+            </div>
+          )}
+
           {/* Share button */}
           <button
             onClick={handleCopyLink}
@@ -479,6 +756,12 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
             {/* Tags and RTL pill */}
             <div className={`flex items-center gap-2 mb-3 flex-wrap justify-between`}>
               <div className="flex items-center gap-1.5 flex-wrap">
+                {isCopyDisabled && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center gap-1">
+                    <CopySlash className="w-3 h-3" />
+                    <span>Anti-Salin</span>
+                  </span>
+                )}
                 {isKanban && (
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
                     <Kanban className="w-3 h-3" />
@@ -905,7 +1188,7 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
             <span>
               Diterbitkan dari{' '}
               <a
-                href="https://lam-note.aiprojek01.my.id/"
+                href="https://qalam-note.aiprojek01.my.id/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-500 hover:underline font-semibold"
@@ -916,6 +1199,14 @@ export const PublicReaderView: React.FC<PublicReaderViewProps> = ({
           </footer>
         </article>
       </main>
+
+      {/* Anti copy-paste floating alert toast */}
+      {copyBlockedNotice && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900/95 text-white border border-rose-500/40 shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold select-none">
+          <CopySlash className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>Konten dilindungi oleh penulis. Penyalinan teks dinonaktifkan.</span>
+        </div>
+      )}
     </div>
   );
 };

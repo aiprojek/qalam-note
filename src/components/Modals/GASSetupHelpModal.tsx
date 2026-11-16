@@ -154,7 +154,7 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
                 {prov.id === 'cloudflare' && <Zap className="w-3.5 h-3.5 text-amber-500" />}
                 {prov.id === 'custom' && <Server className="w-3.5 h-3.5 text-purple-400" />}
                 {prov.id === 'github_gist' && <Github className="w-3.5 h-3.5 text-slate-400" />}
-                <span>{prov.name}</span>
+                <span>{language === 'id' ? prov.name : (prov.name_en || prov.name)}</span>
               </button>
             );
           })}
@@ -179,31 +179,51 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
                 <p className={`text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-emerald-900/80' : 'text-slate-300'}`}>
                   {isId
                     ? 'Google Spreadsheet pribadi Anda bertindak sebagai basis data cloud gratis! Skrip ini mendukung Catatan Tunggal ("PublishedNotes") dan Wiki Folder Multi-Tab ("Wiki - [Nama Folder]"). Saat catatan atau wiki dicabut/dihapus, baris atau tab sheet-nya otomatis dihapus agar rapi dan hemat kuota.'
-                    : 'Your personal Google Sheet acts as the free cloud database! Supports Single Notes and Multi-Tab Folder Wikis. Deleting or unpublishing automatically cleans up rows or dedicated sheet tabs.'}
+                    : 'Your personal Google Sheet acts as the free cloud database! Supports Single Notes ("PublishedNotes") and Multi-Tab Folder Wikis ("Wiki - [Folder Name]"). Deleting or unpublishing automatically cleans up rows or dedicated sheet tabs.'}
                 </p>
               </div>
 
               <div>
                 <h4 className={`font-bold mb-2.5 text-xs uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  {isId ? 'Langkah Setup Cepat (2 Menit)' : 'Quick 2-Minute Setup'}
+                  {isId ? 'Langkah Setup Cepat (2 Menit)' : 'Quick 2-Minute Setup Steps'}
                 </h4>
-                <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  <li>
-                    Buka{' '}
-                    <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
-                      sheets.new <ExternalLink className="w-2.5 h-2.5" />
-                    </a>{' '}
-                    untuk membuat spreadsheet baru. Beri judul <strong>"Qalam Notes Store"</strong>.
-                  </li>
-                  <li>Di menu atas Google Spreadsheet, klik <strong>Ekstensi &gt; Apps Script</strong>.</li>
-                  <li>Hapus semua kode di editor <code>Code.gs</code>, lalu tempel kode skrip di bawah.</li>
-                  <li>Klik tombol biru <strong>Terapkan (Deploy)</strong> &gt; <strong>Penerapan baru (New deployment)</strong>.</li>
-                  <li>Pilih jenis <strong>Aplikasi web (Web app)</strong>.</li>
-                  <li>Atur <strong>Jalankan sebagai (Execute as)</strong> ke <strong>Saya (Me)</strong>.</li>
-                  <li>Atur <strong>Yang memiliki akses (Who has access)</strong> ke <strong>Siapa saja (Anyone)</strong>.</li>
-                  <li>Klik <strong>Terapkan</strong>, berikan izin Google, lalu salin <strong>URL Aplikasi Web</strong>.</li>
-                  <li>Tempelkan URL ke kolom URL Publikasi di Qalam Note!</li>
-                </ol>
+                {isId ? (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Buka{' '}
+                      <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        sheets.new <ExternalLink className="w-2.5 h-2.5" />
+                      </a>{' '}
+                      untuk membuat spreadsheet baru. Beri judul <strong>"Qalam Notes Store"</strong>.
+                    </li>
+                    <li>Di menu atas Google Spreadsheet, klik <strong>Ekstensi &gt; Apps Script</strong>.</li>
+                    <li>Hapus semua kode di editor <code>Code.gs</code>, lalu tempel kode skrip di bawah.</li>
+                    <li>Klik tombol biru <strong>Terapkan (Deploy)</strong> &gt; <strong>Penerapan baru (New deployment)</strong>.</li>
+                    <li>Pilih jenis <strong>Aplikasi web (Web app)</strong>.</li>
+                    <li>Atur <strong>Jalankan sebagai (Execute as)</strong> ke <strong>Saya (Me)</strong>.</li>
+                    <li>Atur <strong>Yang memiliki akses (Who has access)</strong> ke <strong>Siapa saja (Anyone)</strong>.</li>
+                    <li>Klik <strong>Terapkan</strong>, berikan izin Google, lalu salin <strong>URL Aplikasi Web</strong>.</li>
+                    <li>Tempelkan URL ke kolom URL Publikasi di Qalam Note!</li>
+                  </ol>
+                ) : (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Open{' '}
+                      <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        sheets.new <ExternalLink className="w-2.5 h-2.5" />
+                      </a>{' '}
+                      to create a new Google Sheet. Name it <strong>"Qalam Notes Store"</strong>.
+                    </li>
+                    <li>In the top menu bar, click <strong>Extensions &gt; Apps Script</strong>.</li>
+                    <li>Clear any default code in <code>Code.gs</code>, then paste the script code shown below.</li>
+                    <li>Click the blue <strong>Deploy</strong> button &gt; <strong>New deployment</strong>.</li>
+                    <li>Click the gear icon next to "Select type" and choose <strong>Web app</strong>.</li>
+                    <li>Set <strong>Execute as</strong> to <strong>Me</strong>.</li>
+                    <li>Set <strong>Who has access</strong> to <strong>Anyone</strong>.</li>
+                    <li>Click <strong>Deploy</strong>, grant Google permissions, and copy the <strong>Web App URL</strong>.</li>
+                    <li>Paste the copied URL into the Publishing URL field in Qalam Note!</li>
+                  </ol>
+                )}
               </div>
             </>
           )}
@@ -220,46 +240,76 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
               >
                 <h4 className={`font-bold mb-1 flex items-center gap-1.5 ${isLight ? 'text-amber-950' : 'text-amber-300'}`}>
                   <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                  {isId ? 'Cloudflare Worker (Edge Serverless) — Rekomendasi Modern' : 'Cloudflare Worker (Edge Serverless) — Recommended Modern'}
+                  {isId ? 'Cloudflare Worker (Edge Serverless) — Rekomendasi Modern' : 'Cloudflare Worker (Edge Serverless) — Modern Recommendation'}
                 </h4>
                 <p className={`text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-amber-900/80' : 'text-slate-300'}`}>
                   {isId
                     ? 'Alternatif terbaik jika ingin kecepatan kilat (<15ms) dan bebas dari pembatasan Google Apps Script. 100.000 request per hari GRATIS selamanya tanpa kartu kredit. Mendukung catatan tunggal, papan Kanban, dan bundle wiki folder.'
-                    : 'The best alternative for lightning speed (<15ms) and zero Google Apps Script limits. 100,000 requests/day FREE forever without credit card. Supports notes, Kanban boards, and wiki bundles.'}
+                    : 'The best alternative for lightning speed (<15ms) and zero Google Apps Script limits. 100,000 requests/day FREE forever without credit card. Supports notes, Kanban boards, and folder wiki bundles.'}
                 </p>
               </div>
 
               <div>
                 <h4 className={`font-bold mb-2.5 text-xs uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  {isId ? 'Langkah Setup Cloudflare Worker (2 Menit)' : 'Cloudflare Worker 2-Minute Setup'}
+                  {isId ? 'Langkah Setup Cloudflare Worker (2 Menit)' : 'Cloudflare Worker 2-Minute Setup Steps'}
                 </h4>
-                <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  <li>
-                    Buka{' '}
-                    <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
-                      dash.cloudflare.com <ExternalLink className="w-2.5 h-2.5" />
-                    </a>{' '}
-                    &gt; menu <strong>Workers &amp; Pages</strong>.
-                  </li>
-                  <li>
-                    Klik tab <strong>KV</strong> di bilah samping &gt; klik <strong>Create a namespace</strong> &gt; beri nama <code>QALAM_KV</code>.
-                  </li>
-                  <li>
-                    Kembali ke menu <strong>Workers &amp; Pages</strong> &gt; klik <strong>Create application</strong> &gt; <strong>Create Worker</strong> &gt; klik <strong>Deploy</strong>.
-                  </li>
-                  <li>
-                    Masuk ke Worker yang baru dibuat &gt; buka <strong>Settings &gt; Variables &gt; KV Namespace Bindings</strong> &gt; klik <strong>Add binding</strong>:
-                    <div className="mt-1 p-2 rounded-lg bg-slate-900/70 border border-slate-700/60 font-mono text-[10px]">
-                      Variable name: <strong>QALAM_KV</strong><br />
-                      KV namespace: <strong>QALAM_KV</strong>
-                    </div>
-                  </li>
-                  <li>
-                    Buka tab <strong>Code</strong> pada Worker, hapus seluruh kode bawaan, lalu tempel kode skrip di bawah.
-                  </li>
-                  <li>Klik <strong>Deploy</strong>. Salin URL Worker Anda (contoh: <code>https://qalam-notes.username.workers.dev</code>).</li>
-                  <li>Tempelkan URL tersebut ke kolom URL Publikasi di Qalam Note!</li>
-                </ol>
+                {isId ? (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Buka{' '}
+                      <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        dash.cloudflare.com <ExternalLink className="w-2.5 h-2.5" />
+                      </a>{' '}
+                      &gt; menu <strong>Workers &amp; Pages</strong>.
+                    </li>
+                    <li>
+                      Klik tab <strong>KV</strong> di bilah samping &gt; klik <strong>Create a namespace</strong> &gt; beri nama <code>QALAM_KV</code>.
+                    </li>
+                    <li>
+                      Kembali ke menu <strong>Workers &amp; Pages</strong> &gt; klik <strong>Create application</strong> &gt; <strong>Create Worker</strong> &gt; klik <strong>Deploy</strong>.
+                    </li>
+                    <li>
+                      Masuk ke Worker yang baru dibuat &gt; buka <strong>Settings &gt; Variables &gt; KV Namespace Bindings</strong> &gt; klik <strong>Add binding</strong>:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900/70 border border-slate-700/60 font-mono text-[10px]">
+                        Variable name: <strong>QALAM_KV</strong><br />
+                        KV namespace: <strong>QALAM_KV</strong>
+                      </div>
+                    </li>
+                    <li>
+                      Buka tab <strong>Code</strong> pada Worker, hapus seluruh kode bawaan, lalu tempel kode skrip di bawah.
+                    </li>
+                    <li>Klik <strong>Deploy</strong>. Salin URL Worker Anda (contoh: <code>https://qalam-notes.username.workers.dev</code>).</li>
+                    <li>Tempelkan URL tersebut ke kolom URL Publikasi di Qalam Note!</li>
+                  </ol>
+                ) : (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Go to{' '}
+                      <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        dash.cloudflare.com <ExternalLink className="w-2.5 h-2.5" />
+                      </a>{' '}
+                      &gt; <strong>Workers &amp; Pages</strong> menu.
+                    </li>
+                    <li>
+                      Click the <strong>KV</strong> tab in the left sidebar &gt; click <strong>Create a namespace</strong> &gt; name it <code>QALAM_KV</code>.
+                    </li>
+                    <li>
+                      Go back to <strong>Workers &amp; Pages</strong> &gt; click <strong>Create application</strong> &gt; <strong>Create Worker</strong> &gt; click <strong>Deploy</strong>.
+                    </li>
+                    <li>
+                      Open your newly created Worker &gt; navigate to <strong>Settings &gt; Variables &gt; KV Namespace Bindings</strong> &gt; click <strong>Add binding</strong>:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900/70 border border-slate-700/60 font-mono text-[10px]">
+                        Variable name: <strong>QALAM_KV</strong><br />
+                        KV namespace: <strong>QALAM_KV</strong>
+                      </div>
+                    </li>
+                    <li>
+                      Open the <strong>Code</strong> tab in the Worker, clear the default template, then paste the script code below.
+                    </li>
+                    <li>Click <strong>Deploy</strong>. Copy your Worker URL (e.g. <code>https://qalam-notes.username.workers.dev</code>).</li>
+                    <li>Paste the Worker URL into the Publishing URL field in Qalam Note!</li>
+                  </ol>
+                )}
               </div>
             </>
           )}
@@ -276,34 +326,52 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
               >
                 <h4 className={`font-bold mb-1 flex items-center gap-1.5 ${isLight ? 'text-purple-950' : 'text-purple-300'}`}>
                   <Server className="w-4 h-4 text-purple-400 shrink-0" />
-                  {isId ? 'Server Mandiri (Node.js / VPS / Docker / Railway)' : 'Self-Hosted Server (Node.js / VPS / Docker)'}
+                  {isId ? 'Server Mandiri (Node.js / VPS / Docker / Railway)' : 'Self-Hosted Server (Node.js / VPS / Docker / Railway)'}
                 </h4>
                 <p className={`text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-purple-900/80' : 'text-slate-300'}`}>
                   {isId
                     ? 'Solusi 100% kedaulatan data tanpa ketergantungan pihak ketiga mana pun. Skrip Node.js ringan yang menyimpan data ke sistem berkas JSON lokal. Sangat cocok di-host di VPS pribadi, Railway, Fly.io, atau Render.'
-                    : '100% data sovereignty with zero third-party lock-in. Lightweight Node.js server that stores data directly into local JSON files. Runs smoothly on any VPS, Railway, Fly.io, or Render.'}
+                    : '100% data sovereignty with zero third-party dependencies. Lightweight Node.js server that stores data directly to local JSON storage. Ideal for self-hosting on your private VPS, Railway, Fly.io, or Render.'}
                 </p>
               </div>
 
               <div>
                 <h4 className={`font-bold mb-2.5 text-xs uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  {isId ? 'Langkah Menjalankan di Server / VPS' : 'Running on Your Server / VPS'}
+                  {isId ? 'Langkah Menjalankan di Server / VPS' : 'Steps to Run on Your Server / VPS'}
                 </h4>
-                <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  <li>Buat folder baru di server Anda, simpan kode di bawah sebagai <code>server.js</code>.</li>
-                  <li>Jalankan perintah instalasi:
-                    <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
-                      npm init -y &amp;&amp; npm install express cors
-                    </div>
-                  </li>
-                  <li>Jalankan server:
-                    <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
-                      node server.js
-                    </div>
-                  </li>
-                  <li>Gunakan reverse-proxy HTTPS seperti Nginx, Caddy, atau Cloudflare Tunnel untuk mengekspos endpoint Anda secara aman (contoh: <code>https://api.domainanda.com/qalam-publish</code>).</li>
-                  <li>Tempelkan URL tersebut ke pengaturan publikasi Qalam Note!</li>
-                </ol>
+                {isId ? (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>Buat folder baru di server Anda, simpan kode di bawah sebagai <code>server.js</code>.</li>
+                    <li>Jalankan perintah instalasi:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
+                        npm init -y &amp;&amp; npm install express cors
+                      </div>
+                    </li>
+                    <li>Jalankan server:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
+                        node server.js
+                      </div>
+                    </li>
+                    <li>Gunakan reverse-proxy HTTPS seperti Nginx, Caddy, atau Cloudflare Tunnel untuk mengekspos endpoint Anda secara aman (contoh: <code>https://api.domainanda.com/qalam-publish</code>).</li>
+                    <li>Tempelkan URL tersebut ke pengaturan publikasi Qalam Note!</li>
+                  </ol>
+                ) : (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>Create a new folder on your server and save the code below as <code>server.js</code>.</li>
+                    <li>Run the dependency installation command:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
+                        npm init -y &amp;&amp; npm install express cors
+                      </div>
+                    </li>
+                    <li>Start the Node.js server:
+                      <div className="mt-1 p-2 rounded-lg bg-slate-900 border border-slate-700 font-mono text-[11px] text-emerald-400">
+                        node server.js
+                      </div>
+                    </li>
+                    <li>Use an HTTPS reverse-proxy like Nginx, Caddy, or Cloudflare Tunnel to expose your endpoint securely (e.g. <code>https://api.yourdomain.com/qalam-publish</code>).</li>
+                    <li>Paste that HTTPS URL into Qalam Note Publishing Settings!</li>
+                  </ol>
+                )}
               </div>
             </>
           )}
@@ -331,21 +399,37 @@ export const GASSetupHelpModal: React.FC<GASSetupHelpModalProps> = ({
 
               <div>
                 <h4 className={`font-bold mb-2 text-xs uppercase tracking-wider ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  {isId ? 'Cara Mendapatkan GitHub Personal Access Token (PAT):' : 'How to generate GitHub Personal Access Token:'}
+                  {isId ? 'Cara Mendapatkan GitHub Personal Access Token (PAT):' : 'How to Obtain a GitHub Personal Access Token (PAT):'}
                 </h4>
-                <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  <li>
-                    Buka{' '}
-                    <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
-                      github.com/settings/tokens <ExternalLink className="w-2.5 h-2.5" />
-                    </a>.
-                  </li>
-                  <li>Klik <strong>Generate new token (classic)</strong>.</li>
-                  <li>Beri catatan nama (contoh: <code>Qalam Note Publisher</code>).</li>
-                  <li>Centang izin lingkup (scopes): <strong>gist</strong> (dan <strong>repo</strong> jika ingin publikasi repositori).</li>
-                  <li>Klik <strong>Generate token</strong> di bagian bawah dan salin token yang diawali dengan <code>ghp_...</code>.</li>
-                  <li>Tempelkan token tersebut di tab Pengaturan Publikasi Qalam Note!</li>
-                </ol>
+                {isId ? (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Buka{' '}
+                      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        github.com/settings/tokens <ExternalLink className="w-2.5 h-2.5" />
+                      </a>.
+                    </li>
+                    <li>Klik <strong>Generate new token (classic)</strong>.</li>
+                    <li>Beri catatan nama (contoh: <code>Qalam Note Publisher</code>).</li>
+                    <li>Centang izin lingkup (scopes): <strong>gist</strong> (dan <strong>repo</strong> jika ingin publikasi repositori).</li>
+                    <li>Klik <strong>Generate token</strong> di bagian bawah dan salin token yang diawali dengan <code>ghp_...</code>.</li>
+                    <li>Tempelkan token tersebut di tab Pengaturan Publikasi Qalam Note!</li>
+                  </ol>
+                ) : (
+                  <ol className={`space-y-2 pl-4 list-decimal text-[11px] sm:text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <li>
+                      Open{' '}
+                      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-semibold">
+                        github.com/settings/tokens <ExternalLink className="w-2.5 h-2.5" />
+                      </a>.
+                    </li>
+                    <li>Click <strong>Generate new token</strong> &gt; <strong>Generate new token (classic)</strong>.</li>
+                    <li>Enter a note name (e.g. <code>Qalam Note Publisher</code>).</li>
+                    <li>Check the scope permissions: <strong>gist</strong> (and <strong>repo</strong> if publishing to git repositories).</li>
+                    <li>Click <strong>Generate token</strong> at the bottom and copy the token starting with <code>ghp_...</code>.</li>
+                    <li>Paste the token into the Publishing Settings in Qalam Note!</li>
+                  </ol>
+                )}
               </div>
             </div>
           )}

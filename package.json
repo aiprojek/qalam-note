@@ -1,7 +1,13 @@
 {
-  "name": "react-example",
+  "name": "qalam-note",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.6.0",
+  "description": "Local-first, encrypted note-taking application with Dexie.js, PWA offline support, bi-directional LTR & RTL editor, multi-backend vault sync, and serverless web publishing.",
+  "homepage": "https://qalam-note.aiprojek01.my.id/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aiprojek/qalam-note.git"
+  },
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -15,6 +21,7 @@
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-virtual": "^3.14.15",
+    "@types/katex": "^0.16.8",
     "@vitejs/plugin-react": "^6.1.1",
     "dexie": "^4.4.6",
     "docx": "^9.8.1",
@@ -26,6 +33,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.2",
+    "katex": "^0.19.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",

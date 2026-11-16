@@ -546,6 +546,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
                     )}
                   </button>
                 )}
+
                 <button
                   onClick={() => {
                     onOpenSettings('about');

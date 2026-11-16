@@ -12,9 +12,12 @@ import type { PublishProviderType } from '../types';
 export interface ProviderMeta {
   id: PublishProviderType;
   name: string;
+  name_en?: string;
   badge: string;
+  badge_en?: string;
   latency: string;
   cost: string;
+  cost_en?: string;
   description_id: string;
   description_en: string;
   default_placeholder: string;
@@ -24,9 +27,12 @@ export const PUBLISH_PROVIDERS: ProviderMeta[] = [
   {
     id: 'gas',
     name: 'Google Apps Script & Sheets',
+    name_en: 'Google Apps Script & Sheets',
     badge: 'Bawaan / Spreadsheet',
+    badge_en: 'Default / Spreadsheet',
     latency: '~1.5s',
     cost: 'Gratis Selamanya',
+    cost_en: 'Free Forever',
     description_id: 'Menyimpan data di Google Spreadsheet pribadi Anda. Mendukung multi-tab wiki dan pembersihan baris otomatis.',
     description_en: 'Stores data directly into your personal Google Sheet. Supports multi-tab wikis and auto-cleanup.',
     default_placeholder: 'https://script.google.com/macros/s/.../exec',
@@ -34,9 +40,12 @@ export const PUBLISH_PROVIDERS: ProviderMeta[] = [
   {
     id: 'cloudflare',
     name: 'Cloudflare Worker (Edge KV)',
+    name_en: 'Cloudflare Worker (Edge KV)',
     badge: 'Super Cepat <15ms',
+    badge_en: 'Super Fast <15ms',
     latency: '<15ms',
     cost: 'Gratis 100k req/hari',
+    cost_en: 'Free 100k req/day',
     description_id: 'Serverless di 300+ edge datacenter Cloudflare di seluruh dunia. Bebas CORS dan waktu muat instan.',
     description_en: 'Edge serverless across 300+ Cloudflare global datacenters. Zero CORS issues and instant load time.',
     default_placeholder: 'https://qalam-notes.username.workers.dev',
@@ -44,9 +53,12 @@ export const PUBLISH_PROVIDERS: ProviderMeta[] = [
   {
     id: 'custom',
     name: 'Server Mandiri (Self-Host)',
+    name_en: 'Self-Hosted Server',
     badge: 'Kedaulatan Penuh',
+    badge_en: 'Full Sovereignty',
     latency: '~50ms',
     cost: 'Mandiri (VPS/Docker)',
+    cost_en: 'Self-Hosted (VPS/Docker)',
     description_id: 'Endpoint REST API mandiri yang di-host di VPS pribadi, Docker, Vercel, Railway, atau Fly.io.',
     description_en: 'Independent REST API endpoint hosted on your own VPS, Docker, Vercel, Railway, or Fly.io.',
     default_placeholder: 'https://api.domain-anda.com/qalam-publish',
@@ -54,9 +66,12 @@ export const PUBLISH_PROVIDERS: ProviderMeta[] = [
   {
     id: 'github_gist',
     name: 'GitHub Gist / Repository',
+    name_en: 'GitHub Gist / Repository',
     badge: 'Cloud Pribadi Git',
+    badge_en: 'Personal Git Cloud',
     latency: '~300ms',
     cost: 'Gratis Akun GitHub',
+    cost_en: 'Free GitHub Account',
     description_id: 'Menyimpan catatan langsung sebagai Secret Gist di akun GitHub Anda via Personal Access Token.',
     description_en: 'Stores notes directly as Secret Gists in your personal GitHub account via Personal Access Token.',
     default_placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxx (GitHub PAT)',

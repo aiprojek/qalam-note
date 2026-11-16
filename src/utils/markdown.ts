@@ -5,6 +5,7 @@
  */
 
 import DOMPurify from 'dompurify';
+import katex from 'katex';
 import { isBlockRTL } from './rtl';
 import { getSyncAttachmentUrl } from './attachments';
 import { toRoman, toAlpha } from './listStyles';
@@ -13,6 +14,41 @@ export interface MarkdownOptions {
   theme?: 'dark' | 'light';
   direction?: 'ltr' | 'rtl';
   withLineNumbers?: boolean;
+}
+
+/**
+ * Renders a LaTeX formula to accessible MathML + HTML using KaTeX.
+ * Wraps with LTR direction to prevent RTL inversion in Arabic/Hebrew notes.
+ */
+export function renderKatex(formula: string, displayMode: boolean, isLight: boolean = false): string {
+  const clean = (formula || '').trim();
+  if (!clean) return '';
+  try {
+    const rendered = katex.renderToString(clean, {
+      displayMode,
+      throwOnError: false,
+      output: 'htmlAndMathml',
+      strict: false,
+      trust: false,
+    });
+    const escapedTex = clean.replace(/"/g, '&quot;');
+    if (displayMode) {
+      return `<div dir="ltr" class="qalam-math-block my-3.5 p-3.5 overflow-x-auto text-center rounded-xl border ${
+        isLight
+          ? 'bg-blue-50/70 border-blue-200/80 text-slate-900 shadow-xs'
+          : 'bg-blue-950/30 border-blue-800/50 text-slate-100 shadow-xs'
+      }" data-tex="${escapedTex}">${rendered}</div>`;
+    }
+    return `<span dir="ltr" class="qalam-math-inline inline-block px-1 py-0.5 rounded ${
+      isLight ? 'bg-blue-50/70 text-slate-900' : 'bg-blue-950/40 text-slate-100'
+    }" data-tex="${escapedTex}">${rendered}</span>`;
+  } catch (err: any) {
+    const escaped = clean.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (displayMode) {
+      return `<div dir="ltr" class="qalam-math-block font-mono p-2.5 my-2.5 rounded-lg border text-center text-xs text-rose-400 bg-rose-950/20 border-rose-800/40">$$\ ${escaped} \$$<div class="text-[10px] text-rose-500 mt-1">${err?.message || 'KaTeX Parse Error'}</div></div>`;
+    }
+    return `<code dir="ltr" class="qalam-math-inline px-1.5 py-0.5 rounded text-xs text-rose-400 bg-rose-950/20 border border-rose-800/40 font-mono">\\( ${escaped} \\)</code>`;
+  }
 }
 
 /**
@@ -458,20 +494,15 @@ export function markdownToHtml(
   // Process emoticons and shortcodes first
   let html = convertEmoticonsAndShortcodes(md);
 
-  // Math Blocks: $$...$$ (always LTR)
+  // Math Blocks: $$...$$ (always LTR, multiline supported)
   html = html.replace(/\$\$([\s\S]+?)\$\$/g, (_match, formula) => {
-    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return isLight
-      ? `<div dir="ltr" class="qalam-math-block font-mono bg-blue-50 text-blue-900 p-2.5 my-2.5 rounded-lg border border-blue-200 text-center shadow-xs">$$\\ ${escaped.trim()} \\$$</div>`
-      : `<div dir="ltr" class="qalam-math-block font-mono bg-blue-950/40 text-blue-300 p-2.5 my-2.5 rounded-lg border border-blue-800/50 text-center">$$\\ ${escaped.trim()} \\$$</div>`;
+    return renderKatex(formula, true, isLight);
   });
 
-  // Math Inline: $...$ (always LTR)
-  html = html.replace(/\$([^\$\n]+?)\$/g, (_match, formula) => {
-    const escaped = formula.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return isLight
-      ? `<code dir="ltr" class="qalam-math-inline bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded text-xs border border-blue-200">\\( ${escaped.trim()} \\)</code>`
-      : `<code dir="ltr" class="qalam-math-inline bg-blue-950/30 text-blue-300 px-1.5 py-0.5 rounded text-xs border border-blue-900/50">\\( ${escaped.trim()} \\)</code>`;
+  // Math Inline: $...$ (always LTR, avoid matching currency like $10 or trailing/leading spaces)
+  html = html.replace(/(^|[^\$])\$([^\$\n\s](?:[^\$\n]*?[^\$\n\s])?)\$(?!\$)/g, (match, prefix, formula) => {
+    if (!formula.trim()) return match;
+    return prefix + renderKatex(formula, false, isLight);
   });
 
   // Fenced Code Blocks with language (always LTR, escape contents)
@@ -852,8 +883,19 @@ export function markdownToHtml(
     .join('\n');
 
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['div', 'span', 'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins', 'audio', 'source', 'figure', 'figcaption'],
-    ADD_ATTR: ['target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id', 'href', 'src', 'alt', 'controls', 'data-wikilink', 'title', 'width', 'height', 'data-line'],
+    USE_PROFILES: { html: true, mathMl: true, svg: true },
+    ADD_TAGS: [
+      'div', 'span', 'details', 'summary', 'kbd', 'input', 'sup', 'sub', 'mark', 'del', 'ins',
+      'audio', 'source', 'figure', 'figcaption',
+      'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'msubsup', 'mfrac',
+      'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'annotation', 'mspace', 'mover', 'munder',
+      'munderover', 'mtext', 'mpadded', 'mphantom', 'svg', 'path', 'line', 'use'
+    ],
+    ADD_ATTR: [
+      'target', 'disabled', 'checked', 'type', 'dir', 'style', 'class', 'id', 'href', 'src',
+      'alt', 'controls', 'data-wikilink', 'title', 'width', 'height', 'data-line', 'data-tex',
+      'aria-hidden', 'aria-label', 'xmlns', 'viewBox', 'd', 'encoding', 'mathvariant', 'display'
+    ],
     ADD_DATA_URI_TAGS: ['img', 'audio', 'source', 'video'],
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data|blob|attachment):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
@@ -1053,6 +1095,10 @@ export function htmlToMarkdown(html: string): string {
       case 'br':
         return '\n';
       case 'span': {
+        if (el.classList.contains('qalam-math-inline') || el.classList.contains('katex')) {
+          const tex = el.getAttribute('data-tex') || el.querySelector('annotation')?.textContent || '';
+          if (tex) return `$${tex}$`;
+        }
         const dir = el.getAttribute('dir');
         if (dir) {
           return `<span dir="${dir}">${children}</span>`;
@@ -1072,8 +1118,8 @@ export function htmlToMarkdown(html: string): string {
         }
         const isMathBlock = el.classList.contains('qalam-math-block');
         if (isMathBlock) {
-          const mathText = (el.textContent || '').replace(/\$\$/g, '').trim();
-          return `\n$$\n${mathText}\n$$\n\n`;
+          const tex = el.getAttribute('data-tex') || el.querySelector('annotation')?.textContent || (el.textContent || '').replace(/\$\$/g, '').trim();
+          return `\n$$\n${tex}\n$$\n\n`;
         }
         const isCheckbox = el.querySelector('input[type="checkbox"]');
         if (isCheckbox) {

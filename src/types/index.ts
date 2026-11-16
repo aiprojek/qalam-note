@@ -29,6 +29,15 @@ export interface Note {
     public_url: string;
     gas_url: string;
     slug?: string;
+    author_name?: string;
+    disable_copy?: boolean;
+    is_encrypted?: boolean;
+    salt?: string;
+    encrypted_data?: {
+      ciphertext: string;
+      iv: string;
+      salt: string;
+    };
   };
   attachments?: Attachment[];
   created_time: number;
@@ -93,6 +102,8 @@ export interface Folder {
     landing_note_id?: string;
     is_encrypted?: boolean;
     salt?: string;
+    author_name?: string;
+    disable_copy?: boolean;
   };
 }
 

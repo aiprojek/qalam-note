@@ -34,6 +34,7 @@ export interface WikiBundle {
   landing_note_id: string; // Default home note ID
   is_encrypted?: boolean;
   salt?: string;
+  disable_copy?: boolean;
   encrypted_data?: {
     ciphertext: string;
     iv: string;

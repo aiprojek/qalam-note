@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.4.0';
-export const APP_BUILD_DATE = '2026-11-08';
+export const APP_VERSION = '1.6.0';
+export const APP_BUILD_DATE = '2026-11-15';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,58 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.6.0',
+    date: '2026-11-15',
+    title: {
+      id: 'Pembaruan v1.6.0: Perbaikan Rendering & UI Panduan KaTeX, Formula Harian & Per-per-an, Tampilan Kompak Keranjang Sampah, Generalisasi Publikasi Web & Penyelarasan Bahasa Panduan',
+      en: 'v1.6.0 Milestone Release: KaTeX Rendering & UI Polish, Everyday Arithmetic & Fractions, Compact Trash Bin UI, Generalized Web Publishing & Prenote Language Localization',
+    },
+    highlights: {
+      id: [
+        'Perbaikan Menyeluruh Rendering Formula KaTeX: Mengintegrasikan pustaka KaTeX resmi dengan rendering MathML dan SVG lengkap, menggantikan teks formula mentah menjadi tipografi matematika berstandar LaTeX sejati baik pada mode sebaris ($...$) maupun blok terpusat ($$...$$). Dilengkapi isolasi arah teks (dir="ltr") agar simbol dan tanda kurung tidak terbalik pada catatan aksara Arab/RTL, penguatan profil sanitasi DOMPurify MathML/SVG anti-hilang, serta round-tripping lossless dua arah antara WYSIWYG dan Markdown menggunakan atribut data-tex.',
+        'Penyempurnaan UI Modal Panduan KaTeX & Ramah Mobile: Membersihkan antarmuka modal dengan menghilangkan badge pill "LaTeX Syntax" di sebelah judul, menghapus tombol tautan ganda di bagian atas, memusatkan tautan dokumentasi resmi KaTeX di footer, merapikan tombol bantuan KaTeX dan tombol Tutup agar kompak dan tidak terpotong di layar ponsel, serta memperbarui kotak pencarian rumus ke istilah harian.',
+        'Koleksi Lengkap Formula Harian (Aritmatika, Per-per-an, Pangkat & Akar): Menggantikan contoh rumus rumit dengan formula praktis sehari-hari: penambahan (+), pengurangan (-), toleransi plus-minus (\\pm), perkalian (\\times, \\cdot, ()), pembagian (\\div, /, :), pecahan biasa & campuran, operasi tambah/kurang pecahan berpenyebut sama/beda, perkalian & pembagian pecahan terbalik, pecahan bertingkat (per di dalam per), pangkat positif/negatif, bentuk akar kuadrat/n, persentase (%), hingga langkah aljabar bersusun sejajar (\\begin{aligned}).',
+        'Penyempurnaan UI Keranjang Sampah (Satu Baris Kompak): Menata ulang header keranjang sampah agar tulisan "Keranjang Sampah" dan tombol "Kosongkan Sampah" tersusun kompak dan tetap berada dalam satu baris rapi tanpa terpotong atau melipat di berbagai ukuran layar.',
+        'Generalisasi Menu Publikasi Web: Menghilangkan pembatasan label "(GAS)" pada menu Alat (Tools) dan bilah alat editor menjadi "Publikasi Catatan ke Web" / "Publish to Web", mencerminkan dukungan 4 opsi backend hosting (Google Sheets, Cloudflare Workers, Server Node.js Mandiri, dan GitHub Gist).',
+        'Penyelarasan Bahasa Prenote Penuh: Catatan panduan resmi bawaan kini otomatis disinkronkan ke bahasa aktif yang dipilih pengguna (Inggris atau Indonesia) tanpa membangkitkan catatan yang telah dihapus atau menyentuh catatan pribadi pengguna.',
+      ],
+      en: [
+        'Comprehensive KaTeX Math Rendering Engine: Integrated official KaTeX with full MathML and SVG support, replacing raw monospaced text with genuine LaTeX mathematical typography for both inline ($...$) and centered display ($$...$$) formulas. Features native LTR isolation (dir="ltr") to prevent inverted math in Arabic/RTL notes, hardened DOMPurify MathML/SVG sanitation, and lossless bidirectional round-tripping between WYSIWYG and Markdown using data-tex attributes.',
+        'KaTeX Guide Modal UI Polish & Mobile Responsiveness: Cleaned up modal interface by removing redundant "LaTeX Syntax" title pill, removing top duplicate link button, consolidating official documentation link into the footer, making KaTeX guide and Close buttons compact to prevent clipping on mobile screens, and updating math search keywords.',
+        'Everyday Math & Fraction Operations: Replaced abstract calculus with practical everyday formulas: addition (+), subtraction (-), plus-minus (\\pm), multiplication (\\times, \\cdot, ()), division (\\div, /, :), proper & mixed fractions, fraction addition/subtraction, fraction multiplication/division, nested fractions, powers & negative exponents, square & n-th roots, percentages (%), and aligned step-by-step algebra equations (\\begin{aligned}).',
+        'Compact Trash Bin UI (Single-Line Layout): Re-engineered the Trash header layout so "Trash" and "Empty Trash" buttons stay neatly aligned on a single row without wrapping or truncation across varied screen widths.',
+        'Generalized Web Publishing Menus: Removed restrictive "(GAS)" labels from the Tools dropdown and toolbar buttons to "Publish Notes to Web", reflecting versatile support across Google Sheets, Cloudflare Workers, Self-Hosted Node.js Server, and GitHub Gist.',
+        'Seamless Bilingual Prenote Synchronization: Official guide notes now seamlessly update to the active language (English or Indonesian) without resurrecting user-deleted notes or modifying personal notes.',
+      ],
+    },
+  },
+  {
+    version: '1.5.0',
+    date: '2026-11-12',
+    title: {
+      id: 'Pembaruan v1.5.0: Menu Publikasi Cepat Kontekstual, Audit Perlindungan Penghapusan Catatan, Penyempurnaan Siklus Prenote Versi & Pembersihan Format Markdown',
+      en: 'v1.5.0 Milestone Release: Contextual Quick Publishing, Note Deletion Protection Audit, Version-Aware Prenote Lifecycle & Clean Markdown Copy',
+    },
+    highlights: {
+      id: [
+        'Menu Publikasi Cepat di Seluruh Tampilan Daftar: Opsi publikasi web dan wiki interaktif kini hadir langsung di menu klik kanan (kontekstual) dan menu titik tiga (kebab) pada daftar catatan di pohon folder sidebar maupun daftar catatan kolom tengah.',
+        'Audit & Perlindungan Penghapusan Catatan: Memperbaiki celah pemulihan catatan otomatis; catatan panduan yang telah dihapus atau dibuang ke keranjang sampah oleh pengguna dipastikan tetap terhapus dan tidak akan pernah dibangkitkan kembali secara otomatis saat aplikasi dibuka ulang.',
+        'Migrasi Prenote Versi Non-Destruktif (v1.5.0): Kenaikan versi kurikulum hanya menyuntikkan catatan panduan fitur baru yang belum pernah dimiliki pengguna tanpa menimpa atau membangkitkan catatan yang telah dihapus.',
+        'Pembersihan Teks Menu Salin Markdown: Menghilangkan kata "(Sosmed)" dan "(Social)" dari menu salin format Markdown di editor dan daftar catatan, menghasilkan label yang bersih dan konsisten: "Salin Format Markdown" ("Copy Markdown").',
+        'Pemutakhiran Tombol Pemulihan Manual: Tombol "Perbarui & Pulihkan Catatan Panduan (v1.5.0)" di tab Umum Pengaturan tetap tersedia sebagai opsi manual jika pengguna ingin memulihkan kembali seluruh 12 panduan resmi bawaan secara sengaja.',
+        'Audit Repositori & Kesiapan Rilis GitHub: Paket npm diperbarui ke "qalam-note", konfigurasi .gitignore disempurnakan, dan seluruh pemeriksaan keamanan tanpa kredensial hardcoded telah diaudit tuntas.',
+      ],
+      en: [
+        'Contextual Quick Publishing Across All List Views: Web and interactive wiki publishing options are now directly accessible from right-click context menus and kebab 3-dots menus across sidebar folder trees and the central note list.',
+        'Audit & Note Deletion Protection: Resolved automatic guide resurrection; notes and prenotes deleted by users now strictly stay deleted and will never be resurrected automatically across app restarts or page reloads.',
+        'Non-Destructive Version-Aware Prenote Migration (v1.5.0): Version upgrades deliver genuine new feature guides without reviving user-deleted notes or touching personal notes.',
+        'Clean Markdown Copy Menu Item: Removed the "(Sosmed)" / "(Social)" suffix from the Copy Markdown menu item across editor and note context menus for a polished interface.',
+        'Manual Guide Restoration Update: 1-click "Update & Restore Preset Guides (v1.5.0)" in General settings remains available when users intentionally wish to re-instate all 12 canonical guides.',
+        'Repository Audit & GitHub Release Readiness: Package identity updated to "qalam-note", .gitignore enhanced, and full secret-free security verified.',
+      ],
+    },
+  },
   {
     version: '1.4.0',
     date: '2026-11-08',

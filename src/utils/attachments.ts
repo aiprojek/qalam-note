@@ -535,3 +535,64 @@ export async function downloadAttachment(id: string, fallbackName?: string): Pro
     return false;
   }
 }
+
+/**
+ * Scans all attachments in IndexedDB and re-compresses uncompressed or large images
+ * (JPEG/PNG > 150KB) to modern high-efficiency WebP, saving local storage quota.
+ */
+export async function batchOptimizeImagesToWebP(
+  onProgress?: (current: number, total: number, savedBytes: number) => void
+): Promise<{
+  scannedCount: number;
+  optimizedCount: number;
+  totalSavedBytes: number;
+}> {
+  try {
+    const allAttachments = await db.attachments.toArray();
+    let optimizedCount = 0;
+    let totalSavedBytes = 0;
+
+    for (let i = 0; i < allAttachments.length; i++) {
+      const att = allAttachments[i];
+      const isImage = (att.mime || '').startsWith('image/');
+      const isWebP = att.mime === 'image/webp';
+
+      // If it's an image and either not WebP or larger than 150KB
+      if (isImage && att.blob && (!isWebP || att.size > 150 * 1024)) {
+        try {
+          const originalSize = att.size || att.blob.size;
+          const compressed = await compressImage(att.blob, 1920, 0.82);
+
+          if (compressed.blob.size < originalSize) {
+            const saved = originalSize - compressed.blob.size;
+            att.blob = compressed.blob;
+            att.size = compressed.blob.size;
+            att.mime = compressed.mime;
+            await db.attachments.put(att);
+
+            // Update blob URL cache if present
+            if (blobUrlCache.has(att.id)) {
+              URL.revokeObjectURL(blobUrlCache.get(att.id)!);
+              blobUrlCache.set(att.id, URL.createObjectURL(compressed.blob));
+            }
+
+            optimizedCount++;
+            totalSavedBytes += saved;
+          }
+        } catch (e) {
+          console.warn('Failed to recompress attachment:', att.id, e);
+        }
+      }
+
+      if (onProgress) {
+        onProgress(i + 1, allAttachments.length, totalSavedBytes);
+      }
+    }
+
+    return { scannedCount: allAttachments.length, optimizedCount, totalSavedBytes };
+  } catch (err) {
+    console.warn('Batch WebP optimization failed:', err);
+    return { scannedCount: 0, optimizedCount: 0, totalSavedBytes: 0 };
+  }
+}
+

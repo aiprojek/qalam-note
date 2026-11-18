@@ -15,8 +15,10 @@ import {
   Server,
   Cloud,
   FolderSync,
+  FolderArchive,
   FileCode,
   ShieldCheck,
+
   Key,
   ExternalLink,
   Unlink,
@@ -56,7 +58,7 @@ import { setupMasterPassword, unlockVault, lockVault } from '../../services/cryp
 import { getT, formatDate, formatTime, formatDateTime } from '../../utils/i18n';
 import { QalamIcon } from '../icons/QalamIcon';
 import { updatePresetNotesLanguage, restoreAllPresetNotes, db } from '../../db';
-import { migrateNoteInlineAttachments } from '../../utils/attachments';
+import { migrateNoteInlineAttachments, batchOptimizeImagesToWebP } from '../../utils/attachments';
 import { PWAInstallButton } from '../PWAInstallButton';
 import {
   APP_VERSION,
@@ -84,6 +86,7 @@ interface SettingsModalProps {
   isSyncing?: boolean;
   syncMessage?: string;
   onRefreshData?: () => Promise<void>;
+  onExportObsidianVault?: () => Promise<void> | void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -99,10 +102,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isSyncing = false,
   syncMessage = '',
   onRefreshData,
+  onExportObsidianVault,
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formSettings, setFormSettings] = useState<AppSettings>(JSON.parse(JSON.stringify(settings)));
   const t = getT(formSettings.language);
+
   const isLight = formSettings.theme === 'qalam-light';
   const language = formSettings.language;
 
@@ -141,13 +146,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [e2eeMessage, setE2eeMessage] = useState<{ text: string; isError?: boolean } | null>(null);
 
-  // About Tab state
+  // Storage & About state
   const [sysInfoCopied, setSysInfoCopied] = useState(false);
   const [storageEstimate, setStorageEstimate] = useState<{ used: string; quota: string; percent: number } | null>(null);
+  const [dbCounts, setDbCounts] = useState<{
+    notes: number;
+    folders: number;
+    tags: number;
+    attachments: number;
+    revisions: number;
+  }>({ notes: 0, folders: 0, tags: 0, attachments: 0, revisions: 0 });
   const [showFullChangelog, setShowFullChangelog] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'about' && typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+  const loadStorageInfo = () => {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
       navigator.storage.estimate().then((est) => {
         const usedBytes = est.usage || 0;
         const quotaBytes = est.quota || 1;
@@ -164,7 +176,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
       }).catch(() => {});
     }
+
+    Promise.all([
+      db.notes.count(),
+      db.folders.count(),
+      db.tags.count(),
+      db.attachments.count(),
+      db.revisions.count(),
+    ]).then(([notesC, foldersC, tagsC, attachmentsC, revisionsC]) => {
+      setDbCounts({
+        notes: notesC,
+        folders: foldersC,
+        tags: tagsC,
+        attachments: attachmentsC,
+        revisions: revisionsC,
+      });
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (activeTab === 'about' || activeTab === 'backup') {
+      loadStorageInfo();
+    }
   }, [activeTab]);
+
 
   const handleCopySysInfo = () => {
     const isPwa = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
@@ -621,6 +656,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     try {
       setIsOptimizing(true);
       setOptimizeResult(null);
+
+      // 1. Migrate inline Base64 data URLs to dedicated Blobs
       const allNotes = await db.notes.toArray();
       let totalMigratedNotes = 0;
       let totalSavedBytes = 0;
@@ -633,19 +670,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
       }
 
-      if (totalMigratedNotes > 0) {
+      // 2. Scan and recompress uncompressed/large attachments to high-efficiency WebP
+      const webpRes = await batchOptimizeImagesToWebP();
+      totalSavedBytes += webpRes.totalSavedBytes;
+
+      if (totalMigratedNotes > 0 || webpRes.optimizedCount > 0) {
         const savedKb = Math.round(totalSavedBytes / 1024);
         setOptimizeResult(
           language === 'id'
-            ? `Berhasil mengoptimalkan ${totalMigratedNotes} catatan! Menghemat ~${savedKb} KB memori teks.`
-            : `Successfully optimized ${totalMigratedNotes} notes! Saved ~${savedKb} KB of text storage.`
+            ? `Berhasil mengoptimalkan! ${totalMigratedNotes} catatan dimigrasi, ${webpRes.optimizedCount} gambar dikompresi ke WebP. Menghemat ~${savedKb} KB memori.`
+            : `Successfully optimized! ${totalMigratedNotes} notes migrated, ${webpRes.optimizedCount} images compressed to WebP. Saved ~${savedKb} KB of storage.`
         );
       } else {
         setOptimizeResult(
           language === 'id'
-            ? 'Semua lampiran sudah teroptimasi sebagai Blob terpisah di IndexedDB.'
-            : 'All attachments are already stored efficiently as native Blobs.'
+            ? 'Semua catatan dan lampiran sudah dalam kondisi optimal (WebP / Blob terpisah).'
+            : 'All notes and attachments are already stored efficiently as native WebP / Blobs.'
         );
+      }
+      loadStorageInfo();
+      if (onRefreshData) {
+        await onRefreshData();
       }
     } catch (err: any) {
       setOptimizeResult('Error: ' + (err?.message || 'Failed'));
@@ -653,6 +698,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setIsOptimizing(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-0 sm:p-4 select-none">
@@ -2309,48 +2355,144 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* IMPORT & EXPORT TAB */}
             {activeTab === 'backup' && (
               <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-white border-b border-slate-700/80 pb-2">
-                  {t.backup_section_title}
+                <h4 className="text-sm font-semibold text-white border-b border-slate-700/80 pb-2 flex items-center justify-between">
+                  <span>{t.backup_section_title}</span>
+                  <span className="text-[11px] font-mono font-normal text-slate-400">
+                    Dexie.js IndexedDB Local Storage
+                  </span>
                 </h4>
 
-                <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-4 space-y-3">
-                  <h5 className="font-semibold text-white">{t.export_archive_title}</h5>
-                  <p className="text-slate-400 text-xs">
-                    {t.export_archive_desc}
-                  </p>
-                  <button
-                    onClick={onExportData}
-                    className="px-3.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium flex items-center gap-1.5 transition"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{t.export_archive_button}</span>
-                  </button>
+                {/* Live Storage Quota & Database Breakdown */}
+                <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HardDrive className="w-4 h-4 text-blue-400" />
+                      <h5 className="font-semibold text-white text-xs">
+                        {language === 'id' ? 'Kapasitas Penyimpanan Browser' : 'Browser Storage Quota'}
+                      </h5>
+                    </div>
+                    {storageEstimate && (
+                      <span className="text-[11px] font-mono text-blue-300 font-semibold px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800/60">
+                        {storageEstimate.used} / {storageEstimate.quota} ({storageEstimate.percent}%)
+                      </span>
+                    )}
+                  </div>
+
+                  {storageEstimate && (
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          storageEstimate.percent > 85 ? 'bg-rose-500' : storageEstimate.percent > 65 ? 'bg-amber-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${Math.max(2, storageEstimate.percent)}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Database metric badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                    <div className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-center">
+                      <div className="text-[10px] text-slate-400 font-medium">{language === 'id' ? 'Catatan' : 'Notes'}</div>
+                      <div className="text-sm font-bold text-white font-mono">{dbCounts.notes}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-center">
+                      <div className="text-[10px] text-slate-400 font-medium">{language === 'id' ? 'Folder' : 'Folders'}</div>
+                      <div className="text-sm font-bold text-white font-mono">{dbCounts.folders}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-center">
+                      <div className="text-[10px] text-slate-400 font-medium">Tag</div>
+                      <div className="text-sm font-bold text-white font-mono">{dbCounts.tags}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-center">
+                      <div className="text-[10px] text-slate-400 font-medium">{language === 'id' ? 'Lampiran' : 'Attachments'}</div>
+                      <div className="text-sm font-bold text-emerald-400 font-mono">{dbCounts.attachments}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-center">
+                      <div className="text-[10px] text-slate-400 font-medium">{language === 'id' ? 'Riwayat' : 'Revisions'}</div>
+                      <div className="text-sm font-bold text-indigo-400 font-mono">{dbCounts.revisions}</div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-4 space-y-3">
-                  <h5 className="font-semibold text-white">{t.import_archive_title}</h5>
-                  <p className="text-slate-400 text-xs">
-                    {t.import_archive_desc}
-                  </p>
-                  <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium cursor-pointer transition">
-                    <Upload className="w-3.5 h-3.5" />
+                {/* Export Cards: JSON Backup & Obsidian Vault */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Standard JSON Export */}
+                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-white text-xs">
+                        <Download className="w-4 h-4 text-blue-400" />
+                        <span>{t.export_archive_title} (.json)</span>
+                      </div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        {t.export_archive_desc}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onExportData}
+                      className="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{t.export_archive_button}</span>
+                    </button>
+                  </div>
+
+                  {/* Obsidian & Joplin Vault (.zip) Export */}
+                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-white text-xs">
+                        <FolderArchive className="w-4 h-4 text-purple-400" />
+                        <span>{language === 'id' ? 'Ekspor Obsidian Vault (.zip)' : 'Export Obsidian Vault (.zip)'}</span>
+                      </div>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        {language === 'id'
+                          ? 'Ekspor seluruh catatan ke arsip .zip dengan hierarki folder, berkas .md, tag, dan YAML frontmatter kompatibel Obsidian.'
+                          : 'Export all notes as an Obsidian-ready .zip archive with folder hierarchy and YAML frontmatter.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onExportObsidianVault}
+                      className="w-full px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
+                    >
+                      <FolderArchive className="w-3.5 h-3.5" />
+                      <span>{language === 'id' ? 'Unduh Obsidian Vault (.zip)' : 'Download Obsidian Vault (.zip)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Import Universal Archive */}
+                <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold text-white text-xs">
+                      <Upload className="w-4 h-4 text-emerald-400" />
+                      <span>{t.import_archive_title} (.json atau .zip)</span>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      {language === 'id'
+                        ? 'Pilih berkas cadangan JSON Qalam Note atau berkas ZIP arsip Markdown dari Obsidian / Joplin untuk dipulihkan ke basis data.'
+                        : 'Select a Qalam Note JSON backup or an Obsidian / Joplin Markdown ZIP archive to restore into database.'}
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs cursor-pointer transition active:scale-95 shadow-sm">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{t.import_archive_button}</span>
-                    <input type="file" accept=".json" onChange={onImportData} className="hidden" />
+                    <input type="file" accept=".json,.zip" onChange={onImportData} className="hidden" />
                   </label>
                 </div>
 
-                {/* Storage & Attachment Scalability Optimization */}
-                <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-4 space-y-3">
+                {/* Storage & Attachment Scalability Optimization + WebP Compression */}
+                <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <Database className="w-4 h-4 text-emerald-400" />
-                    <h5 className="font-semibold text-white">
-                      {language === 'id' ? 'Optimasi Penyimpanan Lampiran' : 'Attachment Storage Optimization'}
+                    <h5 className="font-semibold text-white text-xs">
+                      {language === 'id' ? 'Optimasi Penyimpanan & Kompresi WebP' : 'Storage Optimization & WebP Compression'}
                     </h5>
                   </div>
                   <p className="text-slate-400 text-xs leading-relaxed">
                     {language === 'id'
-                      ? 'Pindai seluruh catatan dan konversikan lampiran gambar/audio lama ke format Blob terpisah di tabel IndexedDB. Mengurangi ukuran basis data teks secara drastis dan mempercepat responsivitas aplikasi.'
-                      : 'Scan notes and migrate inline media into native Blobs in the dedicated IndexedDB attachments table to shrink note payload and speed up the app.'}
+                      ? 'Pindai seluruh catatan dan lampiran. Mengonversi gambar JPEG/PNG ke format WebP berkualitas tinggi dan memindahkan data media lama ke Blob terpisah di IndexedDB untuk mempercepat aplikasi dan menghemat memori.'
+                      : 'Scan notes and attachments. Re-compresses JPEG/PNG images to modern high-efficiency WebP and migrates legacy inline media into Blobs to speed up performance.'}
                   </p>
                   {optimizeResult && (
                     <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300">
@@ -2366,13 +2508,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {isOptimizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-emerald-200" />}
                     <span>
                       {isOptimizing
-                        ? (language === 'id' ? 'Mengoptimalkan...' : 'Optimizing...')
-                        : (language === 'id' ? 'Optimalkan Penyimpanan Sekarang' : 'Optimize Storage Now')}
+                        ? (language === 'id' ? 'Mengoptimalkan & Mengompresi...' : 'Optimizing & Compressing...')
+                        : (language === 'id' ? 'Optimalkan & Kompresi WebP Sekarang' : 'Optimize & Compress WebP Now')}
                     </span>
                   </button>
                 </div>
               </div>
             )}
+
 
             {/* ABOUT TAB */}
             {activeTab === 'about' && (

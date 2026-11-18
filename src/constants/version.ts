@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.6.0';
-export const APP_BUILD_DATE = '2026-11-15';
+export const APP_VERSION = '1.7.0';
+export const APP_BUILD_DATE = '2026-11-17';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -24,8 +24,33 @@ export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
   {
+    version: '1.7.0',
+    date: '2026-11-17',
+    title: {
+      id: 'Pembaruan v1.7.0: Mesin Pencarian Teks Penuh Berindeks (FTS), Tag Hirarkis Bersarang, Ekspor-Impor Obsidian & Joplin Vault Lossless, Kuota Penyimpanan & Kompresi WebP Batch',
+      en: 'v1.7.0 Milestone Release: Inverted Full-Text Search Engine (FTS), Hierarchical Nested Tags, Lossless Obsidian & Joplin Vault Sync, Storage Quota Gauge & Batch WebP Compression',
+    },
+    highlights: {
+      id: [
+        'Mesin Pencarian Teks Penuh Cepat (Inverted-Index FTS Engine): Mengembangkan mesin pencarian berbasis memori terbalik (inverted index) dengan pembobotan skor relevansi BM25 (Judul 12x, Tag 8x, Isi 1.5x), normalisasi cerdas aksara Arab dan harakat/tashkeel, pencarian awalan instan saat mengetik (prefix matching), pencarian frasa eksak ("frasa"), serta ekstraksi cuplikan kontekstual kalimat kecocokan pada daftar catatan.',
+        'Tag Hirarkis & Pohon Kategori Bersarang: Mendukung format tag bersarang menggunakan pemisah garis miring (#proyek/riset/islam). Bilah sisi kini menampilkan pohon tag dinamis yang dapat diperluas/diciutkan (expandable/collapsible) dengan perhitungan jumlah catatan unik akurat, filter kaskade otomatis (memilih tag induk memfilter seluruh subtag turunannya), serta penghapusan tag kaskade yang bersih.',
+        'Ekspor & Impor Obsidian & Joplin Vault Penuh (Lossless Bi-directional): Menyediakan fitur ekspor seluruh catatan ke arsip .zip dengan struktur folder hierarkis dan berkas Markdown ber-YAML Frontmatter standar industri. Dialog impor kini universal menerima cadangan .json maupun arsip .zip Obsidian/Joplin, lengkap dengan pengemasan dan pemulihan otomatis lampiran foto/media tanpa gambar rusak.',
+        'Visualisasi Kuota Penyimpanan Browser & Optimasi WebP Batch: Menghadirkan indikator kapasitas penyimpanan lokal IndexedDB real-time (navigator.storage.estimate()) di tab Cadangan dengan visual progress bar persentase kuota, metrik ringkasan jumlah catatan, buku catatan, tag, lampiran, dan revisi, serta alat optimasi batch yang mengompresi media ke format WebP berkualitas tinggi untuk menghemat ruang memori secara drastis.',
+        'Audit Kinerja & Pembersihan Memori: Mengoptimalkan pembersihan token indeks menjadi O(1) berbasis noteTokensMap dan menegakkan logika AND ketat pada kueri pencarian multi-kata agar hasil pencarian semakin presisi dan responsif.',
+      ],
+      en: [
+        'High-Performance Inverted Full-Text Search (FTS Engine): Built an in-memory inverted index search engine with weighted BM25 relevance scoring (Title 12x, Tags 8x, Body 1.5x), intelligent Arabic diacritics/tashkeel normalization, instant prefix autocomplete typing, exact phrase querying ("phrase"), and dynamic contextual search snippet previews in the note list.',
+        'Hierarchical Nested Tags & Expandable Tree: Added native support for nested tags using slash separators (#project/research/islam). The sidebar now features an expandable/collapsible hierarchical tag tree with distinct note count tracking, automatic subtag cascade filtering, and clean cascading tag deletion.',
+        'Full Bidirectional Lossless Obsidian & Joplin Vault Sync: Added complete vault export to .zip archives preserving folder directory hierarchy and standard YAML frontmatter (.md). The universal import dialog seamlessly restores both Qalam .json backups and Obsidian/Joplin Markdown .zip vaults, preserving all embedded images and media attachments.',
+        'Live Browser Storage Quota Indicator & Batch WebP Compression: Added an IndexedDB storage capacity meter (navigator.storage.estimate()) with a visual quota percentage bar and live database metrics in Settings. Features a batch optimization tool that compresses existing images into modern high-efficiency WebP to save local storage.',
+        'Performance Audit & Memory Optimization: Enhanced search index cleanup to O(1) via noteTokensMap and enforced strict AND matching on multi-word queries for razor-sharp search precision and responsiveness.',
+      ],
+    },
+  },
+  {
     version: '1.6.0',
     date: '2026-11-15',
+
     title: {
       id: 'Pembaruan v1.6.0: Perbaikan Rendering & UI Panduan KaTeX, Formula Harian & Per-per-an, Tampilan Kompak Keranjang Sampah, Generalisasi Publikasi Web & Penyelarasan Bahasa Panduan',
       en: 'v1.6.0 Milestone Release: KaTeX Rendering & UI Polish, Everyday Arithmetic & Fractions, Compact Trash Bin UI, Generalized Web Publishing & Prenote Language Localization',

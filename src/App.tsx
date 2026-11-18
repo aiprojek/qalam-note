@@ -93,6 +93,10 @@ import { matchesAdvancedSearch } from './utils/searchFilter';
 import { copyNoteAsMarkdown } from './utils/clipboard';
 import { createInitialKanbanData, kanbanDataToMarkdown } from './utils/kanbanSerializer';
 import { Toast } from './components/Toast';
+import { isTagOrSubtag } from './utils/tagHierarchy';
+import { globalSearchEngine, type SearchResultItem } from './utils/searchEngine';
+import { exportToObsidianVaultZip, importVaultZip } from './utils/vaultBackup';
+
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -1385,28 +1389,34 @@ export default function App() {
       cancelLabel: isId ? 'Batal' : 'Cancel',
       isDanger: true,
       onConfirm: async () => {
+        // Delete tag and any subtags from tags table
+        const matchingTags = await db.tags.filter((t) => isTagOrSubtag(t.title, tagTitle)).toArray();
+        for (const mt of matchingTags) {
+          await db.tags.delete(mt.id);
+        }
         await db.tags.delete(tagId);
-        setTags((prev) => prev.filter((t) => t.id !== tagId));
+        setTags((prev) => prev.filter((t) => !isTagOrSubtag(t.title, tagTitle)));
 
         const updatedTime = Date.now();
-        const notesWithTag = notes.filter((n) => (n.tags || []).includes(tagTitle));
+        const notesWithTag = notes.filter((n) => (n.tags || []).some((t) => isTagOrSubtag(t, tagTitle)));
         for (const n of notesWithTag) {
-          const nextTags = (n.tags || []).filter((t) => t !== tagTitle);
+          const nextTags = (n.tags || []).filter((t) => !isTagOrSubtag(t, tagTitle));
           await db.notes.update(n.id, { tags: nextTags, updated_time: updatedTime });
         }
         setNotes((prev) =>
           prev.map((n) =>
-            (n.tags || []).includes(tagTitle)
-              ? { ...n, tags: (n.tags || []).filter((t) => t !== tagTitle), updated_time: updatedTime }
+            (n.tags || []).some((t) => isTagOrSubtag(t, tagTitle))
+              ? { ...n, tags: (n.tags || []).filter((t) => !isTagOrSubtag(t, tagTitle)), updated_time: updatedTime }
               : n
           )
         );
 
-        if (selectedTagId === tagTitle) {
+        if (selectedTagId && isTagOrSubtag(selectedTagId, tagTitle)) {
           setSelectedTagId(null);
           setSelectedSpecialView('all');
         }
       },
+
     });
   };
 
@@ -1530,7 +1540,7 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [settings.sync.target, isSyncing, requestAutoSync]);
 
-  // Export Data
+  // Export JSON Backup
   const handleExportData = async () => {
     const jsonStr = await exportAllData();
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -1542,10 +1552,67 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Import Data
+  // Export Obsidian & Joplin Compatible Vault (.zip)
+  const handleExportObsidianVault = async () => {
+    try {
+      const blob = await exportToObsidianVaultZip(notes, folders, tags);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qalam-obsidian-vault-${new Date().toISOString().split('T')[0]}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast({
+        isOpen: true,
+        message:
+          settings.language === 'id'
+            ? 'Arsip Obsidian Vault (.zip) berhasil diunduh!'
+            : 'Obsidian Vault (.zip) archive downloaded successfully!',
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.error('Export Obsidian vault error:', err);
+    }
+  };
+
+  // Import Data (Accepts both .json standard backup and .zip Obsidian/Joplin Vault)
   const handleImportData = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check if ZIP archive (Obsidian or Joplin Markdown Vault)
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      try {
+        const res = await importVaultZip(file);
+        setConfirmState({
+          isOpen: true,
+          title: res.success
+            ? (settings.language === 'id' ? 'Impor Vault Berhasil' : 'Vault Import Successful')
+            : (settings.language === 'id' ? 'Gagal Mengimpor Vault' : 'Vault Import Failed'),
+          message: res.message,
+          confirmLabel: 'OK',
+          cancelLabel: settings.language === 'id' ? 'Tutup' : 'Close',
+          isDanger: !res.success,
+          onConfirm: () => {},
+        });
+        if (res.success) {
+          loadData();
+        }
+      } catch (err: any) {
+        setConfirmState({
+          isOpen: true,
+          title: settings.language === 'id' ? 'Kesalahan Impor' : 'Import Error',
+          message: `${err.message || 'Gagal membaca berkas zip'}`,
+          confirmLabel: 'OK',
+          cancelLabel: settings.language === 'id' ? 'Tutup' : 'Close',
+          isDanger: true,
+          onConfirm: () => {},
+        });
+      }
+      return;
+    }
+
+    // Standard JSON backup import
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
@@ -1577,6 +1644,7 @@ export default function App() {
     };
     reader.readAsText(file);
   };
+
 
   // Toggle Vault Lock
   const handleToggleVaultLock = () => {
@@ -1997,6 +2065,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [notes, selectedNoteId, selectedFolderId, settings.language]);
 
+  // Synchronize Full-Text Inverted Index and run search with ranking
+  const searchResultsMap = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return null;
+    globalSearchEngine.syncNotes(notes);
+    const results = globalSearchEngine.search(q, folders);
+    const map = new Map<string, SearchResultItem>();
+    for (const item of results) {
+      map.set(item.note.id, item);
+    }
+    return map;
+  }, [searchQuery, notes, folders]);
+
   // Derived filtered & sorted notes
   const filteredNotes = useMemo(() => {
     return notes
@@ -2013,7 +2094,8 @@ export default function App() {
         } else if (selectedSpecialView === 'all') {
           // all active notes
         } else if (selectedTagId) {
-          if (!note.tags || !note.tags.includes(selectedTagId)) return false;
+          // Supports nested hierarchical tags (e.g. 'proyek' matches 'proyek/riset/islam')
+          if (!note.tags || !note.tags.some((t) => isTagOrSubtag(t, selectedTagId))) return false;
         } else if (selectedFolderId) {
           const isDefaultFolder = selectedFolderId === (folders[0]?.id || 'folder-welcome-01');
           if (note.folder_id !== selectedFolderId && (!isDefaultFolder || note.folder_id)) return false;
@@ -2025,8 +2107,10 @@ export default function App() {
         if (filter === 'todos_incomplete' && (!note.is_todo || note.todo_completed > 0)) return false;
         if (filter === 'kanban_only' && !note.is_kanban) return false;
 
-        // Search Query with Advanced Operators (tag:, folder:, is:todo, is:done, has:audio, is:locked)
-        if (searchQuery.trim()) {
+        // Search Query with Full-Text Inverted Index & Advanced Operators
+        if (searchResultsMap) {
+          if (!searchResultsMap.has(note.id)) return false;
+        } else if (searchQuery.trim()) {
           if (!matchesAdvancedSearch(note, searchQuery, folders)) return false;
         }
 
@@ -2037,6 +2121,15 @@ export default function App() {
         if (selectedSpecialView !== 'trash') {
           if (a.is_pinned && !b.is_pinned) return -1;
           if (!a.is_pinned && b.is_pinned) return 1;
+        }
+
+        // If actively searching with text query, prioritize higher relevance search scores!
+        if (searchResultsMap) {
+          const scoreA = searchResultsMap.get(a.id)?.score || 0;
+          const scoreB = searchResultsMap.get(b.id)?.score || 0;
+          if (scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
         }
 
         let valA = a[sortField];
@@ -2058,9 +2151,11 @@ export default function App() {
     selectedFolderId,
     filter,
     searchQuery,
+    searchResultsMap,
     sortField,
     sortOrder,
   ]);
+
 
   // Selected Note Object
   const activeNote = useMemo(() => {
@@ -3049,6 +3144,7 @@ export default function App() {
           isSyncing={isSyncing}
           syncMessage={syncMessage}
           onRefreshData={refreshNotesAndFolders}
+          onExportObsidianVault={handleExportObsidianVault}
         />
       )}
 

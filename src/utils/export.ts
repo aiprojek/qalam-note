@@ -22,6 +22,8 @@ import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import * as htmlToImage from 'html-to-image';
 import { isRTLText, getNoteDirection, isBlockRTL } from './rtl';
+import { generateObsidianMarkdown } from './vaultBackup';
+
 
 /**
  * Clean filename helper
@@ -2214,11 +2216,12 @@ export async function exportFolderToZip(
       }
     }
 
-    // Add Markdown file (.md)
+    // Add Markdown file (.md) with standard Obsidian YAML Frontmatter
     if (format === 'markdown' || format === 'all') {
-      const mdContent = `# ${note.title || 'Catatan Tanpa Judul'}\n\n${note.body || ''}\n\n---\n*Diekspor dari [Qalam Note](https://qalam-note.aiprojek01.my.id/)*\n`;
+      const mdContent = generateObsidianMarkdown(note, folderTitle);
       rootFolder.file(`${uniqueTitle}.md`, mdContent);
     }
+
 
     // Add DOCX file (.docx)
     if (format === 'docx' || format === 'all') {

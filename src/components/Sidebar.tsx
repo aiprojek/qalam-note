@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Folder as FolderIcon,
   ChevronRight,
@@ -36,6 +36,8 @@ import { getT } from '../utils/i18n';
 import { QalamIcon } from './icons/QalamIcon';
 import { FolderContextMenu } from './ContextMenu/FolderContextMenu';
 import { NoteContextMenu } from './ContextMenu/NoteContextMenu';
+import { buildTagTree, TagTreeNode, isTagOrSubtag } from '../utils/tagHierarchy';
+
 
 interface SidebarProps {
   folders: Folder[];
@@ -718,7 +720,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [isRootDragOver, setIsRootDragOver] = useState(false);
+  const [collapsedTags, setCollapsedTags] = useState<Set<string>>(new Set());
   const t = getT(language);
+
+  const tagTree = useMemo(() => buildTagTree(tags, noteCountsByTag, notes), [tags, noteCountsByTag, notes]);
+
+
+  const toggleCollapseTag = (path: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCollapsedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
 
   const handleContextMenuFolder = (e: React.MouseEvent, folder: Folder) => {
     setActiveFolderMenuId(null);
@@ -998,45 +1018,82 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <div className="space-y-0.5 mt-1">
-            {tags.length === 0 ? (
+            {tagTree.length === 0 ? (
               <div className="px-2 py-1 text-[11px] text-slate-500 italic">{t.no_tags}</div>
             ) : (
-              tags.map((tag) => {
-                const isSelected = selectedTagId === tag.title;
-                const count = noteCountsByTag[tag.title] || 0;
-                return (
-                  <div
-                    key={tag.id}
-                    onClick={() => onSelectTag(tag.title)}
-                    className={`group w-full flex items-center justify-between px-2 py-1 rounded transition cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-blue-600/30 text-white font-medium border-l-2 border-blue-500'
-                        : 'text-slate-300 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-                      <TagIcon className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span className="truncate">{tag.title}</span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {onDeleteTag && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteTag(tag.id, tag.title);
-                          }}
-                          title={language === 'id' ? 'Hapus Tag' : 'Delete Tag'}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 rounded hover:bg-slate-700/60 transition"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+              (() => {
+                const renderNode = (node: TagTreeNode): React.ReactNode => {
+                  const isSelected = selectedTagId === node.fullPath;
+                  const isParentOfSelected =
+                    !isSelected && selectedTagId ? isTagOrSubtag(selectedTagId, node.fullPath) : false;
+                  const hasChildren = node.children && node.children.length > 0;
+                  const isCollapsed = collapsedTags.has(node.fullPath);
+                  const count = node.cumulativeCount;
+
+                  return (
+                    <div key={node.fullPath} className="space-y-0.5">
+                      <div
+                        onClick={() => onSelectTag(node.fullPath)}
+                        style={{ paddingLeft: `${4 + node.depth * 12}px` }}
+                        className={`group w-full flex items-center justify-between pr-2 py-1 rounded transition cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-blue-600/30 text-white font-medium border-l-2 border-blue-500'
+                            : isParentOfSelected
+                            ? 'bg-blue-950/40 text-blue-300'
+                            : 'text-slate-300 hover:bg-slate-800/60'
+                        }`}
+                        title={node.fullPath}
+                      >
+                        <div className="flex items-center gap-1 truncate flex-1 min-w-0">
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              onClick={(e) => toggleCollapseTag(node.fullPath, e)}
+                              className="p-0.5 hover:text-white rounded hover:bg-slate-700/60 transition text-slate-400 shrink-0"
+                            >
+                              {isCollapsed ? (
+                                <ChevronRight className="w-3 h-3" />
+                              ) : (
+                                <ChevronDown className="w-3 h-3" />
+                              )}
+                            </button>
+                          ) : (
+                            <TagIcon className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
+                          )}
+                          <span className="truncate text-xs">{node.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onDeleteTag && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteTag(node.tagId || `tag_${node.fullPath}`, node.fullPath);
+                              }}
+                              title={language === 'id' ? 'Hapus Tag' : 'Delete Tag'}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-400 rounded hover:bg-slate-700/60 transition"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+
+                          <span className="text-[10px] text-slate-500 font-mono px-1 py-0.2 rounded bg-slate-800/50">
+                            {count}
+                          </span>
+                        </div>
+                      </div>
+
+                      {hasChildren && !isCollapsed && (
+                        <div className="space-y-0.5">
+                          {node.children.map((child) => renderNode(child))}
+                        </div>
                       )}
-                      <span className="text-[10px] text-slate-500 font-mono">{count}</span>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                };
+
+                return tagTree.map((rootNode) => renderNode(rootNode));
+              })()
             )}
           </div>
         </div>

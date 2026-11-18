@@ -208,13 +208,35 @@ export const NoteList: React.FC<NoteListProps> = ({
   // Strip markdown tags for clean snippet preview
   const getCleanSnippet = (body: string) => {
     if (!body) return t.no_additional_text;
-    return body
+    const clean = body
       .replace(/#+\s+/g, '')
       .replace(/[*_~`#\[\]\(\)>]/g, '')
       .replace(/\n+/g, ' ')
-      .trim()
-      .substring(0, 85);
+      .trim();
+
+    if (!clean) return t.no_additional_text;
+
+    if (searchQuery && searchQuery.trim()) {
+      const parsed = parseAdvancedSearchQuery(searchQuery);
+      if (parsed.freeTextTokens.length > 0) {
+        const lower = clean.toLowerCase();
+        for (const token of parsed.freeTextTokens) {
+          const pos = lower.indexOf(token.toLowerCase());
+          if (pos !== -1) {
+            const start = Math.max(0, pos - 20);
+            const end = Math.min(clean.length, pos + 75);
+            let snip = clean.slice(start, end).trim();
+            if (start > 0) snip = '...' + snip;
+            if (end < clean.length) snip = snip + '...';
+            return snip;
+          }
+        }
+      }
+    }
+
+    return clean.substring(0, 85);
   };
+
 
   return (
     <div className="flex flex-col h-full w-full bg-[#1b2434] border-r border-slate-700/80 select-none">

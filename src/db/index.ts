@@ -1985,7 +1985,8 @@ export async function alignAndDeduplicatePresetNotes(
   }
 }
 
-export const PRENOTE_CURRICULUM_VERSION = '1.6.0';
+export const PRENOTE_CURRICULUM_VERSION = '1.7.0';
+
 
 /**
  * Updates preset sample notes and default folders when user changes language

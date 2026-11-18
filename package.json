@@ -1,8 +1,9 @@
 {
   "name": "qalam-note",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Local-first, encrypted note-taking application with Dexie.js, PWA offline support, bi-directional LTR & RTL editor, multi-backend vault sync, and serverless web publishing.",
+
   "homepage": "https://qalam-note.aiprojek01.my.id/",
   "repository": {
     "type": "git",

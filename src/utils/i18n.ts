@@ -291,7 +291,7 @@ export const TRANSLATIONS = {
     custom_sync_hint: 'Menyimpan berkas sinkronisasi ke folder sync_vault di VPS, Docker, atau server Node.js pribadi Anda.',
     test_cloudflare_sync: 'Uji Koneksi Cloudflare Sync',
     test_custom_sync: 'Uji Koneksi Server Mandiri Sync',
-    restore_prenotes_btn: 'Perbarui & Pulihkan Catatan Panduan (v1.7.0)',
+    restore_prenotes_btn: 'Perbarui & Pulihkan Catatan Panduan (v1.8.0)',
 
     restore_prenotes_desc: 'Memulihkan seluruh panduan resmi Qalam Note terbaru ke folder Selamat Datang tanpa mengubah catatan pribadi Anda.',
     restore_prenotes_success: 'Catatan panduan resmi berhasil dipulihkan dan diperbarui!',
@@ -639,7 +639,7 @@ export const TRANSLATIONS = {
     custom_sync_hint: 'Stores encrypted sync files into sync_vault directory on your private VPS, Docker, or Node.js server.',
     test_cloudflare_sync: 'Test Cloudflare Sync Connection',
     test_custom_sync: 'Test Custom Server Sync Connection',
-    restore_prenotes_btn: 'Update & Restore Preset Guides (v1.7.0)',
+    restore_prenotes_btn: 'Update & Restore Preset Guides (v1.8.0)',
     restore_prenotes_desc: 'Restores all latest official Qalam Note guides into Welcome notebook without modifying your personal notes.',
     restore_prenotes_success: 'Official guide notes successfully restored and updated!',
     webdav_config: 'WebDAV Server Configuration',

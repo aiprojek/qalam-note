@@ -45,6 +45,7 @@ export function generateObsidianMarkdown(note: Note, folderPath: string = ''): s
     note.is_todo && note.todo_completed ? `completed: ${new Date(note.todo_completed).toISOString()}` : null,
     note.is_favorite ? 'favorite: true' : null,
     note.is_pinned ? 'pinned: true' : null,
+    note.is_encrypted ? 'is_encrypted: true' : null,
     folderPath ? `folder: "${folderPath.replace(/"/g, '\\"')}"` : null,
     'source: "Qalam Note"',
     '---',
@@ -53,7 +54,12 @@ export function generateObsidianMarkdown(note: Note, folderPath: string = ''): s
     .filter((line) => line !== null)
     .join('\n');
 
-  return `${frontmatter}\n${note.body || ''}\n`;
+  let noteBody = note.body || '';
+  if (note.is_encrypted && note.encrypted_data && !noteBody) {
+    noteBody = `-----BEGIN QALAM ENCRYPTED PAYLOAD-----\n${note.encrypted_data.ciphertext}\n-----END QALAM ENCRYPTED PAYLOAD-----`;
+  }
+
+  return `${frontmatter}\n${noteBody}\n`;
 }
 
 /**

@@ -67,7 +67,13 @@ import {
   unpublishWikiFromGAS,
 } from './services/gas';
 import { executeSync, exportAllData, importData } from './services/sync';
-import { isVaultUnlocked, lockVault } from './services/crypto';
+import {
+  isVaultUnlocked,
+  lockVault,
+  getSessionMasterKey,
+  encryptNotePayloadForSync,
+  decryptAllEncryptedNotesInDb,
+} from './services/crypto';
 import { saveAttachment, dataUrlToBlob, migrateAllNotesInlineAttachments } from './utils/attachments';
 import {
   exportNoteToMarkdown,
@@ -525,8 +531,16 @@ export default function App() {
       const loadedNotes = await db.notes.toArray();
       const loadedTags = await db.tags.toArray();
 
+      const initialUnlocked = isVaultUnlocked();
+      const sanitizedNotes = loadedNotes.map((n) => {
+        if (n.is_encrypted && !initialUnlocked && n.encrypted_data) {
+          return { ...n, body: '' };
+        }
+        return n;
+      });
+
       setFolders(loadedFolders);
-      setNotes(loadedNotes);
+      setNotes(sanitizedNotes);
       setTags(loadedTags);
 
       // Select first folder if none selected or if previous selectedFolderId was deleted
@@ -721,6 +735,18 @@ export default function App() {
       sync_status: 'pending',
     });
 
+    if (updatedNote.is_encrypted && isVaultUnlocked() && settings.e2ee.salt) {
+      const masterKey = getSessionMasterKey();
+      if (masterKey) {
+        try {
+          const enc = await encryptNotePayloadForSync(updatedNote, settings.e2ee.salt, masterKey);
+          updatedNote.encrypted_data = enc;
+        } catch (e) {
+          console.warn('Could not pre-encrypt note payload:', e);
+        }
+      }
+    }
+
     setNotes((prev) => prev.map((n) => (n.id === selectedNoteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
     requestAutoSync(5000);
@@ -742,6 +768,18 @@ export default function App() {
       updated_time: Date.now(),
       sync_status: 'pending',
     });
+
+    if (updatedNote.is_encrypted && isVaultUnlocked() && settings.e2ee.salt) {
+      const masterKey = getSessionMasterKey();
+      if (masterKey) {
+        try {
+          const enc = await encryptNotePayloadForSync(updatedNote, settings.e2ee.salt, masterKey);
+          updatedNote.encrypted_data = enc;
+        } catch (e) {
+          console.warn('Could not pre-encrypt note payload:', e);
+        }
+      }
+    }
 
     setNotes((prev) => prev.map((n) => (n.id === noteId ? updatedNote : n)));
     await db.notes.put(updatedNote);
@@ -1430,7 +1468,14 @@ export default function App() {
     if (updated.markdown_view_mode) {
       setMarkdownViewMode(updated.markdown_view_mode);
     }
-    setVaultUnlocked(isVaultUnlocked());
+    const unlockedNow = isVaultUnlocked();
+    setVaultUnlocked(unlockedNow);
+    if (unlockedNow) {
+      const res = await decryptAllEncryptedNotesInDb();
+      if (res.decryptedCount > 0) {
+        setNotes(res.updatedNotes);
+      }
+    }
 
     if (newSettings.language && newSettings.language !== prevLanguage) {
       await updatePresetNotesLanguage(newSettings.language);
@@ -1445,7 +1490,15 @@ export default function App() {
     const activeFolders = allFolders.filter((f) => !f.is_deleted);
     const activeNotes = refreshedNotes.filter((n) => !n.is_deleted);
 
-    setNotes(refreshedNotes);
+    const currentUnlocked = isVaultUnlocked();
+    const sanitizedRefreshed = refreshedNotes.map((n) => {
+      if (n.is_encrypted && !currentUnlocked && n.encrypted_data) {
+        return { ...n, body: '' };
+      }
+      return n;
+    });
+
+    setNotes(sanitizedRefreshed);
     setFolders(activeFolders);
     setTags(loadedTags);
 
@@ -1481,7 +1534,14 @@ export default function App() {
 
       // Reload updated notes, folders, and tags from Dexie
       const refreshedNotes = await db.notes.toArray();
-      setNotes(refreshedNotes);
+      const currentUnlocked = isVaultUnlocked();
+      const sanitizedSyncNotes = refreshedNotes.map((n) => {
+        if (n.is_encrypted && !currentUnlocked && n.encrypted_data) {
+          return { ...n, body: '' };
+        }
+        return n;
+      });
+      setNotes(sanitizedSyncNotes);
       const allFolders = await db.folders.toArray();
       setFolders(allFolders.filter((f) => !f.is_deleted));
       const allTags = await db.tags.toArray();
@@ -1651,13 +1711,24 @@ export default function App() {
     if (vaultUnlocked) {
       lockVault();
       setVaultUnlocked(false);
+      setNotes((prev) =>
+        prev.map((n) => (n.is_encrypted ? { ...n, body: '' } : n))
+      );
     } else {
       setIsUnlockVaultOpen(true);
     }
   };
 
+  const handleVaultUnlockedSuccess = async () => {
+    setVaultUnlocked(true);
+    const res = await decryptAllEncryptedNotesInDb();
+    if (res.decryptedCount > 0) {
+      setNotes(res.updatedNotes);
+    }
+  };
+
   // Toggle encryption on active note
-  const handleToggleEncryptNote = () => {
+  const handleToggleEncryptNote = async () => {
     if (!settings.e2ee.enabled) {
       setIsSettingsOpen(true);
       setSettingsInitialTab('encryption');
@@ -1669,7 +1740,16 @@ export default function App() {
     }
     const current = notes.find((n) => n.id === selectedNoteId);
     if (!current) return;
-    handleUpdateNote({ is_encrypted: !current.is_encrypted });
+    const nextEncrypted = !current.is_encrypted;
+    let encData = undefined;
+    if (nextEncrypted && settings.e2ee.salt && getSessionMasterKey()) {
+      try {
+        encData = await encryptNotePayloadForSync(current, settings.e2ee.salt, getSessionMasterKey()!);
+      } catch (e) {
+        console.warn('Could not encrypt note payload:', e);
+      }
+    }
+    handleUpdateNote({ is_encrypted: nextEncrypted, encrypted_data: encData });
   };
 
   // Open / Follow WikiLink: Search existing note or create a new note with target title!
@@ -2551,6 +2631,7 @@ export default function App() {
                   onOpenInSplitScreen={handleOpenInSplitScreen}
                   onCopyNoteMarkdown={handleCopyNoteMarkdown}
                   folders={folders}
+                  isVaultUnlocked={vaultUnlocked}
                 />
               </div>
             )}
@@ -2762,6 +2843,7 @@ export default function App() {
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
                       folders={folders}
+                      isVaultUnlocked={vaultUnlocked}
                     />
                   </div>
                 )}
@@ -2992,6 +3074,7 @@ export default function App() {
                       onOpenInSplitScreen={handleOpenInSplitScreen}
                       onCopyNoteMarkdown={handleCopyNoteMarkdown}
                       folders={folders}
+                      isVaultUnlocked={vaultUnlocked}
                     />
                   </div>
                 )}
@@ -3256,7 +3339,7 @@ export default function App() {
       {isUnlockVaultOpen && (
         <UnlockVaultModal
           e2eeConfig={settings.e2ee}
-          onSuccess={() => setVaultUnlocked(true)}
+          onSuccess={handleVaultUnlockedSuccess}
           onClose={() => setIsUnlockVaultOpen(false)}
           language={settings.language}
         />

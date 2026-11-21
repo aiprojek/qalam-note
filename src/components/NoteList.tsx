@@ -69,6 +69,7 @@ interface NoteListProps {
   onCopyNoteMarkdown?: (note: Note) => void;
   folders?: Folder[];
   theme?: string;
+  isVaultUnlocked?: boolean;
 }
 
 export const NoteList: React.FC<NoteListProps> = ({
@@ -110,6 +111,7 @@ export const NoteList: React.FC<NoteListProps> = ({
   onCopyNoteMarkdown,
   folders = [],
   theme = 'qalam-dark',
+  isVaultUnlocked = false,
 }) => {
   const isLight = theme === 'qalam-light' || theme === 'light';
   const [activeMenuNoteId, setActiveMenuNoteId] = useState<string | null>(null);
@@ -724,6 +726,15 @@ export const NoteList: React.FC<NoteListProps> = ({
                             </div>
                           );
                         })()
+                      ) : note.is_encrypted && !isVaultUnlocked ? (
+                        <p className="text-[11px] text-amber-400/80 italic mt-0.5 leading-snug flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5 shrink-0" />
+                          <span>
+                            {language === 'id'
+                              ? 'Catatan terenkripsi E2EE (Terkunci)'
+                              : 'E2EE Encrypted Note (Locked)'}
+                          </span>
+                        </p>
                       ) : (
                         <p dir="auto" className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 leading-snug">
                           {getCleanSnippet(note.body)}

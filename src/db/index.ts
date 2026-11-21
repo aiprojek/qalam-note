@@ -1985,7 +1985,7 @@ export async function alignAndDeduplicatePresetNotes(
   }
 }
 
-export const PRENOTE_CURRICULUM_VERSION = '1.7.0';
+export const PRENOTE_CURRICULUM_VERSION = '1.8.0';
 
 
 /**

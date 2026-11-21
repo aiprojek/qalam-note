@@ -11,8 +11,8 @@ export interface ChangelogItem {
   };
 }
 
-export const APP_VERSION = '1.7.0';
-export const APP_BUILD_DATE = '2026-11-17';
+export const APP_VERSION = '1.8.0';
+export const APP_BUILD_DATE = '2026-11-20';
 export const APP_LICENSE_NAME = 'GNU General Public License v3.0';
 export const APP_LICENSE_SHORT = 'GNU GPL v3';
 export const APP_LICENSE_URL = 'https://www.gnu.org/licenses/gpl-3.0.html';
@@ -23,6 +23,32 @@ export const TELEGRAM_URL = 'https://t.me/aiprojek_community/32#';
 export const GITHUB_REPO_URL = 'https://github.com/aiprojek/qalam-note';
 
 export const APP_CHANGELOG: ChangelogItem[] = [
+  {
+    version: '1.8.0',
+    date: '2026-11-20',
+    title: {
+      id: 'Pembaruan v1.8.0: Enkripsi Ujung-ke-Ujung (Zero-Knowledge E2EE Sync), Format Envelope Aman, Pertukaran Kunci Lintas-Perangkat, & Perbaikan Lockfile CI/CD',
+      en: 'v1.8.0 Milestone Release: Client-Side Zero-Knowledge E2EE Sync, Secure Markdown Envelopes, Cross-Device Key Exchange Pairing, & CI/CD Lockfile Fix',
+    },
+    highlights: {
+      id: [
+        'Enkripsi Ujung-ke-Ujung Klien Penuh (Zero-Knowledge E2EE Sync): Seluruh catatan terenkripsi kini diproteksi menggunakan cipher AES-GCM 256-bit dan derivasi kunci PBKDF2 langsung di browser sebelum diunggah ke penyedia sinkronisasi awan (WebDAV, Dropbox, Cloudflare KV, maupun Self-Hosted Node.js Server). Backend penyimpanan hanya menerima ciphertext teracak tanpa pernah mengetahui judul, isi, tag, lampiran, maupun status catatan.',
+        'Format Berkas Envelope Markdown (.md) Terenkripsi: Menghadirkan spesifikasi amplop enkripsi standar dengan metadata khusus (is_encrypted: 1, encryption_iv, encryption_salt, encrypted_data) dan payload terisolasi. Judul pada penyimpanan awan dimasking otomatis menjadi [Catatan Terenkripsi E2EE] dan metadata tag dibersihkan dari frontmatter untuk mencegah kebocoran informasi.',
+        'Kode Pairing Sinkronisasi Lintas-Perangkat (Cross-Device E2EE Pairing): Menambahkan dukungan pertukaran parameter kriptografi aman pada kode pairing (QLMSYNC1_...) yang memaketkan salt dan verifier hash. Memindai atau menempelkan kode pairing pada perangkat lain langsung menyelaraskan konfigurasi sinkronisasi dan parameter E2EE secara instan.',
+        'Dekripsi Batch Otomatis & Proteksi Memori Zero-Knowledge: Saat brankas (vault) dalam kondisi terkunci, memori runtime aplikasi (body: "") dan cuplikan teks di daftar catatan disanitasi serta digantikan dengan lencana gembok aman. Saat kata sandi brankas dimasukkan, sistem melakukan dekripsi batch otomatis di memori lokal.',
+        'Perbaikan Integritas Lockfile & CI/CD Clean-Install: Memperbarui dan menyinkronkan package-lock.json untuk mengatasi galat build EUSAGE pada npm ci di Cloudflare Pages dan pipeline CI otomatis (termasuk modul @types/katex, katex, dan commander).',
+        'Audit Keamanan & Penguatan Privasi UI: Menutup celah kebocoran cuplikan teks (snippet) pada daftar catatan saat vault terkunci, serta memastikan ekspor cadangan Markdown mempertahankan enkripsi ciphertext tanpa memaparkan data mentah.',
+      ],
+      en: [
+        'Full Client-Side Zero-Knowledge E2EE Sync: All encrypted notes are securely ciphered with AES-GCM 256-bit and PBKDF2 key derivation directly in the client browser before uploading to remote backends (WebDAV, Dropbox, Cloudflare KV, or Self-Hosted Node.js Server). Cloud servers only receive random ciphertext with zero knowledge of titles, bodies, tags, or attachments.',
+        'Encrypted Markdown Envelope Specification (.md): Formatted encrypted notes using a dedicated envelope structure with robust headers, metadata (is_encrypted: 1, encryption_iv, encryption_salt, encrypted_data), and payload isolation. Titles are masked to [Catatan Terenkripsi E2EE] and tag metadata is stripped on remote storage to prevent metadata exposure.',
+        'Cross-Device Pairing Code Crypto Exchange: Enhanced the sync pairing code protocol (QLMSYNC1_...) to transport E2EE salt and verifier hashes. Importing or scanning the pairing code on a secondary device configures both sync credentials and E2EE parameters seamlessly.',
+        'Automatic Batch Decryption & In-Memory Zero-Knowledge Shield: When the vault is locked, local memory (body: "") and note list excerpts are sanitized and replaced with a security badge. Unlocking the vault triggers instant in-memory batch decryption.',
+        'CI/CD Lockfile & Clean Install Fix: Synchronized package-lock.json to eliminate npm ci EUSAGE build failures on Cloudflare Pages and automated CI workflows for newly integrated dependencies (@types/katex, katex, commander).',
+        'Security Audit & UI Privacy Hardening: Eliminated snippet preview text leakage in NoteList when the vault is locked and ensured Obsidian markdown exports preserve ciphertext integrity without plain-text exposure.',
+      ],
+    },
+  },
   {
     version: '1.7.0',
     date: '2026-11-17',

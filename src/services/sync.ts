@@ -12,7 +12,18 @@ import {
   addDeletedSyncIds,
   removeDeletedSyncId,
 } from '../db';
-import type { Note, Folder, SyncConfig, Tag, GASConfig } from '../types';
+import type { Note, Folder, SyncConfig, Tag, GASConfig, E2EEConfig } from '../types';
+import {
+  isVaultUnlocked,
+  getSessionMasterKey,
+  encryptNotePayloadForSync,
+  decryptNotePayloadFromSync,
+  generateSalt,
+} from './crypto';
+
+export const ENCRYPTED_NOTE_HEADER = '[Catatan Terenkripsi E2EE]';
+export const ENCRYPTED_PAYLOAD_START = '-----BEGIN QALAM ENCRYPTED PAYLOAD-----';
+export const ENCRYPTED_PAYLOAD_END = '-----END QALAM ENCRYPTED PAYLOAD-----';
 
 export interface SyncStatus {
   inProgress: boolean;
@@ -49,7 +60,12 @@ export function formatSyncTimestamp(timeMs?: number): string {
   return new Date(timeMs).toISOString();
 }
 
-export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', folderTitle?: string): string {
+export function serializeNoteItem(
+  item: Note | Folder,
+  type: 'note' | 'folder',
+  folderTitle?: string,
+  e2eeData?: { ciphertext: string; iv: string; salt?: string }
+): string {
   const meta: Record<string, any> = {
     id: item.id,
     type_: type === 'note' ? 1 : 2,
@@ -78,17 +94,34 @@ export function serializeNoteItem(item: Note | Folder, type: 'note' | 'folder', 
     if (note.text_direction) meta.text_direction = note.text_direction;
     if (note.order !== undefined) meta.order = note.order;
     if (note.is_kanban) meta.is_kanban = 1;
-    if (note.kanban_data) meta.kanban_data = JSON.stringify(note.kanban_data);
-    if (note.kanban_status) meta.kanban_status = note.kanban_status;
-    if (note.encrypted_data) meta.encrypted_data = JSON.stringify(note.encrypted_data);
-    if (note.attachments && note.attachments.length > 0) {
-      meta.attachments = JSON.stringify(note.attachments);
+
+    // True Zero-Knowledge Client-Side E2EE Serialization:
+    const activeE2EE = e2eeData || note.encrypted_data;
+    if (note.is_encrypted && activeE2EE && activeE2EE.ciphertext && activeE2EE.iv) {
+      meta.encryption_iv = activeE2EE.iv;
+      if (activeE2EE.salt) meta.encryption_salt = activeE2EE.salt;
+      meta.encrypted_data = JSON.stringify({
+        ciphertext: activeE2EE.ciphertext,
+        iv: activeE2EE.iv,
+        salt: activeE2EE.salt || '',
+      });
+      // Do not leak plaintext tags in remote metadata
+      meta.tags = '';
+      body = `${ENCRYPTED_NOTE_HEADER}\n\n${ENCRYPTED_PAYLOAD_START}\n${activeE2EE.ciphertext}\n${ENCRYPTED_PAYLOAD_END}`;
+    } else {
+      if (note.kanban_data) meta.kanban_data = JSON.stringify(note.kanban_data);
+      if (note.kanban_status) meta.kanban_status = note.kanban_status;
+      if (note.encrypted_data) meta.encrypted_data = JSON.stringify(note.encrypted_data);
+      if (note.attachments && note.attachments.length > 0) {
+        meta.attachments = JSON.stringify(note.attachments);
+      }
+      body = `${note.title}\n\n${note.body}`;
     }
+
     if (note.published_info && note.published_info.is_published) {
       meta.published_info = JSON.stringify(note.published_info);
       meta.is_published = 1;
     }
-    body = `${note.title}\n\n${note.body}`;
   } else {
     const folder = item as Folder;
     meta.parent_id = folder.parent_id || '';
@@ -131,6 +164,7 @@ export function parseSyncItem(rawContent: string): {
   meta: Record<string, string>;
   title: string;
   body: string;
+  encryptedData?: { ciphertext: string; iv: string; salt: string };
 } {
   const lines = rawContent.replace(/\r\n/g, '\n').split('\n');
   const metaLines: string[] = [];
@@ -187,7 +221,27 @@ export function parseSyncItem(rawContent: string): {
       title = rawBody.substring(0, firstNewline).trim();
       body = rawBody.substring(firstNewline + 1).replace(/^\n+/, '');
     }
-    return { type, meta, title, body };
+
+    let encryptedData: { ciphertext: string; iv: string; salt: string } | undefined = undefined;
+    if (meta.encrypted_data) {
+      try {
+        encryptedData = JSON.parse(meta.encrypted_data);
+      } catch {}
+    }
+    if (!encryptedData && meta.encryption_iv) {
+      const sIdx = rawBody.indexOf(ENCRYPTED_PAYLOAD_START);
+      const eIdx = rawBody.indexOf(ENCRYPTED_PAYLOAD_END);
+      if (sIdx !== -1 && eIdx !== -1) {
+        const cipher = rawBody.substring(sIdx + ENCRYPTED_PAYLOAD_START.length, eIdx).trim();
+        encryptedData = {
+          ciphertext: cipher,
+          iv: meta.encryption_iv,
+          salt: meta.encryption_salt || '',
+        };
+      }
+    }
+
+    return { type, meta, title, body, encryptedData };
   } else if (type === 'folder') {
     const folderTitle = (rawBody || meta.title || meta.name || '').trim();
     return { type, meta, title: folderTitle, body: '' };
@@ -1202,7 +1256,24 @@ export async function executeSync(
 
         try {
           const parentFolder = localFolders.find((f) => f.id === note.folder_id);
-          const content = serializeNoteItem(note, 'note', parentFolder?.title);
+          let e2eeDataToUpload = note.encrypted_data;
+
+          if (note.is_encrypted) {
+            const masterKey = getSessionMasterKey();
+            if (isVaultUnlocked() && masterKey) {
+              const currentSettings = await db.settings.get('app_settings');
+              const salt = currentSettings?.value?.e2ee?.salt || generateSalt();
+              const freshEnc = await encryptNotePayloadForSync(note, salt, masterKey);
+              e2eeDataToUpload = freshEnc;
+              note.encrypted_data = freshEnc;
+              await db.notes.update(note.id, { encrypted_data: freshEnc });
+            } else if (!e2eeDataToUpload) {
+              console.warn(`Skipping note "${note.id}" upload: Vault is locked and no ciphertext exists.`);
+              continue;
+            }
+          }
+
+          const content = serializeNoteItem(note, 'note', parentFolder?.title, e2eeDataToUpload);
           await uploadRemote(`${note.id}.md`, content);
           uploadedCount++;
           await db.notes.update(note.id, { sync_time: Date.now(), sync_status: 'synced' });
@@ -1453,12 +1524,14 @@ export async function executeSync(
             attachmentsParsed = JSON.parse(parsed.meta.attachments);
           } catch {}
         }
-        let encryptedDataParsed: any = undefined;
-        if (parsed.meta.encrypted_data) {
-          try {
-            encryptedDataParsed = JSON.parse(parsed.meta.encrypted_data);
-          } catch {}
-        }
+        const encryptedDataParsed = parsed.encryptedData || (() => {
+          if (parsed.meta.encrypted_data) {
+            try {
+              return JSON.parse(parsed.meta.encrypted_data);
+            } catch {}
+          }
+          return undefined;
+        })();
 
         let publishedInfoParsed: any = undefined;
         if (parsed.meta.published_info) {
@@ -1515,21 +1588,52 @@ export async function executeSync(
           targetFolderId = activeFolder?.id || 'folder-welcome-01';
         }
 
+        let finalTitle = parsed.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note');
+        let finalBody = parsed.body || '';
+        let finalAttachments = Array.isArray(attachmentsParsed) ? attachmentsParsed : (localNote?.attachments || []);
+        let finalTags = parsed.meta.tags
+          ? parsed.meta.tags.split(',').map((t) => t.trim()).filter(Boolean)
+          : (localNote?.tags || []);
+        let finalIsKanban = parsed.meta.is_kanban === '1';
+        let finalKanbanData = parsed.meta.kanban_data ? JSON.parse(parsed.meta.kanban_data) : undefined;
+
+        if (parsed.meta.is_encrypted === '1' && encryptedDataParsed?.ciphertext && encryptedDataParsed?.iv) {
+          const masterKey = getSessionMasterKey();
+          if (isVaultUnlocked() && masterKey) {
+            try {
+              const decrypted = await decryptNotePayloadFromSync(
+                encryptedDataParsed.ciphertext,
+                encryptedDataParsed.iv,
+                masterKey
+              );
+              finalTitle = decrypted.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note');
+              finalBody = decrypted.body || '';
+              if (decrypted.tags) finalTags = decrypted.tags;
+              if (decrypted.attachments) finalAttachments = decrypted.attachments;
+              if (decrypted.is_kanban !== undefined) finalIsKanban = decrypted.is_kanban;
+              if (decrypted.kanban_data) finalKanbanData = decrypted.kanban_data;
+            } catch (decErr) {
+              console.warn(`Could not decrypt remote note ${noteId} with session key:`, decErr);
+              finalTitle = isId ? '[Catatan Terenkripsi E2EE]' : '[E2EE Encrypted Note]';
+              finalBody = '';
+            }
+          } else {
+            // Vault locked on this device
+            finalTitle = isId ? '[Catatan Terenkripsi E2EE]' : '[E2EE Encrypted Note]';
+            finalBody = '';
+          }
+        }
+
         const remoteNote: Note = cleanNoteForDb({
           id: noteId,
           folder_id: targetFolderId,
-          title: parsed.title || (isId ? 'Catatan Tanpa Judul' : 'Untitled Note'),
-          body: parsed.body || '',
+          title: finalTitle,
+          body: finalBody,
           body_html: '',
           is_todo: parsed.meta.is_todo === '1',
           todo_completed: Number(parsed.meta.todo_completed || 0),
           todo_due: Number(parsed.meta.todo_due || 0),
-          tags: parsed.meta.tags
-            ? parsed.meta.tags
-                .split(',')
-                .map((t) => t.trim())
-                .filter(Boolean)
-            : [],
+          tags: finalTags,
           is_favorite: parsed.meta.is_favorite === '1',
           is_pinned: parsed.meta.is_pinned === '1',
           is_rtl: parsed.meta.is_rtl === '1',
@@ -1539,14 +1643,14 @@ export async function executeSync(
           is_encrypted: parsed.meta.is_encrypted === '1',
           encrypted_data: encryptedDataParsed || localNote?.encrypted_data,
           published_info: publishedInfoParsed || localNote?.published_info,
-          attachments: Array.isArray(attachmentsParsed) ? attachmentsParsed : (localNote?.attachments || []),
+          attachments: finalAttachments,
           created_time: parseSyncTimestamp(parsed.meta.created_time),
           updated_time: parseSyncTimestamp(parsed.meta.updated_time),
           sync_time: Date.now(),
           sync_status: 'synced',
           order: Number(parsed.meta.order || 0),
-          is_kanban: parsed.meta.is_kanban === '1',
-          kanban_data: parsed.meta.kanban_data ? JSON.parse(parsed.meta.kanban_data) : undefined,
+          is_kanban: finalIsKanban,
+          kanban_data: finalKanbanData,
           kanban_status: (parsed.meta.kanban_status as any) || undefined,
         });
 
@@ -1777,11 +1881,21 @@ export interface SyncPairingPayload {
     author_name?: string;
     auto_update_on_edit?: boolean;
   };
+  e2ee?: {
+    enabled: boolean;
+    salt: string;
+    verifier_hash: string;
+    auto_lock_minutes?: number;
+  };
 }
 
-export type ParsedPairingResult = SyncConfig & { gas?: GASConfig };
+export type ParsedPairingResult = SyncConfig & { gas?: GASConfig; e2ee?: E2EEConfig };
 
-export function generateSyncPairingCode(syncConfig: SyncConfig, gasConfig?: GASConfig): string {
+export function generateSyncPairingCode(
+  syncConfig: SyncConfig,
+  gasConfig?: GASConfig,
+  e2eeConfig?: E2EEConfig
+): string {
   if (syncConfig.target === 'disabled') {
     throw new Error('Target sinkronisasi belum dipilih (masih Nonaktif).');
   }
@@ -1792,6 +1906,15 @@ export function generateSyncPairingCode(syncConfig: SyncConfig, gasConfig?: GASC
     ts: Date.now(),
     auto_sync_interval: syncConfig.auto_sync_interval || 15,
   };
+
+  if (e2eeConfig && e2eeConfig.enabled && e2eeConfig.salt && e2eeConfig.verifier_hash) {
+    payload.e2ee = {
+      enabled: true,
+      salt: e2eeConfig.salt,
+      verifier_hash: e2eeConfig.verifier_hash,
+      auto_lock_minutes: e2eeConfig.auto_lock_minutes ?? 15,
+    };
+  }
 
   if (gasConfig && gasConfig.web_app_url && gasConfig.web_app_url.trim()) {
     payload.gas = {
@@ -1886,6 +2009,16 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         }
       : undefined;
 
+    const e2eeConfig: E2EEConfig | undefined = payload.e2ee && payload.e2ee.enabled
+      ? {
+          enabled: true,
+          is_unlocked: false,
+          salt: payload.e2ee.salt,
+          verifier_hash: payload.e2ee.verifier_hash,
+          auto_lock_minutes: payload.e2ee.auto_lock_minutes ?? 15,
+        }
+      : undefined;
+
     const defaultWebdav = {
       url: 'https://webdav.nextcloud.com/remote.php/webdav/qalam/',
       username: '',
@@ -1914,6 +2047,7 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
         gas: gasConfig,
+        e2ee: e2eeConfig,
         webdav: {
           url: payload.webdav.url,
           username: payload.webdav.username || '',
@@ -1931,6 +2065,7 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
         gas: gasConfig,
+        e2ee: e2eeConfig,
         webdav: defaultWebdav,
         dropbox: {
           app_key: payload.dropbox.app_key || '',
@@ -1949,6 +2084,7 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
         gas: gasConfig,
+        e2ee: e2eeConfig,
         webdav: defaultWebdav,
         dropbox: defaultDropbox,
         cloudflare: {
@@ -1963,6 +2099,7 @@ export function parseSyncPairingCode(code: string): ParsedPairingResult | null {
         auto_sync_interval: payload.auto_sync_interval || 15,
         last_sync_time: 0,
         gas: gasConfig,
+        e2ee: e2eeConfig,
         webdav: defaultWebdav,
         dropbox: defaultDropbox,
         cloudflare: defaultCloudflare,

@@ -438,7 +438,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
         return;
       }
-      const code = generateSyncPairingCode(formSettings.sync, formSettings.gas);
+      const code = generateSyncPairingCode(formSettings.sync, formSettings.gas, formSettings.e2ee);
       setPairingCodeOutput(code);
       navigator.clipboard.writeText(code);
       setPairingCodeCopied(true);
@@ -482,17 +482,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
     if (parsedConfig.gas && parsedConfig.gas.web_app_url) {
       updatedSettings.gas = parsedConfig.gas;
-      setFormSettings((prev) => ({
-        ...prev,
-        sync: parsedConfig,
-        gas: { ...prev.gas, ...parsedConfig.gas },
-      }));
-    } else {
-      setFormSettings((prev) => ({
-        ...prev,
-        sync: parsedConfig,
-      }));
     }
+    if (parsedConfig.e2ee && parsedConfig.e2ee.enabled) {
+      updatedSettings.e2ee = parsedConfig.e2ee;
+    }
+
+    setFormSettings((prev) => ({
+      ...prev,
+      sync: parsedConfig,
+      ...(parsedConfig.gas?.web_app_url ? { gas: { ...prev.gas, ...parsedConfig.gas } } : {}),
+      ...(parsedConfig.e2ee?.enabled ? { e2ee: { ...prev.e2ee, ...parsedConfig.e2ee } } : {}),
+    }));
     onSaveSettings(updatedSettings);
     setPairingInputCode('');
 

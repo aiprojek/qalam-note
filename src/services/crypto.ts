@@ -3,6 +3,9 @@
  * Uses Web Crypto API: PBKDF2 + AES-GCM 256-bit
  */
 
+import { db } from '../db';
+import type { Note } from '../types';
+
 // In-memory unlocked CryptoKey (cleared on lock or tab close)
 let sessionMasterKey: CryptoKey | null = null;
 let sessionPassphrase: string | null = null;
@@ -195,6 +198,68 @@ export async function encryptWithPassword(
   return { ...res, salt };
 }
 
+export function getSessionMasterKey(): CryptoKey | null {
+  return sessionMasterKey;
+}
+
+export function setSessionMasterKey(key: CryptoKey, passphrase?: string): void {
+  sessionMasterKey = key;
+  if (passphrase) sessionPassphrase = passphrase;
+}
+
+export interface EncryptedNotePayload {
+  title: string;
+  body: string;
+  tags?: string[];
+  attachments?: any[];
+  is_kanban?: boolean;
+  kanban_data?: any;
+}
+
+/**
+ * Encrypt a note's sensitive fields (title, body, tags, attachments, kanban) into AES-GCM 256 ciphertext.
+ */
+export async function encryptNotePayloadForSync(
+  note: {
+    title: string;
+    body: string;
+    tags?: string[];
+    attachments?: any[];
+    is_kanban?: boolean;
+    kanban_data?: any;
+  },
+  saltBase64: string,
+  customKey?: CryptoKey
+): Promise<{
+  ciphertext: string;
+  iv: string;
+  salt: string;
+}> {
+  const payload: EncryptedNotePayload = {
+    title: note.title || '',
+    body: note.body || '',
+    tags: note.tags,
+    attachments: note.attachments,
+    is_kanban: note.is_kanban,
+    kanban_data: note.kanban_data,
+  };
+  const json = JSON.stringify(payload);
+  const { ciphertext, iv } = await encryptText(json, customKey);
+  return { ciphertext, iv, salt: saltBase64 };
+}
+
+/**
+ * Decrypt a note's AES-GCM 256 ciphertext back into { title, body, attachments, kanban }
+ */
+export async function decryptNotePayloadFromSync(
+  ciphertextBase64: string,
+  ivBase64: string,
+  customKey?: CryptoKey
+): Promise<EncryptedNotePayload> {
+  const json = await decryptText(ciphertextBase64, ivBase64, customKey);
+  return JSON.parse(json) as EncryptedNotePayload;
+}
+
 /**
  * Decrypts ciphertext with a standalone passphrase (PBKDF2 + AES-GCM 256)
  */
@@ -206,4 +271,46 @@ export async function decryptWithPassword(
 ): Promise<string> {
   const key = await deriveKey(passphrase, base64ToUint8Array(saltBase64));
   return decryptText(ciphertextBase64, ivBase64, key);
+}
+
+/**
+ * Decrypt all encrypted notes in IndexedDB when vault is unlocked with master key.
+ */
+export async function decryptAllEncryptedNotesInDb(): Promise<{
+  decryptedCount: number;
+  updatedNotes: Note[];
+}> {
+  if (!isVaultUnlocked() || !sessionMasterKey) {
+    const currentNotes = await db.notes.toArray();
+    return { decryptedCount: 0, updatedNotes: currentNotes };
+  }
+
+  const allNotes = await db.notes.toArray();
+  let decryptedCount = 0;
+  const updatedNotes: Note[] = [];
+
+  for (const n of allNotes) {
+    if (n.is_encrypted && n.encrypted_data?.ciphertext && n.encrypted_data?.iv) {
+      try {
+        const decrypted = await decryptNotePayloadFromSync(
+          n.encrypted_data.ciphertext,
+          n.encrypted_data.iv,
+          sessionMasterKey
+        );
+        n.title = decrypted.title || n.title;
+        n.body = decrypted.body || '';
+        if (decrypted.tags) n.tags = decrypted.tags;
+        if (decrypted.attachments) n.attachments = decrypted.attachments;
+        if (decrypted.is_kanban !== undefined) n.is_kanban = decrypted.is_kanban;
+        if (decrypted.kanban_data) n.kanban_data = decrypted.kanban_data;
+        await db.notes.put(n);
+        decryptedCount++;
+      } catch (err) {
+        console.warn(`Could not decrypt note ${n.id} in batch:`, err);
+      }
+    }
+    updatedNotes.push(n);
+  }
+
+  return { decryptedCount, updatedNotes };
 }
